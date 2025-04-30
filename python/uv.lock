@@ -145,6 +145,15 @@ wheels = [
 ]
 
 [[package]]
+name = "bencode-py"
+version = "4.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e8/6f/1fc1f714edc73a9a42af816da2bda82bbcadf1d7f6e6cae854e7087f579b/bencode.py-4.0.0.tar.gz", hash = "sha256:2a24ccda1725a51a650893d0b63260138359eaa299bb6e7a09961350a2a6e05c", size = 19842, upload_time = "2020-06-12T04:34:05.734Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/15/9f/eabbc8c8a16db698d9c4bd24953763df2594b054237b89afe1ec56d3965e/bencode.py-4.0.0-py2.py3-none-any.whl", hash = "sha256:99c06a55764e85ffe81622fdf9ee78bd737bad3ea61d119784a54bb28860d962", size = 18975, upload_time = "2020-06-12T04:34:03.759Z" },
+]
+
+[[package]]
 name = "boto3"
 version = "1.37.1"
 source = { registry = "https://pypi.org/simple" }
@@ -188,6 +197,9 @@ wheels = [
 name = "brrr"
 version = "0.1.1.dev0"
 source = { editable = "." }
+dependencies = [
+    { name = "bencode-py" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -208,6 +220,7 @@ dev = [
 ]
 
 [package.metadata]
+requires-dist = [{ name = "bencode-py", specifier = ">=4.0.0" }]
 
 [package.metadata.requires-dev]
 dev = [
