@@ -5,10 +5,11 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from collections import namedtuple
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-import json
 import logging
 import time
 from typing import Any, TypeVar
+
+import bencodepy
 
 from brrr.call import Call
 from brrr.codec import Codec
@@ -60,14 +61,25 @@ class PendingReturns:
     # dictionary I can live with it.
 
     def encode(self) -> bytes:
-        return json.dumps([self.scheduled_at, list(sorted(self.returns))]).encode(
-            "utf-8"
+        return bencodepy.encode(
+            {
+                # This is a smell.
+                b"scheduled_at": self.scheduled_at or -1,
+                b"returns": list(
+                    sorted(map(lambda x: x.encode("us-ascii"), self.returns))
+                ),
+            }
         )
 
     @classmethod
     def decode(cls, enc: bytes) -> PendingReturns:
-        time, returns = json.loads(enc.decode("utf-8"))
-        return PendingReturns(time, set(returns))
+        decoded = bencodepy.decode(enc)
+        scheduled_at = decoded[b"scheduled_at"]
+        returns = decoded[b"returns"]
+        return PendingReturns(
+            None if scheduled_at == -1 else scheduled_at,
+            set(map(lambda x: x.decode("us-ascii"), returns)),
+        )
 
 
 MemKey = namedtuple("MemKey", ["type", "id"])
@@ -196,12 +208,10 @@ class Memory:
     async def get_call_bytes(self, memo_key: str) -> tuple[str, bytes]:
         # If this ever becomes a bottleneck I’ll eat my shoe.  O(who_cares).
         payload = await self.store.get(MemKey("call", memo_key))
-        idx1 = payload.index(b":")
-        name_len = int(payload[:idx1])
-        idx2 = idx1 + 1 + name_len  # + separator
-        task_name = payload[idx1 + 1 : idx2].decode("utf-8")
-        rest = payload[idx2 + 1 :]
-        return task_name, rest
+        decoded = bencodepy.decode(payload)
+        task_name = decoded[b"task_name"]
+        task_args = decoded[b"task_args"]
+        return task_name.decode("utf-8"), task_args
 
     async def has_call(self, call: Call):
         return await self.store.has(MemKey("call", call.memo_key))
@@ -209,11 +219,12 @@ class Memory:
     async def set_call(self, call: Call):
         if not isinstance(call, Call):
             raise ValueError(f"set_call expected a Call, got {call}")
-        # Completely ad-hoc encoding.
-        callbytes = self.codec.encode_call(call)
-        namebytes = call.task_name.encode("utf-8")
-        namelen = str(len(namebytes)).encode("us-ascii")
-        payload = b"%b:%b|%b" % (namelen, namebytes, callbytes)
+        payload = bencodepy.encode(
+            {
+                b"task_name": call.task_name.encode("utf-8"),
+                b"task_args": self.codec.encode_call(call),
+            }
+        )
         await self.store.set(MemKey("call", call.memo_key), payload)
 
     async def has_value(self, call: Call) -> bool:
