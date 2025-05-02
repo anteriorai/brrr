@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable
 import functools
 import logging
-from typing import Any, Concatenate
+from typing import Any, Concatenate, overload
 from uuid import uuid4
 
 from .call import Call
@@ -105,7 +105,52 @@ class Brrr:
     def are_we_inside_worker_context(self) -> Any:
         return self.worker_singleton
 
-    async def gather(self, *task_awaitables) -> Sequence[Any]:
+    # Type annotations for Brrr.gather are modeled after asyncio.gather:
+    # support explicit types for 1-5 arguments (and when all have the same type),
+    # and a catch-all for the rest.
+    @overload
+    async def gather[T1](self, coro_or_future1: Awaitable[T1]) -> tuple[T1]: ...
+    @overload
+    async def gather[T1, T2](
+        self, coro_or_future1: Awaitable[T1], coro_or_future2: Awaitable[T2]
+    ) -> tuple[T1, T2]: ...
+    @overload
+    async def gather[T1, T2, T3](
+        self,
+        coro_or_future1: Awaitable[T1],
+        coro_or_future2: Awaitable[T2],
+        coro_or_future3: Awaitable[T3],
+    ) -> tuple[T1, T2, T3]: ...
+    @overload
+    async def gather[T1, T2, T3, T4](
+        self,
+        coro_or_future1: Awaitable[T1],
+        coro_or_future2: Awaitable[T2],
+        coro_or_future3: Awaitable[T3],
+        coro_or_future4: Awaitable[T4],
+    ) -> tuple[T1, T2, T3, T4]: ...
+    @overload
+    async def gather[T1, T2, T3, T4, T5](
+        self,
+        coro_or_future1: Awaitable[T1],
+        coro_or_future2: Awaitable[T2],
+        coro_or_future3: Awaitable[T3],
+        coro_or_future4: Awaitable[T4],
+        coro_or_future5: Awaitable[T5],
+    ) -> tuple[T1, T2, T3, T4, T5]: ...
+    @overload
+    async def gather[T](self, *coro_or_futures: Awaitable[T]) -> list[T]: ...
+    @overload
+    async def gather(
+        self,
+        coro_or_future1: Awaitable[Any],
+        coro_or_future2: Awaitable[Any],
+        coro_or_future3: Awaitable[Any],
+        coro_or_future4: Awaitable[Any],
+        coro_or_future5: Awaitable[Any],
+        *coro_or_futures: Awaitable[Any],
+    ) -> list[Any]: ...
+    async def gather(self, *task_awaitables):
         """
         Takes a number of task lambdas and calls each of them.
         If they've all been computed, return their values,

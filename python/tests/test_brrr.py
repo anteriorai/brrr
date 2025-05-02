@@ -1,4 +1,5 @@
 import asyncio
+import typing
 from collections import Counter
 
 import pytest
@@ -29,17 +30,24 @@ async def test_no_brrr_map(handle_nobrrr):
     assert await handle_nobrrr.map([[3], [4]]) == [6, 10]
 
 
-async def test_gather():
+async def test_gather() -> None:
     b = Brrr()
 
     @b.register_task
     async def foo(a: int) -> int:
         return a * 2
 
-    assert await b.gather(foo(3), foo(4)) == [6, 8]
+    @b.register_task
+    async def bar(a: int) -> str:
+        return str(a - 1)
+
+    x, y = await b.gather(foo(3), bar(4))
+    typing.assert_type(x, int)
+    typing.assert_type(y, str)
+    assert x, y == (6, "3")
 
 
-async def _call_nested_gather(*, use_brrr_gather: bool):
+async def _call_nested_gather(*, use_brrr_gather: bool) -> list[str]:
     """
     Helper function to test that brrr.gather runs all brrr tasks in parallel,
     in contrast with how asyncio.gather only runs one at a time.
@@ -70,6 +78,7 @@ async def _call_nested_gather(*, use_brrr_gather: bool):
             result = await b.gather(*[baz(x) for x in xs])
         else:
             result = await asyncio.gather(*[baz(x) for x in xs])
+        typing.assert_type(result, list[int])
         # with b.gather, `top` is called twice after its dependencies are done,
         # but we can only close the queue once
         if not queue.closing:
