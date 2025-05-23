@@ -276,3 +276,18 @@ async def test_wrrrk_recoverable():
             "bar(2)": 2,
         }
     )
+
+
+def test_error_on_setup():
+    b = Brrr()
+
+    @b.register_task
+    async def foo(a: int):
+        return a
+
+    @b.register_task
+    async def foo(a: int):  # noqa: F811
+        return a * a
+
+    with pytest.raises(Exception):
+        b.setup()

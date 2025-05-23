@@ -72,6 +72,12 @@ class Brrr:
     # A queue of call keys to be processed
     queue: Queue
 
+    # An error which occurred during setup, if any.  Stored by value here and
+    # only raised when ‘.setup’ is called to avoid raising errors on import.
+    # Particularly useful for people who test code containing brrr tasks,
+    # e.g. pytest can want to load a file twice and that should be OK in a test.
+    _setup_error: Exception | None
+
     # Dictionary of task_name to task instance
     tasks: dict[str, Task]
 
@@ -86,6 +92,7 @@ class Brrr:
         self.cache = None
         self.memory = None
         self.queue = None
+        self._setup_error = None
         self.tasks = {}
         self.worker_singleton = None
         self._spawn_limit = 10_000
@@ -94,10 +101,21 @@ class Brrr:
     def setup(self, queue: Queue, store: Store, cache: Cache, codec: Codec):
         """Initialize the dependencies used by this brrr instance.
 
+        Brrr is not usable until this method is called.  This allows you to only
+        call .setup in your main() function and keep your code side-effect free
+        on import, e.g. for testing.
+
+        If any constraints were violated on registering of tasks, that error is
+        only raised when you call this function.  If there were multiple, an
+        arbitrary one is raised.
+
         Currently extremely explicit about its inputs while we're still figuring
         out the API.
 
         """
+        if self._setup_error is not None:
+            raise self._setup_error
+
         self._codec = codec
         self.cache = cache
         self.memory = Memory(store, self._codec)
@@ -225,7 +243,7 @@ class Brrr:
     def register_task(self, fn: AsyncFunc, name: str | None = None) -> Task:
         task = Task(self, fn, name)
         if task.name in self.tasks:
-            raise Exception(f"Task {task.name} already exists")
+            self._setup_error = Exception(f"Task {task.name} already exists")
         self.tasks[task.name] = task
         return task
 
