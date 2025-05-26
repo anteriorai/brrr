@@ -1,5 +1,5 @@
 from .brrr import Brrr
-from .brrr import Defer as Defer
+from .brrr import Defer as Defer, DeferredCall as DeferredCall
 from .brrr import SpawnLimitError as SpawnLimitError
 
 # For ergonomics, we provide a singleton and a bunch of proxies as the module interface.

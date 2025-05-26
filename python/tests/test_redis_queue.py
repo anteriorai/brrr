@@ -46,6 +46,6 @@ class TestRedisQueue(QueueContract):
     async def test_decode_error(self):
         async with self.with_queue() as queue:
             assert isinstance(queue, RedisQueue)
-            await queue.client.rpush(queue.queue, b"wrong")
+            await queue.client.rpush(queue.main_topic, b"wrong")
             with pytest.raises(Exception):
-                assert await queue.get_message()
+                assert await queue.get_message(queue.main_topic)

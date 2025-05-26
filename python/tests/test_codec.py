@@ -45,8 +45,8 @@ async def test_codec_key_no_args():
         return val
 
     b.setup(queue, store, store, codec)
-    await b.schedule("foo", (50,), {})
-    await b.wrrrk()
+    await b.schedule("test", "foo", (50,), {})
+    await b.wrrrk("test")
     await queue.join()
     assert calls == Counter(
         {
@@ -86,8 +86,8 @@ async def test_codec_api():
         return val
 
     b.setup(queue, store, store, codec)
-    await b.schedule("foo", (), {})
-    await b.wrrrk()
+    await b.schedule("test", "foo", (), {})
+    await b.wrrrk("test")
     await queue.join()
     codec.create_call.assert_has_calls(
         [

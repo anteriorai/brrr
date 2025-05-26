@@ -21,44 +21,39 @@ class QueueContract(ABC):
     async def test_queue_raises_empty(self):
         async with self.with_queue() as queue:
             with pytest.raises(QueueIsEmpty):
-                await queue.get_message()
+                await queue.get_message("foo")
 
     async def test_queue_enqueues(self):
+        queue: Queue
         async with self.with_queue() as queue:
-            messages = set(["message-1", "message-2", "message-3"])
+            messages = {"message-1", "message-2", "message-3"}
 
             if self.has_accurate_info:
-                assert (await queue.get_info()).num_messages == 0
+                assert (await queue.get_info("test-topic")).num_messages == 0
 
-            await queue.put_message("message-1")
-            if self.has_accurate_info:
-                assert (await queue.get_info()).num_messages == 1
+            for i, msg in enumerate(messages):
+                await queue.put_message("test-topic", msg)
+                if self.has_accurate_info:
+                    assert (await queue.get_info("test-topic")).num_messages == i + 1
 
-            await queue.put_message("message-2")
-            if self.has_accurate_info:
-                assert (await queue.get_info()).num_messages == 2
-
-            await queue.put_message("message-3")
-            if self.has_accurate_info:
-                assert (await queue.get_info()).num_messages == 3
-
-            message = await queue.get_message()
-            assert message.body in messages
-            messages.remove(message.body)
-            if self.has_accurate_info:
-                assert (await queue.get_info()).num_messages == 2
-
-            message = await queue.get_message()
-            assert message.body in messages
-            messages.remove(message.body)
-            if self.has_accurate_info:
-                assert (await queue.get_info()).num_messages == 1
-
-            message = await queue.get_message()
-            assert message.body in messages
-            messages.remove(message.body)
-            if self.has_accurate_info:
-                assert (await queue.get_info()).num_messages == 0
+            for i, msg in enumerate(set(messages)):
+                message = await queue.get_message("test-topic")
+                assert message.body in messages
+                messages.remove(message.body)
+                if self.has_accurate_info:
+                    assert (await queue.get_info("test-topic")).num_messages == len(
+                        messages
+                    )
 
             with pytest.raises(QueueIsEmpty):
-                await queue.get_message()
+                await queue.get_message("test-topic")
+
+    async def test_topics(self):
+        queue: Queue
+        async with self.with_queue() as queue:
+            await queue.put_message("test1", "one")
+            await queue.put_message("test2", "two")
+            await queue.put_message("test1", "one")
+            assert (await queue.get_message("test2")).body == "two"
+            assert (await queue.get_message("test1")).body == "one"
+            assert (await queue.get_message("test1")).body == "one"

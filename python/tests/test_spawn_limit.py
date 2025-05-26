@@ -8,6 +8,8 @@ from brrr.naive_codec import PickleCodec
 
 from .closable_test_queue import ClosableInMemQueue
 
+TOPIC = "brrr-test"
+
 
 async def test_spawn_limit_depth():
     b = Brrr()
@@ -27,9 +29,9 @@ async def test_spawn_limit_depth():
         return await foo(a - 1)
 
     b.setup(queue, store, store, PickleCodec())
-    await b.schedule("foo", (b._spawn_limit + 3,), {})
+    await b.schedule(TOPIC, "foo", (b._spawn_limit + 3,), {})
     with pytest.raises(SpawnLimitError):
-        await b.wrrrk()
+        await b.wrrrk(TOPIC)
 
     assert n == b._spawn_limit
 
@@ -57,9 +59,9 @@ async def test_spawn_limit_breadth_mapped():
         return val
 
     b.setup(queue, store, store, PickleCodec())
-    await b.schedule("foo", (b._spawn_limit + 4,), {})
+    await b.schedule(TOPIC, "foo", (b._spawn_limit + 4,), {})
     with pytest.raises(SpawnLimitError):
-        await b.wrrrk()
+        await b.wrrrk(TOPIC)
 
     assert calls["foo"] == 1
 
@@ -90,12 +92,12 @@ async def test_spawn_limit_recoverable():
     b.setup(queue, store, cache, PickleCodec())
     spawn_limit_encountered = False
     n = b._spawn_limit + 1
-    await b.schedule("foo", (n,), {})
+    await b.schedule(TOPIC, "foo", (n,), {})
     while True:
         # Very ugly but this works for testing
         cache.inner = {}
         try:
-            await b.wrrrk()
+            await b.wrrrk(TOPIC)
             break
         except SpawnLimitError:
             spawn_limit_encountered = True
@@ -130,9 +132,9 @@ async def test_spawn_limit_breadth_manual():
         return total
 
     b.setup(queue, store, store, PickleCodec())
-    await b.schedule("foo", (b._spawn_limit + 3,), {})
+    await b.schedule(TOPIC, "foo", (b._spawn_limit + 3,), {})
     with pytest.raises(SpawnLimitError):
-        await b.wrrrk()
+        await b.wrrrk(TOPIC)
 
     assert calls == Counter(dict(one=b._spawn_limit / 2, foo=b._spawn_limit / 2))
 
@@ -160,8 +162,8 @@ async def test_spawn_limit_cached():
         return val
 
     b.setup(queue, store, store, PickleCodec())
-    await b.schedule("foo", (b._spawn_limit + 5,), {})
-    await b.wrrrk()
+    await b.schedule(TOPIC, "foo", (b._spawn_limit + 5,), {})
+    await b.wrrrk(TOPIC)
     await queue.join()
 
     assert n == 1

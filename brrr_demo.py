@@ -61,7 +61,7 @@ async def schedule_task(request: web.BaseRequest):
     if task_name not in brrr.tasks:
         return response(404, {"error": "No such task"})
 
-    await brrr.schedule(task_name, (), kwargs)
+    await brrr.schedule("brrr-demo", task_name, (), kwargs)
     return response(202, {"status": "accepted"})
 
 
@@ -151,7 +151,7 @@ def cmd(f):
 @cmd
 async def worker():
     async with with_brrr(False):
-        await brrr.wrrrk()
+        await brrr.wrrrk("brrr-demo")
 
 
 @cmd
@@ -187,7 +187,7 @@ async def schedule(job: str, *args: str):
     Put a single job onto the queue
     """
     async with with_brrr(False):
-        await brrr.schedule(job, (), args2dict(args))
+        await brrr.schedule("brrr-demo", job, (), args2dict(args))
 
 
 @cmd

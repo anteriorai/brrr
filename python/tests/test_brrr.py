@@ -9,6 +9,8 @@ from brrr.naive_codec import PickleCodec
 
 from .closable_test_queue import ClosableInMemQueue
 
+TOPIC = "brrr-test"
+
 
 @pytest.fixture
 def handle_nobrrr():
@@ -77,8 +79,8 @@ async def _call_nested_gather(*, use_brrr_gather: bool):
         return result
 
     b.setup(queue, store, store, PickleCodec())
-    await b.schedule("top", ([3, 4],), {})
-    await b.wrrrk()
+    await b.schedule(TOPIC, "top", ([3, 4],), {})
+    await b.wrrrk(TOPIC)
     await queue.join()
     return calls
 
@@ -138,9 +140,9 @@ async def test_nop_closed_queue():
     queue = ClosableInMemQueue()
     await queue.close()
     b.setup(queue, store, store, PickleCodec())
-    await b.wrrrk()
-    await b.wrrrk()
-    await b.wrrrk()
+    await b.wrrrk(TOPIC)
+    await b.wrrrk(TOPIC)
+    await b.wrrrk(TOPIC)
 
 
 async def test_stop_when_empty():
@@ -163,8 +165,8 @@ async def test_stop_when_empty():
         return res
 
     b.setup(queue, store, store, PickleCodec())
-    await b.schedule("foo", (3,), {})
-    await b.wrrrk()
+    await b.schedule(TOPIC, "foo", (3,), {})
+    await b.wrrrk(TOPIC)
     await queue.join()
     assert calls_pre == Counter({0: 1, 1: 2, 2: 2, 3: 2})
     assert calls_post == Counter({1: 1, 2: 1, 3: 1})
@@ -188,8 +190,8 @@ async def test_debounce_child():
         return ret
 
     b.setup(queue, store, store, PickleCodec())
-    await b.schedule("foo", (3,), {})
-    await b.wrrrk()
+    await b.schedule(TOPIC, "foo", (3,), {})
+    await b.wrrrk(TOPIC)
     await queue.join()
     assert calls == Counter({0: 1, 1: 2, 2: 2, 3: 2})
 
@@ -218,8 +220,8 @@ async def test_no_debounce_parent():
         return ret
 
     b.setup(queue, store, store, PickleCodec())
-    await b.schedule("foo", (50,), {})
-    await b.wrrrk()
+    await b.schedule(TOPIC, "foo", (50,), {})
+    await b.wrrrk(TOPIC)
     await queue.join()
     # We want foo=2 here
     assert calls == Counter(one=50, foo=51)
@@ -253,17 +255,17 @@ async def test_wrrrk_recoverable():
 
     b.setup(queue, store, store, PickleCodec())
     my_error_encountered = False
-    await b.schedule("foo", (2,), {})
+    await b.schedule(TOPIC, "foo", (2,), {})
     try:
-        await b.wrrrk()
+        await b.wrrrk(TOPIC)
     except MyError:
         my_error_encountered = True
     assert my_error_encountered
 
     # Trick the test queue implementation to survive this
-    queue.received = asyncio.Queue()
-    await b.schedule("bar", (2,), {})
-    await b.wrrrk()
+    queue.received[TOPIC] = asyncio.Queue()
+    await b.schedule(TOPIC, "bar", (2,), {})
+    await b.wrrrk(TOPIC)
     await queue.join()
 
     assert calls == Counter(
