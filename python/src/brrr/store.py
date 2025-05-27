@@ -54,12 +54,6 @@ class PendingReturns:
     scheduled_at: int | None
     returns: set[str]
 
-    # For some reason I’m annoyed that this uses JSON internally but it really
-    # is the most pragmatic choice here.  I so wished we could have used some
-    # cool prefix-length-encoded format but the reality is we need nesting,
-    # lists, ints, optional null values, etc—aka json.  🙁 As long as it’s not a
-    # dictionary I can live with it.
-
     def encode(self) -> bytes:
         return bencodepy.encode(
             {
