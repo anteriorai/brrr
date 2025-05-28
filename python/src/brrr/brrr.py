@@ -447,17 +447,17 @@ class Wrrrker:
         Managing the output of tasks and scheduling new ones
         """
         with self:
-            logger.info("Worker Started")
+            logger.info(f"Worker started on {topic}")
             while True:
                 try:
                     # This is presumed to be a long poll
                     message = await self.brrr.queue.get_message(topic)
-                    logger.debug(f"Got message {repr(message)}")
+                    logger.debug(f"Got {topic} message {repr(message)}")
                 except QueueIsEmpty:
-                    logger.debug("Queue is empty")
+                    logger.debug(f"Queue {topic} is empty")
                     continue
                 except QueueIsClosed:
-                    logger.info("Queue is closed")
+                    logger.info(f"Queue {topic} is closed")
                     return
 
                 await self._handle_msg(topic, message.body)

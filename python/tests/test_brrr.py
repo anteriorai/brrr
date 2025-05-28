@@ -122,6 +122,30 @@ async def test_brrr_gather():
     assert foo4 < bar8
 
 
+async def test_topics():
+    b1 = Brrr()
+    b2 = Brrr()
+    store = InMemoryByteStore()
+    queue = ClosableInMemQueue()
+
+    @b1.task
+    async def one(a: int) -> int:
+        return a + 5
+
+    @b2.task
+    async def two(a: int):
+        # N.B.: b2 can use its own brrr instance
+        result = await b2.call("t1", "one", (a + 3,), {})
+        assert result == 15
+        await queue.close()
+
+    b1.setup(queue, store, store, PickleCodec())
+    b2.setup(queue, store, store, PickleCodec())
+    await b2.schedule("t2", "two", (7,), {})
+    await asyncio.gather(b1.wrrrk("t1"), b2.wrrrk("t2"))
+    await queue.join()
+
+
 async def test_asyncio_gather():
     """
     Since asyncio.gather raises the first Defer, top should Defer four times.

@@ -25,7 +25,7 @@ class ClosableInMemQueue(bqueue.Queue):
         await asyncio.gather(*(q.join() for q in self.received.values()))
 
     async def get_message(self, topic: str):
-        if not self.operational or self.closing and topic not in self.received:
+        if self.closing and topic not in self.received:
             raise bqueue.QueueIsClosed()
 
         q = self.received[topic]
@@ -33,6 +33,7 @@ class ClosableInMemQueue(bqueue.Queue):
         if payload is _CloseSentinel:
             self.operational = False
             q.task_done()
+            del self.received[topic]
             raise bqueue.QueueIsClosed()
 
         q.task_done()
