@@ -139,7 +139,7 @@ async def hello(greetee: str):
 b2 = brrr.Brrr()
 
 
-@b2.register_task
+@b2.task
 async def fib(n: int, salt=None):
     match n:
         case 0 | 1:

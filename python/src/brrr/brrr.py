@@ -283,7 +283,7 @@ class Brrr:
         task = self.tasks[task_name]
         return await self._codec.invoke_task(memo_key, task.name, task.fn, payload)
 
-    def register_task(self, fn: AsyncFunc, name: str | None = None) -> Task:
+    def task(self, fn: AsyncFunc, name: str | None = None) -> Task:
         task = Task(self, fn, name)
         if task.name in self.tasks:
             self._setup_error = Exception(f"Task {task.name} already exists")

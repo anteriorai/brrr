@@ -16,7 +16,7 @@ TOPIC = "brrr-test"
 def handle_nobrrr():
     b = Brrr()
 
-    @b.register_task
+    @b.task
     async def handle_nobrrr(a: int) -> int:
         return a if a == 0 else a + await handle_nobrrr(a - 1)
 
@@ -34,7 +34,7 @@ async def test_no_brrr_map(handle_nobrrr):
 async def test_gather():
     b = Brrr()
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         return a * 2
 
@@ -51,12 +51,12 @@ async def _call_nested_gather(*, use_brrr_gather: bool):
     store = InMemoryByteStore()
     queue = ClosableInMemQueue()
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         calls.append(f"foo({a})")
         return a * 2
 
-    @b.register_task
+    @b.task
     async def bar(a: int) -> int:
         calls.append(f"bar({a})")
         return a - 1
@@ -65,7 +65,7 @@ async def _call_nested_gather(*, use_brrr_gather: bool):
         b = await foo(a)
         return await bar(b)
 
-    @b.register_task
+    @b.task
     async def top(xs: list[int]) -> list[int]:
         calls.append(f"top({xs})")
         if use_brrr_gather:
@@ -153,7 +153,7 @@ async def test_stop_when_empty():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue()
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         calls_pre[a] += 1
         if a == 0:
@@ -178,7 +178,7 @@ async def test_debounce_child():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue()
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         calls[a] += 1
         if a == 0:
@@ -204,12 +204,12 @@ async def test_no_debounce_parent():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue()
 
-    @b.register_task
+    @b.task
     async def one(_: int) -> int:
         calls["one"] += 1
         return 1
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         calls["foo"] += 1
         # Different argument to avoid debouncing children
@@ -236,14 +236,14 @@ async def test_wrrrk_recoverable():
     class MyError(Exception):
         pass
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         calls[f"foo({a})"] += 1
         if a == 0:
             raise MyError()
         return await foo(a - 1)
 
-    @b.register_task
+    @b.task
     async def bar(a: int) -> int:
         calls[f"bar({a})"] += 1
         if a == 0:
@@ -283,11 +283,11 @@ async def test_wrrrk_recoverable():
 def test_error_on_setup():
     b = Brrr()
 
-    @b.register_task
+    @b.task
     async def foo(a: int):
         return a
 
-    @b.register_task
+    @b.task
     async def foo(a: int):  # noqa: F811
         return a * a
 

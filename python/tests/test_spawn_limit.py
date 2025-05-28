@@ -18,7 +18,7 @@ async def test_spawn_limit_depth():
     store = InMemoryByteStore()
     n = 0
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         nonlocal n
         n += 1
@@ -43,12 +43,12 @@ async def test_spawn_limit_breadth_mapped():
     store = InMemoryByteStore()
     calls = Counter()
 
-    @b.register_task
+    @b.task
     async def one(_: int) -> int:
         calls["one"] += 1
         return 1
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         calls["foo"] += 1
         # Pass a different argument to avoid the debouncer
@@ -74,12 +74,12 @@ async def test_spawn_limit_recoverable():
     cache = InMemoryByteStore()
     calls = Counter()
 
-    @b.register_task
+    @b.task
     async def one(_: int) -> int:
         calls["one"] += 1
         return 1
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         calls["foo"] += 1
         # Pass a different argument to avoid the debouncer
@@ -115,12 +115,12 @@ async def test_spawn_limit_breadth_manual():
     store = InMemoryByteStore()
     calls = Counter()
 
-    @b.register_task
+    @b.task
     async def one(_: int) -> int:
         calls["one"] += 1
         return 1
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         calls["foo"] += 1
         total = 0
@@ -147,13 +147,13 @@ async def test_spawn_limit_cached():
     n = 0
     final = None
 
-    @b.register_task
+    @b.task
     async def same(a: int) -> int:
         nonlocal n
         n += 1
         return a
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         val = sum(await same.map([[1]] * a))
         await queue.close()
