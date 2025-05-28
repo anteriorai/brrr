@@ -23,11 +23,12 @@
 
 { lib, pkgs }:
 
-with lib.types; {
+with lib.types;
+{
   # You’ll want to override this unless you use an overlay
   package = lib.mkPackageOption pkgs "brrr-demo" { };
   args = lib.mkOption {
-    default = [];
+    default = [ ];
     type = listOf str;
   };
   environment = lib.mkOption {

@@ -20,45 +20,49 @@
 pkgs.testers.runNixOSTest {
   name = "brrr-integration";
 
-  nodes.datastores = { config, pkgs, ... }: {
-    imports = [
-      ./dynamodb.module.nix
-    ];
-    services.redis.servers.main = {
-      enable = true;
-      port = 6379;
-      openFirewall = true;
-      bind = null;
-      logLevel = "debug";
-      settings.protected-mode = "no";
-    };
-    services.dynamodb = {
-      enable = true;
-      openFirewall = true;
-    };
-  };
-  nodes.tester = { lib, config, pkgs, ... }: let
-    test-brrr = pkgs.writeShellApplication {
-      name = "test-brrr";
-      runtimeInputs = [
-        self.packages.${pkgs.system}.brrr-venv-test
-      ];
-      runtimeEnv = {
-        AWS_DEFAULT_REGION = "fake";
-        AWS_ENDPOINT_URL = "http://datastores:8000";
-        AWS_ACCESS_KEY_ID = "fake";
-        AWS_SECRET_ACCESS_KEY = "fake";
-        BRRR_TEST_REDIS_URL = "redis://datastores:6379";
+  nodes.datastores =
+    { config, pkgs, ... }:
+    {
+      imports = [ ./dynamodb.module.nix ];
+      services.redis.servers.main = {
+        enable = true;
+        port = 6379;
+        openFirewall = true;
+        bind = null;
+        logLevel = "debug";
+        settings.protected-mode = "no";
       };
-      text = ''
-        pytest ${self.packages.${pkgs.system}.brrr.src}
-      '';
+      services.dynamodb = {
+        enable = true;
+        openFirewall = true;
+      };
     };
-  in {
-    environment.systemPackages = [
-      test-brrr
-    ];
-  };
+  nodes.tester =
+    {
+      lib,
+      config,
+      pkgs,
+      ...
+    }:
+    let
+      test-brrr = pkgs.writeShellApplication {
+        name = "test-brrr";
+        runtimeInputs = [ self.packages.${pkgs.system}.brrr-venv-test ];
+        runtimeEnv = {
+          AWS_DEFAULT_REGION = "fake";
+          AWS_ENDPOINT_URL = "http://datastores:8000";
+          AWS_ACCESS_KEY_ID = "fake";
+          AWS_SECRET_ACCESS_KEY = "fake";
+          BRRR_TEST_REDIS_URL = "redis://datastores:6379";
+        };
+        text = ''
+          pytest ${self.packages.${pkgs.system}.brrr.src}
+        '';
+      };
+    in
+    {
+      environment.systemPackages = [ test-brrr ];
+    };
 
   globalTimeout = 5 * 60;
 

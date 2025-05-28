@@ -14,28 +14,37 @@
 
 # Localstack module for process-compose-flake
 
-{ config, pkgs, lib, ... }: {
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
+{
   options.services.localstack = with lib.types; {
     enable = lib.mkEnableOption "Enable localstack service";
     package = lib.mkPackageOption pkgs "localstack" { };
     args = lib.mkOption {
-      default = [];
+      default = [ ];
       type = listOf str;
     };
   };
-  config = let
-    cfg = config.services.localstack;
-  in
+  config =
+    let
+      cfg = config.services.localstack;
+    in
     lib.mkIf cfg.enable {
-      settings.processes.localstack = let
-        localstack = lib.getExe cfg.package;
-      in {
-        command = ''
-          (
-            trap "${localstack} stop" EXIT
-            ${localstack} start ${lib.escapeShellArgs cfg.args}
-          )
-        '';
-      };
+      settings.processes.localstack =
+        let
+          localstack = lib.getExe cfg.package;
+        in
+        {
+          command = ''
+            (
+              trap "${localstack} stop" EXIT
+              ${localstack} start ${lib.escapeShellArgs cfg.args}
+            )
+          '';
+        };
     };
 }

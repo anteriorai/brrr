@@ -5,13 +5,17 @@
 # module, a nix flake check automatically ensures every package output on this
 # architecture builds successfully, as well as every devShell.
 {
-  perSystem = { lib, self', ... }: {
-    checks = lib.mapAttrs' (name: value: {
-      name = "build-${name}";
-      inherit value;
-    }) self'.packages // lib.mapAttrs' (name: value: {
-      name = "devshell-${name}";
-      inherit value;
-    }) self'.devShells;
-  };
+  perSystem =
+    { lib, self', ... }:
+    {
+      checks =
+        lib.mapAttrs' (name: value: {
+          name = "build-${name}";
+          inherit value;
+        }) self'.packages
+        // lib.mapAttrs' (name: value: {
+          name = "devshell-${name}";
+          inherit value;
+        }) self'.devShells;
+    };
 }

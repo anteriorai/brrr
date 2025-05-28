@@ -16,7 +16,14 @@
 # services-flake insists on auto-deriving the module name from the filename.
 # Ok.
 
-{ config, pkgs, name, lib, ... }: {
+{
+  config,
+  pkgs,
+  name,
+  lib,
+  ...
+}:
+{
   # services-flake requires setting the options top-level
   options = import ./brrr-demo.options.nix { inherit lib pkgs; };
   config = {
