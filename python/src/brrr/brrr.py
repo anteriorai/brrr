@@ -290,9 +290,6 @@ class Brrr:
         self.tasks[task.name] = task
         return task
 
-    def task(self, fn: AsyncFunc, name: str | None = None) -> Task:
-        return Task(self, fn, name)
-
     async def wrrrk(self, topic: str):
         """
         Spin up a single brrr worker listening on the given topic.
