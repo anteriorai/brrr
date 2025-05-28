@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import ast
 import asyncio
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
@@ -19,7 +20,6 @@ from types_aiobotocore_dynamodb import DynamoDBClient
 from brrr.backends.redis import RedisQueue
 from brrr.backends.dynamo import DynamoDbMemStore
 import brrr
-from brrr import task
 from brrr.naive_codec import PickleCodec
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,7 @@ async def schedule_task(request: web.BaseRequest):
     if task_name not in brrr.tasks:
         return response(404, {"error": "No such task"})
 
-    await brrr.schedule("brrr-demo", task_name, (), kwargs)
+    await brrr.schedule("brrr-demo-main", task_name, (), kwargs)
     return response(202, {"status": "accepted"})
 
 
@@ -100,16 +100,16 @@ async def with_resources() -> AsyncIterator[tuple[redis.Redis, DynamoDBClient]]:
 
 
 @asynccontextmanager
-async def with_brrr_wrap() -> AsyncIterator[tuple[RedisQueue, DynamoDbMemStore]]:
+async def with_brrr_resources() -> AsyncIterator[tuple[RedisQueue, DynamoDbMemStore]]:
     async with with_resources() as (rc, dync):
         store = DynamoDbMemStore(dync, table_name())
-        queue = RedisQueue(rc, os.environ.get("REDIS_QUEUE_KEY", "r1"))
+        queue = RedisQueue(rc)
         yield (queue, store)
 
 
 @asynccontextmanager
 async def with_brrr(reset_backends):
-    async with with_brrr_wrap() as (redis, dynamo):
+    async with with_brrr_resources() as (redis, dynamo):
         if reset_backends:
             await redis.setup()
             await dynamo.create_table()
@@ -117,27 +117,35 @@ async def with_brrr(reset_backends):
         yield
 
 
-@task
+# This is the normal way to initialize tasks: just directly use the module
+# singleton.
+@brrr.task
+async def fib_and_print(n: str, salt=None):
+    f = await brrr.call("brrr-demo-side", "fib", (int(n), salt), {})
+    print(f"fib({n}) = {f}", flush=True)
+    return f
+
+
+@brrr.task
+async def hello(greetee: str):
+    greeting = f"Hello, {greetee}!"
+    print(greeting, flush=True)
+    return greeting
+
+
+# In-line demo of separate topics.  Normally you would probably just have this
+# in an entirely separate file, or even an entirely separate project.  But this
+# works, too.
+b2 = brrr.Brrr()
+
+
+@b2.register_task
 async def fib(n: int, salt=None):
     match n:
         case 0 | 1:
             return n
         case _:
             return sum(await fib.map([[n - 2, salt], [n - 1, salt]]))
-
-
-@task
-async def fib_and_print(n: str, salt=None):
-    f = await fib(int(n), salt)
-    print(f"fib({n}) = {f}", flush=True)
-    return f
-
-
-@task
-async def hello(greetee: str):
-    greeting = f"Hello, {greetee}!"
-    print(greeting, flush=True)
-    return greeting
 
 
 cmds = {}
@@ -150,8 +158,13 @@ def cmd(f):
 
 @cmd
 async def worker():
-    async with with_brrr(False):
-        await brrr.wrrrk("brrr-demo")
+    async with with_brrr_resources() as (redis, dynamo):
+        brrr.setup(redis, dynamo, redis, PickleCodec())
+        # You can safely share the exact same resources between different brrr
+        # instances, even if they use different topics.  In particular the
+        # memory store is topic-agnostic.
+        b2.setup(redis, dynamo, redis, PickleCodec())
+        await asyncio.gather(brrr.wrrrk("brrr-demo-main"), b2.wrrrk("brrr-demo-side"))
 
 
 @cmd
@@ -178,23 +191,31 @@ def args2dict(args: Iterable[str]) -> dict[str, str]:
 
     """
     it = iter(args)
-    return {k.lstrip("-"): v for k, v in zip(it, it)}
+
+    # Best effort eval()
+    def maybeval(x: str):
+        try:
+            return ast.literal_eval(x)
+        except ValueError:
+            return x
+
+    return {k.lstrip("-"): maybeval(v) for k, v in zip(it, it)}
 
 
 @cmd
-async def schedule(job: str, *args: str):
+async def schedule(topic: str, job: str, *args: str):
     """
     Put a single job onto the queue
     """
     async with with_brrr(False):
-        await brrr.schedule("brrr-demo", job, (), args2dict(args))
+        await brrr.schedule(topic, job, (), args2dict(args))
 
 
 @cmd
 async def monitor():
-    async with with_brrr_wrap() as (queue, _):
+    async with with_brrr_resources() as (queue, _):
         while True:
-            pprint(await queue.get_info())
+            pprint(await queue.get_info("brrr-demo-main"))
             await asyncio.sleep(1)
 
 

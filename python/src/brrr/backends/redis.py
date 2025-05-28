@@ -19,15 +19,14 @@ logger = logging.getLogger(__name__)
 class RedisQueue(Queue, Cache):
     client: Redis
 
-    def __init__(self, client: Redis, main_topic: str):
+    def __init__(self, client: Redis):
         self.client = client
-        self.main_topic = main_topic
 
     async def setup(self):
         pass
 
     async def put_message(self, topic: str, body: str):
-        logger.debug(f"Putting new message on {self.main_topic}")
+        logger.debug(f"Putting new message on {topic}")
         val = bencodepy.encode((1, int(time.time()), body.encode("utf-8")))
         await self.client.rpush(topic, val)
 

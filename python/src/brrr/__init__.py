@@ -5,6 +5,7 @@ from .brrr import SpawnLimitError as SpawnLimitError
 # For ergonomics, we provide a singleton and a bunch of proxies as the module interface.
 _brrr = Brrr()
 
+call = _brrr.call
 setup = _brrr.setup
 gather = _brrr.gather
 read = _brrr.read

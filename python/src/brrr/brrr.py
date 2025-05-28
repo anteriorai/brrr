@@ -135,7 +135,7 @@ class Brrr:
         self.memory = Memory(store, self._codec)
         self.queue = queue
 
-    def are_we_inside_worker_context(self) -> Any:
+    def _inside_worker_context_p(self) -> Any:
         return self.worker_singleton
 
     async def gather(self, *task_awaitables) -> Sequence[Any]:
@@ -144,7 +144,7 @@ class Brrr:
         If they've all been computed, return their values,
         Otherwise raise jobs for those that haven't been computed
         """
-        if not self.are_we_inside_worker_context():
+        if not self._inside_worker_context_p():
             return await asyncio.gather(*(f for f in task_awaitables))
 
         defers: list[DeferredCall] = []
@@ -176,6 +176,24 @@ class Brrr:
             return
 
         return await self._schedule_call_root(topic, call)
+
+    @requires_setup
+    async def call(self, topic: str | None, task_name: str, args: tuple, kwargs: dict):
+        """Directly call a brrr task FROM WITHIN ANOTHER TASK.
+
+        DO NOT call this unless you are, yourself, already inside a brrr task.
+
+        """
+        if not self._inside_worker_context_p():
+            raise ValueError(".call only from within another brrr task")
+
+        call = self.memory.make_call(task_name, args, kwargs)
+        try:
+            encoded_val = await self.memory.get_value(call)
+        except KeyError:
+            raise Defer([DeferredCall(topic, call)])
+        else:
+            return self._codec.decode_return(encoded_val)
 
     @requires_setup
     async def _schedule_call_nested(
@@ -303,15 +321,9 @@ class Task:
     # Calling a function returns the value if it has already been computed.
     # Otherwise, it raises a Call exception to schedule the computation
     async def __call__(self, *args, **kwargs):
-        if not self.brrr.are_we_inside_worker_context():
+        if not self.brrr._inside_worker_context_p():
             return await self.evaluate(args, kwargs)
-        call = self.brrr.memory.make_call(self.name, args, kwargs)
-        try:
-            encoded_val = await self.brrr.memory.get_value(call)
-        except KeyError:
-            raise Defer([DeferredCall(None, call)])
-        else:
-            return self.brrr._codec.decode_return(encoded_val)
+        return await self.brrr.call(None, self.name, args, kwargs)
 
     async def map(self, args: list[dict | list | tuple[tuple, dict]]):
         """
