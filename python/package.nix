@@ -8,26 +8,20 @@
 
   pyproject-build-systems,
   uv2nix,
-  pyproject-nix
+  pyproject-nix,
 }:
 
 let
-  uvWorkspace = uv2nix.lib.workspace.loadWorkspace {
-    workspaceRoot = ./.;
-  };
-  uvOverlay = uvWorkspace.mkPyprojectOverlay {
-    sourcePreference = "wheel";
-  };
-  pythonSet = (callPackage pyproject-nix.build.packages {
-    inherit python;
-  }).overrideScope (
+  uvWorkspace = uv2nix.lib.workspace.loadWorkspace { workspaceRoot = ./.; };
+  uvOverlay = uvWorkspace.mkPyprojectOverlay { sourcePreference = "wheel"; };
+  pythonSet = (callPackage pyproject-nix.build.packages { inherit python; }).overrideScope (
     lib.composeManyExtensions [
       pyproject-build-systems.overlays.default
       uvOverlay
       # https://pyproject-nix.github.io/uv2nix/patterns/testing.html
       (final: prev: {
         brrr = prev.brrr.overrideAttrs (old: {
-          passthru = old.passthru or {} // {
+          passthru = old.passthru or { } // {
             tests = {
               mypy = stdenvNoCC.mkDerivation {
                 inherit (old) src;
@@ -75,13 +69,15 @@ let
                   UV_NO_MANAGED_PYTHON = "true";
                   UV_SYSTEM_PYTHON = "true";
                 };
-                src = with lib.fileset; toSource {
-                  root = ./.;
-                  fileset = unions [
-                    ./pyproject.toml
-                    ./uv.lock
-                  ];
-                };
+                src =
+                  with lib.fileset;
+                  toSource {
+                    root = ./.;
+                    fileset = unions [
+                      ./pyproject.toml
+                      ./uv.lock
+                    ];
+                  };
                 nativeBuildInputs = [
                   uv
                   python
@@ -94,7 +90,7 @@ let
                   touch $out
                 '';
               };
-            } // (old.passthru.tests or {});
+            } // (old.passthru.tests or { });
           };
         });
       })
@@ -110,9 +106,7 @@ let
       (final: prev: {
         brrr = prev.brrr.overrideAttrs (old: {
           src = lib.cleanSource ./.;
-          nativeBuildInputs = old.nativeBuildInputs or [] ++ final.resolveBuildSystem {
-            editables = [];
-          };
+          nativeBuildInputs = old.nativeBuildInputs or [ ] ++ final.resolveBuildSystem { editables = [ ]; };
         });
       })
     ]
@@ -124,8 +118,5 @@ let
 in
 {
   brrr = pythonSet.brrr;
-  inherit
-    brrr-venv
-    brrr-venv-test
-    brrr-venv-editable;
+  inherit brrr-venv brrr-venv-test brrr-venv-editable;
 }

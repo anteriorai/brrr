@@ -14,11 +14,17 @@
 
 # Dynamodb module for process-compose-flake
 
-{ config, pkgs, lib, ... }: {
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
+{
   options.services.dynamodb = with lib.types; {
     enable = lib.mkEnableOption "Enable Dynamodb local service";
     args = lib.mkOption {
-      default = [];
+      default = [ ];
       type = listOf str;
     };
     dataDir = lib.mkOption {
@@ -26,16 +32,19 @@
       type = str;
     };
   };
-  config = let
-    cfg = config.services.dynamodb;
-  in
+  config =
+    let
+      cfg = config.services.dynamodb;
+    in
     lib.mkIf cfg.enable {
-      settings.processes.dynamodb.command = let
-        bin = lib.getExe pkgs.dynamodb-local;
-        dir = lib.escapeShellArg cfg.dataDir;
-      in ''
-        mkdir -p ${dir}
-        ${bin} -dbPath ${dir} ${lib.escapeShellArgs cfg.args}
-      '';
+      settings.processes.dynamodb.command =
+        let
+          bin = lib.getExe pkgs.dynamodb-local;
+          dir = lib.escapeShellArg cfg.dataDir;
+        in
+        ''
+          mkdir -p ${dir}
+          ${bin} -dbPath ${dir} ${lib.escapeShellArgs cfg.args}
+        '';
     };
 }

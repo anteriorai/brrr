@@ -18,35 +18,50 @@
 # Inspired by
 # https://blakesmith.me/2024/03/02/running-nixos-tests-with-flakes.html
 
-{ lib, config, pkgs, ... }: {
-  options.services.brrr-demo = let
-    native = import ./brrr-demo.options.nix { inherit lib pkgs; };
-    mod1 = { options = native; };
-    mod2 = {
-      options.enable = lib.mkEnableOption "brrr-demo";
+{
+  lib,
+  config,
+  pkgs,
+  ...
+}:
+{
+  options.services.brrr-demo =
+    let
+      native = import ./brrr-demo.options.nix { inherit lib pkgs; };
+      mod1 = {
+        options = native;
+      };
+      mod2 = {
+        options.enable = lib.mkEnableOption "brrr-demo";
+      };
+    in
+    lib.mkOption {
+      description = "Brrr demo service configuration";
+      type = lib.types.submoduleWith {
+        modules = [
+          mod1
+          mod2
+        ];
+      };
+      default = { };
     };
-  in lib.mkOption {
-    description = "Brrr demo service configuration";
-    type = lib.types.submoduleWith {
-      modules = [ mod1 mod2 ];
-    };
-    default = {};
-  };
 
-  config = let
-    cfg = config.services.brrr-demo;
-  in lib.mkIf cfg.enable {
+  config =
+    let
+      cfg = config.services.brrr-demo;
+    in
+    lib.mkIf cfg.enable {
 
-    systemd.services.brrr-demo = {
-      inherit (cfg) environment;
-      after = [ "network.target" ];
-      wantedBy = [ "multi-user.target" ];
-      script = ''
-        exec ${lib.getExe cfg.package} ${lib.escapeShellArgs cfg.args}
-      '';
-      serviceConfig = {
-        Type = "simple";
+      systemd.services.brrr-demo = {
+        inherit (cfg) environment;
+        after = [ "network.target" ];
+        wantedBy = [ "multi-user.target" ];
+        script = ''
+          exec ${lib.getExe cfg.package} ${lib.escapeShellArgs cfg.args}
+        '';
+        serviceConfig = {
+          Type = "simple";
+        };
       };
     };
-  };
 }

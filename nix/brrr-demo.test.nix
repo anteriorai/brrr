@@ -24,78 +24,83 @@
 pkgs.testers.runNixOSTest {
   name = "brrr-demo";
 
-  nodes.datastores = { config, pkgs, ... }: {
-    imports = [
-      # Not going to export and dogfood this--it’s just local only
-      ./dynamodb.module.nix
-    ];
-    services.redis.servers.main = {
-      enable = true;
-      port = 6379;
-      openFirewall = true;
-      bind = null;
-      logLevel = "debug";
-      settings.protected-mode = "no";
-    };
-    services.dynamodb = {
-      enable = true;
-      openFirewall = true;
-    };
-  };
-  nodes.server = { config, pkgs, ... }: {
-    imports = [
-      self.nixosModules.brrr-demo
-    ];
-    networking.firewall.allowedTCPPorts = [ 8080 ];
-    services.brrr-demo = {
-      enable = true;
-      package = self.packages.${pkgs.system}.brrr-demo;
-      args = [ "server" ];
-      environment = {
-        BRRR_DEMO_LISTEN_HOST = "0.0.0.0";
-        BRRR_DEMO_REDIS_URL = "redis://datastores:6379";
-        AWS_DEFAULT_REGION = "foo";
-        AWS_ENDPOINT_URL = "http://datastores:8000";
-        AWS_ACCESS_KEY_ID = "foo";
-        AWS_SECRET_ACCESS_KEY = "bar";
+  nodes.datastores =
+    { config, pkgs, ... }:
+    {
+      imports = [
+        # Not going to export and dogfood this--it’s just local only
+        ./dynamodb.module.nix
+      ];
+      services.redis.servers.main = {
+        enable = true;
+        port = 6379;
+        openFirewall = true;
+        bind = null;
+        logLevel = "debug";
+        settings.protected-mode = "no";
+      };
+      services.dynamodb = {
+        enable = true;
+        openFirewall = true;
       };
     };
-  };
-  nodes.worker = { config, pkgs, ... }: {
-    imports = [
-      self.nixosModules.brrr-demo
-    ];
-    services.brrr-demo = {
-      enable = true;
-      package = self.packages.${pkgs.system}.brrr-demo;
-      args = [ "worker" ];
-      environment = {
-        BRRR_DEMO_REDIS_URL = "redis://datastores:6379";
-        AWS_DEFAULT_REGION = "foo";
-        AWS_ENDPOINT_URL = "http://datastores:8000";
-        AWS_ACCESS_KEY_ID = "foo";
-        AWS_SECRET_ACCESS_KEY = "bar";
+  nodes.server =
+    { config, pkgs, ... }:
+    {
+      imports = [ self.nixosModules.brrr-demo ];
+      networking.firewall.allowedTCPPorts = [ 8080 ];
+      services.brrr-demo = {
+        enable = true;
+        package = self.packages.${pkgs.system}.brrr-demo;
+        args = [ "server" ];
+        environment = {
+          BRRR_DEMO_LISTEN_HOST = "0.0.0.0";
+          BRRR_DEMO_REDIS_URL = "redis://datastores:6379";
+          AWS_DEFAULT_REGION = "foo";
+          AWS_ENDPOINT_URL = "http://datastores:8000";
+          AWS_ACCESS_KEY_ID = "foo";
+          AWS_SECRET_ACCESS_KEY = "bar";
+        };
       };
     };
-  };
+  nodes.worker =
+    { config, pkgs, ... }:
+    {
+      imports = [ self.nixosModules.brrr-demo ];
+      services.brrr-demo = {
+        enable = true;
+        package = self.packages.${pkgs.system}.brrr-demo;
+        args = [ "worker" ];
+        environment = {
+          BRRR_DEMO_REDIS_URL = "redis://datastores:6379";
+          AWS_DEFAULT_REGION = "foo";
+          AWS_ENDPOINT_URL = "http://datastores:8000";
+          AWS_ACCESS_KEY_ID = "foo";
+          AWS_SECRET_ACCESS_KEY = "bar";
+        };
+      };
+    };
   # Separate node entirely just for the actual testing
-  nodes.tester = { config, pkgs, ... }: let
-    test-script = pkgs.writeShellApplication {
-      name = "test-brrr-demo";
-      # 😂
-      text = ''
-        eval "$(curl --fail -sSL "http://server:8080/hello?greetee=Jim" | jq '. == {status: "ok", result: "Hello, Jim!"}')"
-        eval "$(curl --fail -sSL "http://server:8080/fib_and_print?n=6&salt=abcd" | jq '. == {status: "ok", result: 354224848179261915075}')"
-      '';
+  nodes.tester =
+    { config, pkgs, ... }:
+    let
+      test-script = pkgs.writeShellApplication {
+        name = "test-brrr-demo";
+        # 😂
+        text = ''
+          eval "$(curl --fail -sSL "http://server:8080/hello?greetee=Jim" | jq '. == {status: "ok", result: "Hello, Jim!"}')"
+          eval "$(curl --fail -sSL "http://server:8080/fib_and_print?n=6&salt=abcd" | jq '. == {status: "ok", result: 354224848179261915075}')"
+        '';
+      };
+    in
+    {
+      environment.systemPackages =
+        [ test-script ]
+        ++ (with pkgs; [
+          curl
+          jq
+        ]);
     };
-  in {
-    environment.systemPackages = [
-      test-script
-    ] ++ (with pkgs; [
-      curl
-      jq
-    ]);
-  };
 
   globalTimeout = 5 * 60;
 

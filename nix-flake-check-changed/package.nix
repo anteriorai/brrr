@@ -1,7 +1,7 @@
 {
   writeShellApplication,
   findutils,
-  gnused
+  gnused,
 }:
 writeShellApplication {
   name = "nix-flake-check-changed";
