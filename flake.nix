@@ -185,10 +185,12 @@
                 # disappear at any time.
                 nix-flake-check-changed = pkgs.callPackage ./nix-flake-check-changed/package.nix { };
               };
-              checks = {
-                pytestIntegration = pkgs.callPackage ./nix/brrr-integration.test.nix { inherit self; };
-                demoNixosTest = pkgs.callPackage ./nix/brrr-demo.test.nix { inherit self; };
-              } // brrrpy.brrr.tests;
+              checks =
+                {
+                  pytestIntegration = pkgs.callPackage ./nix/brrr-integration.test.nix { inherit self; };
+                }
+                // brrrpy.brrr.tests
+                // import ./nix/brrr-demo.test.nix { inherit self pkgs; };
               devshells = {
                 default = {
                   packages = devPackages ++ [ self'.packages.python ];
