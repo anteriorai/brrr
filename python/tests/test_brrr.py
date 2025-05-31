@@ -9,12 +9,14 @@ from brrr.naive_codec import PickleCodec
 
 from .closable_test_queue import ClosableInMemQueue
 
+TOPIC = "brrr-test"
+
 
 @pytest.fixture
 def handle_nobrrr():
     b = Brrr()
 
-    @b.register_task
+    @b.task
     async def handle_nobrrr(a: int) -> int:
         return a if a == 0 else a + await handle_nobrrr(a - 1)
 
@@ -32,7 +34,7 @@ async def test_no_brrr_map(handle_nobrrr):
 async def test_gather():
     b = Brrr()
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         return a * 2
 
@@ -49,12 +51,12 @@ async def _call_nested_gather(*, use_brrr_gather: bool):
     store = InMemoryByteStore()
     queue = ClosableInMemQueue()
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         calls.append(f"foo({a})")
         return a * 2
 
-    @b.register_task
+    @b.task
     async def bar(a: int) -> int:
         calls.append(f"bar({a})")
         return a - 1
@@ -63,7 +65,7 @@ async def _call_nested_gather(*, use_brrr_gather: bool):
         b = await foo(a)
         return await bar(b)
 
-    @b.register_task
+    @b.task
     async def top(xs: list[int]) -> list[int]:
         calls.append(f"top({xs})")
         if use_brrr_gather:
@@ -77,8 +79,8 @@ async def _call_nested_gather(*, use_brrr_gather: bool):
         return result
 
     b.setup(queue, store, store, PickleCodec())
-    await b.schedule("top", ([3, 4],), {})
-    await b.wrrrk()
+    await b.schedule(TOPIC, "top", ([3, 4],), {})
+    await b.wrrrk(TOPIC)
     await queue.join()
     return calls
 
@@ -120,6 +122,30 @@ async def test_brrr_gather():
     assert foo4 < bar8
 
 
+async def test_topics():
+    b1 = Brrr()
+    b2 = Brrr()
+    store = InMemoryByteStore()
+    queue = ClosableInMemQueue()
+
+    @b1.task
+    async def one(a: int) -> int:
+        return a + 5
+
+    @b2.task
+    async def two(a: int):
+        # N.B.: b2 can use its own brrr instance
+        result = await b2.call("t1", "one", (a + 3,), {})
+        assert result == 15
+        await queue.close()
+
+    b1.setup(queue, store, store, PickleCodec())
+    b2.setup(queue, store, store, PickleCodec())
+    await b2.schedule("t2", "two", (7,), {})
+    await asyncio.gather(b1.wrrrk("t1"), b2.wrrrk("t2"))
+    await queue.join()
+
+
 async def test_asyncio_gather():
     """
     Since asyncio.gather raises the first Defer, top should Defer four times.
@@ -138,9 +164,9 @@ async def test_nop_closed_queue():
     queue = ClosableInMemQueue()
     await queue.close()
     b.setup(queue, store, store, PickleCodec())
-    await b.wrrrk()
-    await b.wrrrk()
-    await b.wrrrk()
+    await b.wrrrk(TOPIC)
+    await b.wrrrk(TOPIC)
+    await b.wrrrk(TOPIC)
 
 
 async def test_stop_when_empty():
@@ -151,7 +177,7 @@ async def test_stop_when_empty():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue()
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         calls_pre[a] += 1
         if a == 0:
@@ -163,8 +189,8 @@ async def test_stop_when_empty():
         return res
 
     b.setup(queue, store, store, PickleCodec())
-    await b.schedule("foo", (3,), {})
-    await b.wrrrk()
+    await b.schedule(TOPIC, "foo", (3,), {})
+    await b.wrrrk(TOPIC)
     await queue.join()
     assert calls_pre == Counter({0: 1, 1: 2, 2: 2, 3: 2})
     assert calls_post == Counter({1: 1, 2: 1, 3: 1})
@@ -176,7 +202,7 @@ async def test_debounce_child():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue()
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         calls[a] += 1
         if a == 0:
@@ -188,8 +214,8 @@ async def test_debounce_child():
         return ret
 
     b.setup(queue, store, store, PickleCodec())
-    await b.schedule("foo", (3,), {})
-    await b.wrrrk()
+    await b.schedule(TOPIC, "foo", (3,), {})
+    await b.wrrrk(TOPIC)
     await queue.join()
     assert calls == Counter({0: 1, 1: 2, 2: 2, 3: 2})
 
@@ -202,12 +228,12 @@ async def test_no_debounce_parent():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue()
 
-    @b.register_task
+    @b.task
     async def one(_: int) -> int:
         calls["one"] += 1
         return 1
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         calls["foo"] += 1
         # Different argument to avoid debouncing children
@@ -218,8 +244,8 @@ async def test_no_debounce_parent():
         return ret
 
     b.setup(queue, store, store, PickleCodec())
-    await b.schedule("foo", (50,), {})
-    await b.wrrrk()
+    await b.schedule(TOPIC, "foo", (50,), {})
+    await b.wrrrk(TOPIC)
     await queue.join()
     # We want foo=2 here
     assert calls == Counter(one=50, foo=51)
@@ -234,14 +260,14 @@ async def test_wrrrk_recoverable():
     class MyError(Exception):
         pass
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         calls[f"foo({a})"] += 1
         if a == 0:
             raise MyError()
         return await foo(a - 1)
 
-    @b.register_task
+    @b.task
     async def bar(a: int) -> int:
         calls[f"bar({a})"] += 1
         if a == 0:
@@ -253,17 +279,17 @@ async def test_wrrrk_recoverable():
 
     b.setup(queue, store, store, PickleCodec())
     my_error_encountered = False
-    await b.schedule("foo", (2,), {})
+    await b.schedule(TOPIC, "foo", (2,), {})
     try:
-        await b.wrrrk()
+        await b.wrrrk(TOPIC)
     except MyError:
         my_error_encountered = True
     assert my_error_encountered
 
     # Trick the test queue implementation to survive this
-    queue.received = asyncio.Queue()
-    await b.schedule("bar", (2,), {})
-    await b.wrrrk()
+    queue.received[TOPIC] = asyncio.Queue()
+    await b.schedule(TOPIC, "bar", (2,), {})
+    await b.wrrrk(TOPIC)
     await queue.join()
 
     assert calls == Counter(
@@ -281,11 +307,11 @@ async def test_wrrrk_recoverable():
 def test_error_on_setup():
     b = Brrr()
 
-    @b.register_task
+    @b.task
     async def foo(a: int):
         return a
 
-    @b.register_task
+    @b.task
     async def foo(a: int):  # noqa: F811
         return a * a
 

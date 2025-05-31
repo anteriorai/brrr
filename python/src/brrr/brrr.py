@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 from collections.abc import Awaitable, Callable, Sequence
+from dataclasses import dataclass
 import functools
 import logging
 from typing import Any
@@ -29,15 +30,22 @@ class SpawnLimitError(Exception):
     pass
 
 
+@dataclass
+class DeferredCall:
+    # None means self
+    topic: str | None
+    call: Call
+
+
 class Defer(Exception):
     """
     When a task is called and hasn't been computed yet, a Defer exception is raised
     Workers catch this exception and schedule the task to be computed
     """
 
-    calls: list[Call]
+    calls: Sequence[DeferredCall]
 
-    def __init__(self, calls: list[Call]):
+    def __init__(self, calls: Sequence[DeferredCall]):
         self.calls = calls
 
 
@@ -48,6 +56,7 @@ class Brrr:
 
     @staticmethod
     def requires_setup(method):
+        @functools.wraps(method)
         def wrapper(self, *args, **kwargs):
             if self.queue is None or self.memory is None or self.cache is None:
                 raise Exception("Brrr not set up")
@@ -71,6 +80,10 @@ class Brrr:
     memory: Memory
     # A queue of call keys to be processed
     queue: Queue
+    # The default topic on which this brrr instance is _listening_ for new jobs.
+    # It can _call_ any jobs in the given queue, but it expects to serve its
+    # jobs only in this specific queue.
+    topic: str
 
     # An error which occurred during setup, if any.  Stored by value here and
     # only raised when ‘.setup’ is called to avoid raising errors on import.
@@ -92,6 +105,7 @@ class Brrr:
         self.cache = None
         self.memory = None
         self.queue = None
+        self.topic = None
         self._setup_error = None
         self.tasks = {}
         self.worker_singleton = None
@@ -121,7 +135,7 @@ class Brrr:
         self.memory = Memory(store, self._codec)
         self.queue = queue
 
-    def are_we_inside_worker_context(self) -> Any:
+    def _inside_worker_context_p(self) -> Any:
         return self.worker_singleton
 
     async def gather(self, *task_awaitables) -> Sequence[Any]:
@@ -130,10 +144,10 @@ class Brrr:
         If they've all been computed, return their values,
         Otherwise raise jobs for those that haven't been computed
         """
-        if not self.are_we_inside_worker_context():
+        if not self._inside_worker_context_p():
             return await asyncio.gather(*(f for f in task_awaitables))
 
-        defers = []
+        defers: list[DeferredCall] = []
         values = []
 
         for task_awaitable in task_awaitables:
@@ -148,7 +162,7 @@ class Brrr:
         return values
 
     @requires_setup
-    async def schedule(self, task_name: str, args: tuple, kwargs: dict):
+    async def schedule(self, topic: str, task_name: str, args: tuple, kwargs: dict):
         """Public-facing one-shot schedule method.
 
         The exact API for the type of args and kwargs is still WIP.  We're doing
@@ -161,10 +175,30 @@ class Brrr:
         if await self.memory.has_value(call):
             return
 
-        return await self._schedule_call_root(call)
+        return await self._schedule_call_root(topic, call)
 
     @requires_setup
-    async def _schedule_call_nested(self, child: Call, root_id: str, parent_key: str):
+    async def call(self, topic: str | None, task_name: str, args: tuple, kwargs: dict):
+        """Directly call a brrr task FROM WITHIN ANOTHER TASK.
+
+        DO NOT call this unless you are, yourself, already inside a brrr task.
+
+        """
+        if not self._inside_worker_context_p():
+            raise ValueError(".call only from within another brrr task")
+
+        call = self.memory.make_call(task_name, args, kwargs)
+        try:
+            encoded_val = await self.memory.get_value(call)
+        except KeyError:
+            raise Defer([DeferredCall(topic, call)])
+        else:
+            return self._codec.decode_return(encoded_val)
+
+    @requires_setup
+    async def _schedule_call_nested(
+        self, my_topic: str, child: DeferredCall, root_id: str, parent_key: str
+    ):
         """Schedule this call on the brrr workforce.
 
         This is the real internal entrypoint which should be used by all brrr
@@ -183,18 +217,27 @@ class Brrr:
         # First the call because it is perennial, it just describes the actual
         # call being made, it doesn’t cause any further action and it’s safe
         # under all races.
-        await self.memory.set_call(child)
+        await self.memory.set_call(child.call)
         # Note this can be immediately read out by a racing return call. The
         # pathological case is: we are late to a party and another worker is
         # actually just done handling this call, and just before it reads out
         # the addresses to which to return, it is added here.  That’s still OK
         # because it will then immediately call this parent flow back, which is
         # fine because the result does in fact exist.
-        schedule_job = functools.partial(self._put_job, child.memo_key, root_id)
-        await self.memory.add_pending_return(child.memo_key, parent_key, schedule_job)
+        child_topic = child.topic or my_topic
+        memo_key = child.call.memo_key
+        schedule_job = functools.partial(self._put_job, child_topic, memo_key, root_id)
+        await self.memory.add_pending_return(
+            memo_key, f"{my_topic}/{parent_key}", schedule_job
+        )
 
-    async def _put_job(self, memo_key: str, root_id: str):
-        # Incredibly mother-of-all ad-hoc definitions
+    async def _put_job(self, topic: str, memo_key: str, root_id: str):
+        # Incredibly mother-of-all ad-hoc definitions.  Doesn’t use the topic
+        # for counting spawn limits: the spawn limit is currently intended to
+        # never be hit at all: it’s a /semantic/ check, not a /runtime/ check.
+        # It’s not intended for example to give paying customers a higher spawn
+        # limit than free ones.  It’s intended to catch infinite recursion and
+        # non-idempotent call graphs.
         if (await self.cache.incr(f"brrr_count/{root_id}")) > self._spawn_limit:
             msg = f"Spawn limit {self._spawn_limit} reached for {root_id} at job {memo_key}"
             logger.error(msg)
@@ -205,10 +248,10 @@ class Brrr:
             # bigger issue to admins?  Or just wrap it in a while True loop
             # which catches and ignores specifically this error?
             raise SpawnLimitError(msg)
-        await self.queue.put_message(f"{root_id}/{memo_key}")
+        await self.queue.put_message(topic, f"{root_id}/{memo_key}")
 
     @requires_setup
-    async def _schedule_call_root(self, call: Call):
+    async def _schedule_call_root(self, topic: str, call: Call):
         """Schedule this call on the brrr workforce.
 
         This is the real internal entrypoint which should be used by all brrr
@@ -221,7 +264,7 @@ class Brrr:
         await self.memory.set_call(call)
         # Random root id for every call so we can disambiguate retries
         root_id = base64.urlsafe_b64encode(uuid4().bytes).decode("ascii").strip("=")
-        await self._put_job(call.memo_key, root_id)
+        await self._put_job(topic, call.memo_key, root_id)
 
     @requires_setup
     async def read(self, task_name: str, args: tuple, kwargs: dict):
@@ -240,21 +283,18 @@ class Brrr:
         task = self.tasks[task_name]
         return await self._codec.invoke_task(memo_key, task.name, task.fn, payload)
 
-    def register_task(self, fn: AsyncFunc, name: str | None = None) -> Task:
+    def task(self, fn: AsyncFunc, name: str | None = None) -> Task:
         task = Task(self, fn, name)
         if task.name in self.tasks:
             self._setup_error = Exception(f"Task {task.name} already exists")
         self.tasks[task.name] = task
         return task
 
-    def task(self, fn: AsyncFunc, name: str | None = None) -> Task:
-        return Task(self, fn, name)
-
-    async def wrrrk(self):
+    async def wrrrk(self, topic: str):
         """
-        Spin up a single brrr worker.
+        Spin up a single brrr worker listening on the given topic.
         """
-        await Wrrrker(self).loop()
+        await Wrrrker(self).loop(topic)
 
 
 class Task:
@@ -278,15 +318,9 @@ class Task:
     # Calling a function returns the value if it has already been computed.
     # Otherwise, it raises a Call exception to schedule the computation
     async def __call__(self, *args, **kwargs):
-        if not self.brrr.are_we_inside_worker_context():
+        if not self.brrr._inside_worker_context_p():
             return await self.evaluate(args, kwargs)
-        call = self.brrr.memory.make_call(self.name, args, kwargs)
-        try:
-            encoded_val = await self.brrr.memory.get_value(call)
-        except KeyError:
-            raise Defer([call])
-        else:
-            return self.brrr._codec.decode_return(encoded_val)
+        return await self.brrr.call(None, self.name, args, kwargs)
 
     async def map(self, args: list[dict | list | tuple[tuple, dict]]):
         """
@@ -314,12 +348,6 @@ class Task:
     async def evaluate(self, args, kwargs):
         return await self.fn(*args, **kwargs)
 
-    async def schedule(self, *args, **kwargs):
-        """
-        This puts the task call on the queue, but doesn't return the result!
-        """
-        return await self.brrr.schedule(self.name, args, kwargs)
-
 
 class Wrrrker:
     def __init__(self, brrr: Brrr):
@@ -338,11 +366,11 @@ class Wrrrker:
     def _parse_call_id(self, call_id: str):
         return call_id.split("/")
 
-    async def _handle_msg(self, my_call_id: str):
+    async def _handle_msg(self, my_topic: str, my_call_id: str):
         root_id, my_memo_key = self._parse_call_id(my_call_id)
         task_name, payload = await self.brrr.memory.get_call_bytes(my_memo_key)
 
-        logger.debug(f"Calling {task_name}")
+        logger.debug(f"Calling {my_topic} -> {my_call_id} -> {task_name}")
         try:
             encoded_ret = await self.brrr._call_task(task_name, my_memo_key, payload)
         except Defer as defer:
@@ -363,9 +391,11 @@ class Wrrrker:
             # occurs.
             spawn_limit_err = None
 
-            async def handle_child(child):
+            async def handle_child(child: DeferredCall):
                 try:
-                    await self.brrr._schedule_call_nested(child, root_id, my_call_id)
+                    await self.brrr._schedule_call_nested(
+                        my_topic, child, root_id, my_call_id
+                    )
                 except SpawnLimitError as e:
                     nonlocal spawn_limit_err
                     spawn_limit_err = e
@@ -375,7 +405,7 @@ class Wrrrker:
                 raise spawn_limit_err from defer
             return
 
-        logger.info("Resolved %s %s", my_call_id, task_name)
+        logger.info(f"Resolved {my_topic} -> {my_call_id} -> {task_name}")
 
         # We can end up in a race against another worker to write the value.  We
         # only accept the first entry and the rest will be ignored.
@@ -404,30 +434,30 @@ class Wrrrker:
         if spawn_limit_err is not None:
             raise spawn_limit_err
 
-    async def _schedule_return_call(self, parent_id):
-        # These are all root_id/memo_key pairs which is great because every
-        # return should be retried in its original root context.
-        root_id, parent_key = self._parse_call_id(parent_id)
-        await self.brrr._put_job(parent_key, root_id)
+    async def _schedule_return_call(self, return_addr: str):
+        # These are all topic/root_id/memo_key triples which is great because
+        # every return should be retried in its original root context.
+        topic, root_id, parent_key = return_addr.split("/")
+        await self.brrr._put_job(topic, parent_key, root_id)
 
-    async def loop(self):
+    async def loop(self, topic: str):
         """
         Workers take jobs from the queue, one at a time, and handle them.
         They have read and write access to the store, and are responsible for
         Managing the output of tasks and scheduling new ones
         """
         with self:
-            logger.info("Worker Started")
+            logger.info(f"Worker started on {topic}")
             while True:
                 try:
                     # This is presumed to be a long poll
-                    message = await self.brrr.queue.get_message()
-                    logger.debug(f"Got message {repr(message)}")
+                    message = await self.brrr.queue.get_message(topic)
+                    logger.debug(f"Got {topic} message {repr(message)}")
                 except QueueIsEmpty:
-                    logger.debug("Queue is empty")
+                    logger.debug(f"Queue {topic} is empty")
                     continue
                 except QueueIsClosed:
-                    logger.info("Queue is closed")
+                    logger.info(f"Queue {topic} is closed")
                     return
 
-                await self._handle_msg(message.body)
+                await self._handle_msg(topic, message.body)

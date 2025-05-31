@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import collections
+from collections.abc import MutableMapping
 import typing
 
 from brrr.store import CompareMismatch
@@ -16,21 +17,23 @@ class InMemoryQueue(Queue):
     This queue does not do receipts
     """
 
-    messages: collections.deque[str] = collections.deque()
+    messages: MutableMapping[str, collections.deque[str]] = collections.defaultdict(
+        collections.deque
+    )
     closed = False
 
-    async def put_message(self, body: str):
-        self.messages.append(body)
+    async def put_message(self, topic: str, body: str):
+        self.messages[topic].append(body)
 
-    async def get_message(self) -> Message:
+    async def get_message(self, topic: str) -> Message:
         if self.closed:
             raise QueueIsClosed
-        if not self.messages:
+        if not self.messages[topic]:
             raise QueueIsEmpty
-        return Message(self.messages.popleft())
+        return Message(self.messages[topic].popleft())
 
-    async def get_info(self):
-        return QueueInfo(num_messages=len(self.messages))
+    async def get_info(self, topic: str):
+        return QueueInfo(num_messages=len(self.messages[topic]))
 
 
 def _key2str(key: MemKey) -> str:

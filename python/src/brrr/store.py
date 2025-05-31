@@ -168,7 +168,7 @@ class Cache(ABC):
     """
 
     @abstractmethod
-    async def incr(self, k: str) -> int:
+    async def incr(self, key: str) -> int:
         """Increase by 1 and return the new value.
 
         In reality this is used for spawn limit tracking but 🤫 that's an

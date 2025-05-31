@@ -26,12 +26,12 @@ async def test_codec_key_no_args():
 
     codec.create_call = Mock(side_effect=create_call)
 
-    @b.register_task
+    @b.task
     async def same(a: int) -> int:
         calls[f"same({a})"] += 1
         return a
 
-    @b.register_task
+    @b.task
     async def foo(a: int) -> int:
         calls[f"foo({a})"] += 1
 
@@ -45,8 +45,8 @@ async def test_codec_key_no_args():
         return val
 
     b.setup(queue, store, store, codec)
-    await b.schedule("foo", (50,), {})
-    await b.wrrrk()
+    await b.schedule("test", "foo", (50,), {})
+    await b.wrrrk("test")
     await queue.join()
     assert calls == Counter(
         {
@@ -69,11 +69,11 @@ async def test_codec_api():
     queue = ClosableInMemQueue()
     codec = Mock(wraps=PickleCodec())
 
-    @b.register_task
+    @b.task
     async def plus(x: int, y: str) -> int:
         return x + int(y)
 
-    @b.register_task
+    @b.task
     async def foo() -> int:
         val = (
             await plus(1, "2")
@@ -86,8 +86,8 @@ async def test_codec_api():
         return val
 
     b.setup(queue, store, store, codec)
-    await b.schedule("foo", (), {})
-    await b.wrrrk()
+    await b.schedule("test", "foo", (), {})
+    await b.wrrrk("test")
     await queue.join()
     codec.create_call.assert_has_calls(
         [
