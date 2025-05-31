@@ -23,10 +23,9 @@
 # errors there.
 let
   mkTest =
-    nodes:
+    { nodes, name }:
     pkgs.testers.runNixOSTest {
-      name = "brrr-demo";
-
+      inherit name;
       nodes = nodes // {
         datastores =
           { config, pkgs, ... }:
@@ -54,10 +53,14 @@ let
           let
             test-script = pkgs.writeShellApplication {
               name = "test-brrr-demo";
-              # 😂
               text = ''
-                eval "$(curl --fail -sSL "http://server:8080/hello?greetee=Jim" | jq '. == {status: "ok", result: "Hello, Jim!"}')"
-                eval "$(curl --fail -sSL "http://server:8080/fib_and_print?n=6&salt=abcd" | jq '. == {status: "ok", result: 354224848179261915075}')"
+                >/dev/stderr echo "Fetching results from previously scheduled tasks..."
+                json="$(curl --fail -sSL "http://server:8080/hello?greetee=Jim")"
+                val="$(<<<"$json" jq '. == {status: "ok", result: "Hello, Jim!"}')"
+                [[ "$val" == true ]]
+                json="$(curl --fail -sSL "http://server:8080/fib_and_print?n=100&salt=abcd")"
+                val="$(<<<"$json" jq '. == {status: "ok", result: 354224848179261915075}')"
+                [[ "$val" == true ]]
               '';
             };
           in
@@ -71,7 +74,7 @@ let
           };
       };
 
-      globalTimeout = 5 * 60;
+      globalTimeout = 10 * 60;
 
       # Chose a big number (100) to ensure debouncing works.
       testScript = ''
@@ -129,6 +132,8 @@ let
     server =
       { config, pkgs, ... }:
       {
+        # Podman (default backend) doesn’t like images built with nix
+        # apparently.  Ironic!
         virtualisation.oci-containers.backend = "docker";
         virtualisation.oci-containers.containers.brrr = {
           extraOptions = [ "--network=host" ];
@@ -167,6 +172,12 @@ let
   };
 in
 {
-  docker-test = mkTest docker;
-  nixos-module-test = mkTest module;
+  docker-test = mkTest {
+    name = "brrr-demo-docker";
+    nodes = docker;
+  };
+  nixos-module-test = mkTest {
+    name = "brrr-demo-nixos";
+    nodes = module;
+  };
 }
