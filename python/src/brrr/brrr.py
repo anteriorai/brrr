@@ -6,7 +6,7 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 import functools
 import logging
-from typing import Any
+from typing import Any, Concatenate, overload
 from uuid import uuid4
 
 from .call import Call
@@ -20,10 +20,6 @@ from .store import (
 from .queue import Queue, QueueIsClosed, QueueIsEmpty
 
 logger = logging.getLogger(__name__)
-
-# I’d like for the typechecker to raise an error when a value with this type is
-# called as a function without await.  How?
-AsyncFunc = Callable[..., Awaitable[Any]]
 
 
 class SpawnLimitError(Exception):
@@ -55,9 +51,11 @@ class Brrr:
     """
 
     @staticmethod
-    def requires_setup(method):
+    def requires_setup[**P, R](
+        method: Callable[Concatenate[Brrr, P], R],
+    ) -> Callable[Concatenate[Brrr, P], R]:
         @functools.wraps(method)
-        def wrapper(self, *args, **kwargs):
+        def wrapper(self: Brrr, *args: P.args, **kwargs: P.kwargs) -> R:
             if self.queue is None or self.memory is None or self.cache is None:
                 raise Exception("Brrr not set up")
             return method(self, *args, **kwargs)
@@ -138,7 +136,52 @@ class Brrr:
     def _inside_worker_context_p(self) -> Any:
         return self.worker_singleton
 
-    async def gather(self, *task_awaitables) -> Sequence[Any]:
+    # Type annotations for Brrr.gather are modeled after asyncio.gather:
+    # support explicit types for 1-5 arguments (and when all have the same type),
+    # and a catch-all for the rest.
+    @overload
+    async def gather[T1](self, coro_or_future1: Awaitable[T1]) -> tuple[T1]: ...
+    @overload
+    async def gather[T1, T2](
+        self, coro_or_future1: Awaitable[T1], coro_or_future2: Awaitable[T2]
+    ) -> tuple[T1, T2]: ...
+    @overload
+    async def gather[T1, T2, T3](
+        self,
+        coro_or_future1: Awaitable[T1],
+        coro_or_future2: Awaitable[T2],
+        coro_or_future3: Awaitable[T3],
+    ) -> tuple[T1, T2, T3]: ...
+    @overload
+    async def gather[T1, T2, T3, T4](
+        self,
+        coro_or_future1: Awaitable[T1],
+        coro_or_future2: Awaitable[T2],
+        coro_or_future3: Awaitable[T3],
+        coro_or_future4: Awaitable[T4],
+    ) -> tuple[T1, T2, T3, T4]: ...
+    @overload
+    async def gather[T1, T2, T3, T4, T5](
+        self,
+        coro_or_future1: Awaitable[T1],
+        coro_or_future2: Awaitable[T2],
+        coro_or_future3: Awaitable[T3],
+        coro_or_future4: Awaitable[T4],
+        coro_or_future5: Awaitable[T5],
+    ) -> tuple[T1, T2, T3, T4, T5]: ...
+    @overload
+    async def gather[T](self, *coro_or_futures: Awaitable[T]) -> list[T]: ...
+    @overload
+    async def gather(
+        self,
+        coro_or_future1: Awaitable[Any],
+        coro_or_future2: Awaitable[Any],
+        coro_or_future3: Awaitable[Any],
+        coro_or_future4: Awaitable[Any],
+        coro_or_future5: Awaitable[Any],
+        *coro_or_futures: Awaitable[Any],
+    ) -> list[Any]: ...
+    async def gather(self, *task_awaitables):
         """
         Takes a number of task lambdas and calls each of them.
         If they've all been computed, return their values,
@@ -283,7 +326,9 @@ class Brrr:
         task = self.tasks[task_name]
         return await self._codec.invoke_task(memo_key, task.name, task.fn, payload)
 
-    def task(self, fn: AsyncFunc, name: str | None = None) -> Task:
+    def task[**P, R](
+        self, fn: Callable[P, Awaitable[R]], name: str | None = None
+    ) -> Task[P, R]:
         task = Task(self, fn, name)
         if task.name in self.tasks:
             self._setup_error = Exception(f"Task {task.name} already exists")
@@ -297,7 +342,7 @@ class Brrr:
         await Wrrrker(self).loop(topic)
 
 
-class Task:
+class Task[**P, R]:
     """
     A decorator to turn a function into a task.
     When it is called, within the context of a worker, it checks whether it has already been computed.
@@ -306,11 +351,12 @@ class Task:
     A task can not write to the store, only read from it
     """
 
-    fn: AsyncFunc
-    name: str
-    brrr: Brrr
-
-    def __init__(self, brrr: Brrr, fn: AsyncFunc, name: str | None = None):
+    def __init__(
+        self,
+        brrr: Brrr,
+        fn: Callable[P, Awaitable[R]],
+        name: str | None = None,
+    ):
         self.brrr = brrr
         self.fn = fn
         self.name = name or fn.__name__
@@ -322,7 +368,7 @@ class Task:
             return await self.evaluate(args, kwargs)
         return await self.brrr.call(None, self.name, args, kwargs)
 
-    async def map(self, args: list[dict | list | tuple[tuple, dict]]):
+    async def map(self, args: Sequence[dict | list | tuple[tuple, dict]]) -> list[R]:
         """
         Fanning out, a map function returns the values if they have already been computed.
         Otherwise, it raises a list of Call exceptions to schedule the computation,
