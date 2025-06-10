@@ -145,7 +145,7 @@ async def fib(n: int, salt=None):
         case 0 | 1:
             return n
         case _:
-            return sum(await fib.map([[n - 2, salt], [n - 1, salt]]))
+            return sum(await brrr.gather(fib(n - 2, salt), fib(n - 1, salt)))
 
 
 cmds = {}

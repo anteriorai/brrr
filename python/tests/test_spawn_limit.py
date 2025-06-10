@@ -52,7 +52,7 @@ async def test_spawn_limit_breadth_mapped():
     async def foo(a: int) -> int:
         calls["foo"] += 1
         # Pass a different argument to avoid the debouncer
-        val = sum(await one.map([[x] for x in range(a)]))
+        val = sum(await b.gather(*map(one, range(a))))
         # Remove this if-guard when return calls are debounced.
         if calls["foo"] == a + 1:
             await queue.close()
@@ -83,7 +83,7 @@ async def test_spawn_limit_recoverable():
     async def foo(a: int) -> int:
         calls["foo"] += 1
         # Pass a different argument to avoid the debouncer
-        val = sum(await one.map([[x] for x in range(a)]))
+        val = sum(await b.gather(*map(one, range(a))))
         # Remove this if-guard when return calls are debounced.
         if calls["foo"] == a + 1:
             await queue.close()
@@ -155,7 +155,7 @@ async def test_spawn_limit_cached():
 
     @b.task
     async def foo(a: int) -> int:
-        val = sum(await same.map([[1]] * a))
+        val = sum(await b.gather(*map(same, [1] * a)))
         await queue.close()
         nonlocal final
         final = val

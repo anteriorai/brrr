@@ -28,10 +28,6 @@ async def test_no_brrr_funcall(handle_nobrrr):
     assert await handle_nobrrr(3) == 6
 
 
-async def test_no_brrr_map(handle_nobrrr):
-    assert await handle_nobrrr.map([[3], [4]]) == [6, 10]
-
-
 async def test_gather() -> None:
     b = Brrr()
 
@@ -249,7 +245,7 @@ async def test_debounce_child():
         if a == 0:
             return a
 
-        ret = sum(await foo.map([[a - 1]] * 50))
+        ret = sum(await b.gather(*map(foo, [a - 1] * 50)))
         if a == 3:
             await queue.close()
         return ret
@@ -278,7 +274,7 @@ async def test_no_debounce_parent():
     async def foo(a: int) -> int:
         calls["foo"] += 1
         # Different argument to avoid debouncing children
-        ret = sum(await one.map([[i] for i in range(a)]))
+        ret = sum(await b.gather(*map(one, range(a))))
         # Obviously we only actually ever want to reach this point once
         if calls["foo"] == 1 + a:
             await queue.close()
