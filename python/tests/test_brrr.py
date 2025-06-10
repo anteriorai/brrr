@@ -358,3 +358,17 @@ def test_error_on_setup():
 
     with pytest.raises(Exception):
         b.setup()
+
+
+def test_get_tasks():
+    b = Brrr()
+
+    @b.task
+    async def foo(a: int) -> int:
+        return a
+
+    @b.task
+    async def bar(a: int) -> int:
+        return a * a
+
+    assert b.tasks == {"bar": bar, "foo": foo}
