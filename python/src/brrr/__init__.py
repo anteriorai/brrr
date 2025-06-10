@@ -1,4 +1,4 @@
-from .brrr import Brrr
+from .brrr import Brrr, Task as Task
 from .brrr import Defer as Defer, DeferredCall as DeferredCall
 from .brrr import SpawnLimitError as SpawnLimitError
 

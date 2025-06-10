@@ -461,3 +461,18 @@ def test_get_tasks():
         return a * a
 
     assert b.tasks == {"bar": bar, "foo": foo}
+
+
+def test_task_setup():
+    b = Brrr()
+
+    @b.task(name="zim")
+    async def foo(a: int) -> int:
+        return a
+
+    @b.task
+    async def bar(a: int) -> int:
+        return a * a
+
+    assert foo.name == "zim"
+    assert bar.name == "bar"

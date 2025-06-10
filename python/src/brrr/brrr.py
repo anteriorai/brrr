@@ -23,6 +23,8 @@ from .queue import Queue, QueueIsClosed, QueueIsEmpty
 
 logger = logging.getLogger(__name__)
 
+type _TaskDecorator[**P, R] = Callable[[Callable[P, Awaitable[R]]], Task[P, R]]
+
 
 class SpawnLimitError(Exception):
     pass
@@ -328,14 +330,28 @@ class Brrr:
         task = self.tasks[task_name]
         return await self._codec.invoke_task(memo_key, task.name, task.fn, payload)
 
-    def task[**P, R](
-        self, fn: Callable[P, Awaitable[R]], name: str | None = None
-    ) -> Task[P, R]:
-        task = Task(self, fn, name)
-        if task.name in self.tasks:
-            self._setup_error = Exception(f"Task {task.name} already exists")
-        self.tasks[task.name] = task
-        return task
+    @overload
+    def task[**P, R](self, fn: Callable[P, Awaitable[R]]) -> Task[P, R]: ...
+    @overload
+    def task[**P, R](self, *, name: str | None = None) -> _TaskDecorator[P, R]: ...
+
+    def task(self, *args, **kwargs):
+        def _wrap(fn):
+            task = Task(self, fn, **tkwargs)
+            if task.name in self.tasks:
+                self._setup_error = Exception(f"Task {task.name} already exists")
+            self.tasks[task.name] = task
+            return task
+
+        if len(args) == 1 and callable(args[0]) and not kwargs:
+            defaults = {"name": None}
+            tkwargs = defaults | kwargs
+            return _wrap(args[0])
+        elif (not args) and kwargs:
+            tkwargs = kwargs
+            return _wrap
+        else:
+            raise ValueError("Unknown call signature for task decorator")
 
     @asynccontextmanager
     async def wrrrk(self) -> AsyncIterator[Wrrrker]:
