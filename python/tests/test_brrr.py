@@ -205,6 +205,38 @@ async def test_stop_when_empty():
     assert calls_post == Counter({1: 1, 2: 1, 3: 1})
 
 
+async def test_wrrrk_resumable():
+    b = Brrr()
+    store = InMemoryByteStore()
+    queue = ClosableInMemQueue()
+
+    errors = 5
+
+    class MyError(Exception):
+        pass
+
+    @b.task
+    async def foo(a: int) -> int:
+        nonlocal errors
+        if errors:
+            errors -= 1
+            raise MyError("retry")
+        await queue.close()
+        return a
+
+    b.setup(queue, store, store, PickleCodec())
+    while True:
+        try:
+            await b.schedule(TOPIC, "foo", (3,), {})
+            await b.wrrrk(TOPIC)
+            break
+        except MyError:
+            continue
+
+    await queue.join()
+    assert errors == 0
+
+
 async def test_debounce_child():
     b = Brrr()
     calls = Counter()
