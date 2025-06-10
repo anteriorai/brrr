@@ -6,7 +6,7 @@ from collections import namedtuple
 from dataclasses import dataclass
 import logging
 import time
-from typing import Any, TypeVar
+from typing import Any
 
 import bencodepy
 
@@ -82,11 +82,6 @@ class CompareMismatch(Exception): ...
 
 
 class AlreadyExists(Exception): ...
-
-
-T = TypeVar("T")
-X = TypeVar("X")
-Y = TypeVar("Y")
 
 
 class Store(ABC):
