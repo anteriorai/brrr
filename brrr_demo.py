@@ -3,6 +3,7 @@
 import ast
 import asyncio
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from collections.abc import AsyncIterator
 import logging
 import logging.config
@@ -25,6 +26,8 @@ from brrr.pickle_codec import PickleCodec
 logger = logging.getLogger(__name__)
 routes = web.RouteTableDef()
 
+_brrr_conn: ContextVar[brrr.Wrrrker] = ContextVar("brrr_demo.brrr")
+
 
 def table_name() -> str:
     """
@@ -43,11 +46,11 @@ async def get_task_result(request: web.BaseRequest):
     kwargs = dict(request.query)
 
     task_name = request.match_info["task_name"]
-    if task_name not in brrr.tasks():
+    if task_name not in _brrr_conn.get().tasks:
         return response(404, {"error": "No such task"})
 
     try:
-        result = await brrr.read(task_name, (), kwargs)
+        result = await _brrr_conn.get().read(task_name, (), kwargs)
     except KeyError:
         return response(404, dict(error="No result for this task"))
     return response(200, dict(status="ok", result=result))
@@ -58,10 +61,10 @@ async def schedule_task(request: web.BaseRequest):
     kwargs = dict(request.query)
 
     task_name = request.match_info["task_name"]
-    if task_name not in brrr.tasks():
+    if task_name not in _brrr_conn.get().tasks:
         return response(404, {"error": "No such task"})
 
-    await brrr.schedule("brrr-demo-main", task_name, (), kwargs)
+    await _brrr_conn.get().schedule("brrr-demo-main", task_name)(**kwargs)
     return response(202, {"status": "accepted"})
 
 
@@ -108,20 +111,24 @@ async def with_brrr_resources() -> AsyncIterator[tuple[RedisQueue, DynamoDbMemSt
 
 
 @asynccontextmanager
-async def with_brrr(reset_backends):
+async def with_brrr(reset_backends) -> AsyncIterator[brrr.Wrrrker]:
     async with with_brrr_resources() as (redis, dynamo):
         if reset_backends:
             await redis.setup()
             await dynamo.create_table()
-        brrr.setup(redis, dynamo, redis, PickleCodec())
-        yield
+        async with brrr.wrrrk(redis, dynamo, redis, PickleCodec()) as c:
+            token = _brrr_conn.set(c)
+            try:
+                yield c
+            finally:
+                _brrr_conn.reset(token)
 
 
 # This is the normal way to initialize tasks: just directly use the module
 # singleton.
 @brrr.task
 async def fib_and_print(n: str, salt=None):
-    f = await brrr.call("brrr-demo-side", "fib", (int(n), salt), {})
+    f = await brrr.worker().call("brrr-demo-side", "fib")(int(n), salt)
     print(f"fib({n}) = {f}", flush=True)
     return f
 
@@ -145,7 +152,7 @@ async def fib(n: int, salt=None):
         case 0 | 1:
             return n
         case _:
-            return sum(await brrr.gather(fib(n - 2, salt), fib(n - 1, salt)))
+            return sum(await b2.worker().gather(fib(n - 2, salt), fib(n - 1, salt)))
 
 
 cmds = {}
@@ -158,18 +165,15 @@ def cmd(f):
 
 @cmd
 async def worker():
-    async with with_brrr_resources() as (redis, dynamo):
-        brrr.setup(redis, dynamo, redis, PickleCodec())
-        # You can safely share the exact same resources between different brrr
-        # instances, even if they use different topics.  In particular the
-        # memory store is topic-agnostic.
-        b2.setup(redis, dynamo, redis, PickleCodec())
-        async with brrr.wrrrk() as client_main:
-            async with b2.wrrrk() as client_side:
-                await asyncio.gather(
-                    client_main.loop("brrr-demo-main"),
-                    client_side.loop("brrr-demo-side"),
-                )
+    async with (
+        with_brrr_resources() as (redis, dynamo),
+        brrr.wrrrk(redis, dynamo, redis, PickleCodec()) as c1,
+        b2.wrrrk(redis, dynamo, redis, PickleCodec()) as c2,
+    ):
+        await asyncio.gather(
+            c1.loop("brrr-demo-main"),
+            c2.loop("brrr-demo-side"),
+        )
 
 
 @cmd
@@ -212,8 +216,8 @@ async def schedule(topic: str, job: str, *args: str):
     """
     Put a single job onto the queue
     """
-    async with with_brrr(False):
-        await brrr.schedule(topic, job, (), args2dict(args))
+    async with with_brrr(False) as c:
+        await c.schedule(topic, job)(**args2dict(args))
 
 
 @cmd

@@ -1,15 +1,11 @@
-from .brrr import Brrr, Task as Task
+from .brrr import Brrr, Client as Client, Task as Task, Wrrrker as Wrrrker
 from .brrr import Defer as Defer, DeferredCall as DeferredCall
 from .brrr import SpawnLimitError as SpawnLimitError
 
 # For ergonomics, we provide a singleton and a bunch of proxies as the module interface.
 _brrr = Brrr()
 
-call = _brrr.call
-setup = _brrr.setup
-gather = _brrr.gather
-read = _brrr.read
-wrrrk = _brrr.wrrrk
+connect = _brrr.connect
 task = _brrr.task
-tasks = _brrr.tasks
-schedule = _brrr.schedule
+worker = _brrr.worker
+wrrrk = _brrr.wrrrk

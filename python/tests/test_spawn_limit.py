@@ -13,7 +13,6 @@ TOPIC = "brrr-test"
 
 async def test_spawn_limit_depth():
     b = Brrr()
-    b._spawn_limit = 100
     queue = ClosableInMemQueue([TOPIC])
     store = InMemoryByteStore()
     n = 0
@@ -28,18 +27,18 @@ async def test_spawn_limit_depth():
             return 0
         return await foo(a - 1)
 
-    b.setup(queue, store, store, PickleCodec())
-    await b.schedule(TOPIC, "foo", (b._spawn_limit + 3,), {})
-    with pytest.raises(SpawnLimitError):
-        async with b.wrrrk() as c:
+    async with b.wrrrk(queue, store, store, PickleCodec()) as c:
+        c._spawn_limit = 100
+        await c.schedule(TOPIC, "foo")(c._spawn_limit + 3)
+
+        with pytest.raises(SpawnLimitError):
             await c.loop(TOPIC)
 
-    assert n == b._spawn_limit
+        assert n == c._spawn_limit
 
 
 async def test_spawn_limit_breadth_mapped():
     b = Brrr()
-    b._spawn_limit = 100
     queue = ClosableInMemQueue([TOPIC])
     store = InMemoryByteStore()
     calls = Counter()
@@ -53,16 +52,16 @@ async def test_spawn_limit_breadth_mapped():
     async def foo(a: int) -> int:
         calls["foo"] += 1
         # Pass a different argument to avoid the debouncer
-        val = sum(await b.gather(*map(one, range(a))))
+        val = sum(await b.worker().gather(*map(one, range(a))))
         # Remove this if-guard when return calls are debounced.
         if calls["foo"] == a + 1:
             await queue.close()
         return val
 
-    b.setup(queue, store, store, PickleCodec())
-    await b.schedule(TOPIC, "foo", (b._spawn_limit + 4,), {})
-    with pytest.raises(SpawnLimitError):
-        async with b.wrrrk() as c:
+    async with b.wrrrk(queue, store, store, PickleCodec()) as c:
+        c._spawn_limit = 100
+        await c.schedule(TOPIC, "foo")(c._spawn_limit + 4)
+        with pytest.raises(SpawnLimitError):
             await c.loop(TOPIC)
 
     assert calls["foo"] == 1
@@ -70,7 +69,6 @@ async def test_spawn_limit_breadth_mapped():
 
 async def test_spawn_limit_recoverable():
     b = Brrr()
-    b._spawn_limit = 100
     queue = ClosableInMemQueue([TOPIC])
     store = InMemoryByteStore()
     cache = InMemoryByteStore()
@@ -85,27 +83,27 @@ async def test_spawn_limit_recoverable():
     async def foo(a: int) -> int:
         calls["foo"] += 1
         # Pass a different argument to avoid the debouncer
-        val = sum(await b.gather(*map(one, range(a))))
+        val = sum(await b.worker().gather(*map(one, range(a))))
         # Remove this if-guard when return calls are debounced.
         if calls["foo"] == a + 1:
             await queue.close()
         return val
 
-    b.setup(queue, store, cache, PickleCodec())
-    spawn_limit_encountered = False
-    n = b._spawn_limit + 1
-    await b.schedule(TOPIC, "foo", (n,), {})
-    while True:
-        # Very ugly but this works for testing
-        cache.inner = {}
-        try:
-            async with b.wrrrk() as c:
+    async with b.wrrrk(queue, store, cache, PickleCodec()) as c:
+        c._spawn_limit = 100
+        spawn_limit_encountered = False
+        n = c._spawn_limit + 1
+        await c.schedule(TOPIC, "foo")(n)
+        while True:
+            # Very ugly but this works for testing
+            cache.inner = {}
+            try:
                 await c.loop(TOPIC)
-            break
-        except SpawnLimitError:
-            spawn_limit_encountered = True
-    # I expect messages to be left pending as unhandled here, that’s the point:
+                break
+            except SpawnLimitError:
+                spawn_limit_encountered = True
 
+    # I expect messages to be left pending as unhandled here, that’s the point:
     assert spawn_limit_encountered
     # Once we debounce parent calls this should be foo=2
     assert calls == Counter(dict(one=n, foo=n + 1))
@@ -113,7 +111,6 @@ async def test_spawn_limit_recoverable():
 
 async def test_spawn_limit_breadth_manual():
     b = Brrr()
-    b._spawn_limit = 100
     queue = ClosableInMemQueue([TOPIC])
     store = InMemoryByteStore()
     calls = Counter()
@@ -134,18 +131,17 @@ async def test_spawn_limit_breadth_manual():
         await queue.close()
         return total
 
-    b.setup(queue, store, store, PickleCodec())
-    await b.schedule(TOPIC, "foo", (b._spawn_limit + 3,), {})
-    with pytest.raises(SpawnLimitError):
-        async with b.wrrrk() as c:
+    async with b.wrrrk(queue, store, store, PickleCodec()) as c:
+        c._spawn_limit = 100
+        await c.schedule(TOPIC, "foo")(c._spawn_limit + 3)
+        with pytest.raises(SpawnLimitError):
             await c.loop(TOPIC)
 
-    assert calls == Counter(dict(one=b._spawn_limit / 2, foo=b._spawn_limit / 2))
+        assert calls == Counter(dict(one=c._spawn_limit / 2, foo=c._spawn_limit / 2))
 
 
 async def test_spawn_limit_cached():
     b = Brrr()
-    b._spawn_limit = 100
     queue = ClosableInMemQueue([TOPIC])
     store = InMemoryByteStore()
     n = 0
@@ -159,17 +155,17 @@ async def test_spawn_limit_cached():
 
     @b.task
     async def foo(a: int) -> int:
-        val = sum(await b.gather(*map(same, [1] * a)))
+        val = sum(await b.worker().gather(*map(same, [1] * a)))
         await queue.close()
         nonlocal final
         final = val
         return val
 
-    b.setup(queue, store, store, PickleCodec())
-    await b.schedule(TOPIC, "foo", (b._spawn_limit + 5,), {})
-    async with b.wrrrk() as c:
+    async with b.wrrrk(queue, store, store, PickleCodec()) as c:
+        c._spawn_limit = 100
+        await c.schedule(TOPIC, "foo")(c._spawn_limit + 5)
         await c.loop(TOPIC)
-    await queue.join()
+        await queue.join()
 
-    assert n == 1
-    assert final == b._spawn_limit + 5
+        assert n == 1
+        assert final == c._spawn_limit + 5

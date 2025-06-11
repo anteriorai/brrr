@@ -44,10 +44,10 @@ async def test_codec_key_no_args():
         await queue.close()
         return val
 
-    b.setup(queue, store, store, codec)
-    await b.schedule("test", "foo", (50,), {})
-    async with b.wrrrk() as c:
+    async with b.wrrrk(queue, store, store, codec) as c:
+        await c.schedule("test", "foo")(50)
         await c.loop("test")
+
     await queue.join()
     assert calls == Counter(
         {
@@ -86,10 +86,10 @@ async def test_codec_api():
         await queue.close()
         return val
 
-    b.setup(queue, store, store, codec)
-    await b.schedule("test", "foo", (), {})
-    async with b.wrrrk() as c:
+    async with b.wrrrk(queue, store, store, codec) as c:
+        await c.schedule("test", "foo")()
         await c.loop("test")
+
     await queue.join()
     codec.create_call.assert_has_calls(
         [
