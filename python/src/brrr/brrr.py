@@ -2,7 +2,15 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Sequence
+from collections.abc import (
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Iterable,
+    Mapping,
+    MutableSequence,
+    Sequence,
+)
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
@@ -87,14 +95,14 @@ class Brrr:
     # jobs only in this specific queue.
     topic: str
 
-    # An error which occurred during setup, if any.  Stored by value here and
-    # only raised when ‘.setup’ is called to avoid raising errors on import.
-    # Particularly useful for people who test code containing brrr tasks,
-    # e.g. pytest can want to load a file twice and that should be OK in a test.
-    _setup_error: Exception | None
-
     # Dictionary of task_name to task instance
-    tasks: dict[str, Task]
+    _tasks: dict[str, Task]
+
+    # Tasks pending registration before setup.  This allows for a very lazy API
+    # which is particularly polite when asking users to put task registration as
+    # a top-level decorator: only do things (like raise errors!) if you actually
+    # _need_ brrr, not e.g. in a unit test which doesn’t use it.
+    _registering_tasks: MutableSequence[Task] | None
 
     # Maximum task executions per root job.  Hard-coded, not intended to be
     # configurable or ever even be hit, for that matter.  If you hit this you almost
@@ -108,8 +116,8 @@ class Brrr:
         self.memory = None
         self.queue = None
         self.topic = None
-        self._setup_error = None
-        self.tasks = {}
+        self._tasks = {}
+        self._registering_tasks = []
         self._worker_singleton = ContextVar("brrr.worker")
         self._spawn_limit = 10_000
 
@@ -129,13 +137,15 @@ class Brrr:
         out the API.
 
         """
-        if self._setup_error is not None:
-            raise self._setup_error
-
+        if self._registering_tasks is None:
+            raise Exception("Brrr.setup called twice")
         self._codec = codec
         self.cache = cache
         self.memory = Memory(store, self._codec)
         self.queue = queue
+        for task in self._registering_tasks:
+            self._register_task(task)
+        self._registering_tasks = None
 
     def _inside_worker_context_p(self) -> Any:
         return self._worker_singleton.get(None) is not None
@@ -327,8 +337,15 @@ class Brrr:
         """
         Evaluate a frame, which means calling the tasks function with its arguments
         """
-        task = self.tasks[task_name]
+        task = self._tasks[task_name]
         return await self._codec.invoke_task(memo_key, task.name, task.fn, payload)
+
+    @requires_setup
+    def _register_task(self, task: Task):
+        """Actually register this task on this brrr instance"""
+        if task.name in self._tasks:
+            raise Exception(f"Task {task.name} already exists")
+        self._tasks[task.name] = task
 
     @overload
     def task[**P, R](self, fn: Callable[P, Awaitable[R]]) -> Task[P, R]: ...
@@ -337,10 +354,11 @@ class Brrr:
 
     def task(self, *args, **kwargs):
         def _wrap(fn):
+            if self._registering_tasks is None:
+                # Technically I guess you could but let’s not get into the habit.
+                raise Exception("Cannot register tasks after Brrr.setup called")
             task = Task(self, fn, **tkwargs)
-            if task.name in self.tasks:
-                self._setup_error = Exception(f"Task {task.name} already exists")
-            self.tasks[task.name] = task
+            self._registering_tasks.append(task)
             return task
 
         if len(args) == 1 and callable(args[0]) and not kwargs:
@@ -352,6 +370,10 @@ class Brrr:
             return _wrap
         else:
             raise ValueError("Unknown call signature for task decorator")
+
+    @requires_setup
+    def tasks(self) -> Mapping[str, Task]:
+        return self._tasks
 
     @asynccontextmanager
     async def wrrrk(self) -> AsyncIterator[Wrrrker]:

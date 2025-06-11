@@ -43,7 +43,7 @@ async def get_task_result(request: web.BaseRequest):
     kwargs = dict(request.query)
 
     task_name = request.match_info["task_name"]
-    if task_name not in brrr.tasks:
+    if task_name not in brrr.tasks():
         return response(404, {"error": "No such task"})
 
     try:
@@ -58,7 +58,7 @@ async def schedule_task(request: web.BaseRequest):
     kwargs = dict(request.query)
 
     task_name = request.match_info["task_name"]
-    if task_name not in brrr.tasks:
+    if task_name not in brrr.tasks():
         return response(404, {"error": "No such task"})
 
     await brrr.schedule("brrr-demo-main", task_name, (), kwargs)

@@ -460,7 +460,13 @@ def test_get_tasks():
     async def bar(a: int) -> int:
         return a * a
 
-    assert b.tasks == {"bar": bar, "foo": foo}
+    with pytest.raises(Exception):
+        b.tasks()
+
+    store = InMemoryByteStore()
+    queue = ClosableInMemQueue([TOPIC])
+    b.setup(queue, store, store, PickleCodec())
+    assert b.tasks() == {"bar": bar, "foo": foo}
 
 
 def test_task_setup():
