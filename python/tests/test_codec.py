@@ -46,7 +46,8 @@ async def test_codec_key_no_args():
 
     b.setup(queue, store, store, codec)
     await b.schedule("test", "foo", (50,), {})
-    await b.wrrrk("test")
+    async with b.wrrrk() as c:
+        await c.loop("test")
     await queue.join()
     assert calls == Counter(
         {
@@ -87,7 +88,8 @@ async def test_codec_api():
 
     b.setup(queue, store, store, codec)
     await b.schedule("test", "foo", (), {})
-    await b.wrrrk("test")
+    async with b.wrrrk() as c:
+        await c.loop("test")
     await queue.join()
     codec.create_call.assert_has_calls(
         [

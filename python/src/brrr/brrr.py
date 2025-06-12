@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import Awaitable, Callable, Sequence, Iterable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 import functools
 import logging
@@ -335,11 +336,20 @@ class Brrr:
         self.tasks[task.name] = task
         return task
 
-    async def wrrrk(self, topic: str):
+    @asynccontextmanager
+    async def wrrrk(self) -> AsyncIterator[Wrrrker]:
         """
         Spin up a single brrr worker listening on the given topic.
         """
-        await Wrrrker(self).loop(topic)
+        if self.worker_singleton is not None:
+            # TODO: Fix the API so this isn’t necessary.  WIP.  - robin 2025/06
+            raise Exception("Worker already running")
+        wrkr = Wrrrker(self)
+        self.worker_singleton = wrkr
+        try:
+            yield wrkr
+        finally:
+            self.worker_singleton = None
 
 
 class Task[**P, R]:
@@ -377,18 +387,11 @@ class Task[**P, R]:
 
 
 class Wrrrker:
+    n: int
+
     def __init__(self, brrr: Brrr):
         self.brrr = brrr
-
-    # The context manager maintains a thread-local global variable to indicate that the thread is a worker
-    # and that any invoked tasks can raise Defer exceptions
-    def __enter__(self):
-        if self.brrr.worker_singleton is not None:
-            raise Exception("Worker already running")
-        self.brrr.worker_singleton = self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.brrr.worker_singleton = None
+        self.n = 0
 
     def _parse_call_id(self, call_id: str):
         return call_id.split("/")
@@ -479,18 +482,19 @@ class Wrrrker:
         They have read and write access to the store, and are responsible for
         Managing the output of tasks and scheduling new ones
         """
-        with self:
-            logger.info(f"Worker started on {topic}")
-            while True:
-                try:
-                    # This is presumed to be a long poll
-                    message = await self.brrr.queue.get_message(topic)
-                    logger.debug(f"Got {topic} message {repr(message)}")
-                except QueueIsEmpty:
-                    logger.debug(f"Queue {topic} is empty")
-                    continue
-                except QueueIsClosed:
-                    logger.info(f"Queue {topic} is closed")
-                    return
+        self.n += 1
+        num = self.n
+        logger.info(f"Worker {num} started on {topic}")
+        while True:
+            try:
+                # This is presumed to be a long poll
+                message = await self.brrr.queue.get_message(topic)
+                logger.debug(f"Worker {num} got {topic} message {repr(message)}")
+            except QueueIsEmpty:
+                logger.debug(f"Worker {num}'s queue {topic} is empty")
+                continue
+            except QueueIsClosed:
+                logger.info(f"Worker {num}'s queue {topic} is closed, exiting.")
+                return
 
-                await self._handle_msg(topic, message.body)
+            await self._handle_msg(topic, message.body)
