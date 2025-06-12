@@ -204,8 +204,11 @@ class MemoryContract(ByteStoreContract):
 
     async def test_pending_returns(self):
         async with self.with_memory() as memory:
-            async with memory.with_pending_returns_remove("key") as keys:
-                assert keys == set()
+
+            async def body(keys):
+                assert not keys
+
+            await memory.with_pending_returns_remove("key", body)
 
             calls = set()
 
@@ -219,12 +222,19 @@ class MemoryContract(ByteStoreContract):
             assert calls == {1}
 
             with pytest.raises(FakeError):
-                async with memory.with_pending_returns_remove("key") as keys:
-                    assert keys == {"p1", "p2"}
+
+                async def body(keys):
+                    assert set(keys) == {"p1", "p2"}
                     raise FakeError()
 
-            async with memory.with_pending_returns_remove("key") as keys:
-                assert keys == {"p1", "p2"}
+                await memory.with_pending_returns_remove("key", body)
 
-            async with memory.with_pending_returns_remove("key") as keys:
-                assert keys == set()
+            async def body2(keys):
+                assert set(keys) == {"p1", "p2"}
+
+            await memory.with_pending_returns_remove("key", body2)
+
+            async def body3(keys):
+                assert not keys
+
+            await memory.with_pending_returns_remove("key", body3)

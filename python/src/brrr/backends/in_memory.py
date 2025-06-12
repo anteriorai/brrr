@@ -69,19 +69,19 @@ class InMemoryByteStore(Store, Cache):
     async def set_new_value(self, key: MemKey, value: bytes):
         k = _key2str(key)
         if k in self.inner:
-            raise CompareMismatch
+            raise CompareMismatch()
         self.inner[k] = value
 
     async def compare_and_set(self, key: MemKey, value: bytes, expected: bytes):
         k = _key2str(key)
         if (k not in self.inner) or (self.inner[k] != expected):
-            raise CompareMismatch
+            raise CompareMismatch()
         self.inner[k] = value
 
     async def compare_and_delete(self, key: MemKey, expected: bytes):
         k = _key2str(key)
         if (k not in self.inner) or (self.inner[k] != expected):
-            raise CompareMismatch
+            raise CompareMismatch()
         del self.inner[k]
 
     async def incr(self, k: str) -> int:
