@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence, Iterable
 from dataclasses import dataclass
 import functools
 import logging
@@ -449,7 +449,8 @@ class Wrrrker:
         # error once the context finishes.  It’s about as convoluted as just
         # doing it this way, without any of the clarity.
         spawn_limit_err = None
-        async with self.brrr.memory.with_pending_returns_remove(my_memo_key) as returns:
+
+        async def schedule_returns(returns: Iterable[str]):
             for pending in returns:
                 try:
                     await self._schedule_return_call(pending)
@@ -457,7 +458,12 @@ class Wrrrker:
                     logger.info(
                         f"Spawn limit reached returning from {my_memo_key} to {pending}; clearing the return"
                     )
+                    nonlocal spawn_limit_err
                     spawn_limit_err = e
+
+        await self.brrr.memory.with_pending_returns_remove(
+            my_memo_key, schedule_returns
+        )
         if spawn_limit_err is not None:
             raise spawn_limit_err
 

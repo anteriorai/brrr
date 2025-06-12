@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from abc import abstractmethod, ABC
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from collections import namedtuple
-from contextlib import asynccontextmanager
 from dataclasses import dataclass
 import logging
 import time
@@ -239,8 +238,7 @@ class Memory:
             # we could end up executing code with the wrong value
             raise AlreadyExists(f"set_value: value already set for {memo_key}")
 
-    @asynccontextmanager
-    async def _with_cas(self) -> AsyncIterator:
+    async def _with_cas[T](self, f: Callable[[], Awaitable[T]]) -> T:
         """Wrap a CAS exception generating body.
 
         This abstracts the retry nature of a CAS gated operation.  The with
@@ -253,7 +251,7 @@ class Memory:
         i = 0
         while True:
             try:
-                yield
+                return await f()
             except CompareMismatch as e:
                 i += 1
                 # Do this within the catch so we can attach the last
@@ -266,8 +264,6 @@ class Memory:
                     # compare_and_set implementation.
                     raise Exception("exceeded CAS retry limit") from e
                 continue
-            else:
-                return
 
     async def add_pending_return(
         self,
@@ -288,9 +284,10 @@ class Memory:
         can be used as an indication that an operation is currently `in flight.'
 
         """
+
         # Beware race conditions here!  Be aware of concurrency corner cases on
         # every single line.
-        async with self._with_cas():
+        async def cas_body():
             memkey = MemKey("pending_returns", memo_key)
             should_store_again = False
             try:
@@ -331,14 +328,17 @@ class Memory:
 
             logger.debug(f"{adj} pending return {new_return} {verb} {memo_key}")
 
-    @asynccontextmanager
+        await self._with_cas(cas_body)
+
     async def with_pending_returns_remove(
-        self, memo_key: str
-    ) -> AsyncIterator[set[str]]:
+        self, memo_key: str, f: Callable[[Iterable[str]], Awaitable[None]]
+    ) -> None:
         """ """
         memkey = MemKey("pending_returns", memo_key)
         handled: set[str] = set()
-        async with self._with_cas():
+
+        async def cas_body():
+            nonlocal handled
             try:
                 pending_enc = await self.store.get(memkey)
             except KeyError:
@@ -348,10 +348,11 @@ class Memory:
                 # must yield _something_.  Yuck.
                 #
                 # https://stackoverflow.com/a/34519857
-                yield set()
-                return
+                return await f([])
             to_handle = PendingReturns.decode(pending_enc).returns - handled
             logger.debug(f"Handling returns for {memo_key}: {to_handle}...")
-            yield to_handle
+            await f(to_handle)
             handled |= to_handle
             await self.store.compare_and_delete(memkey, pending_enc)
+
+        return await self._with_cas(cas_body)

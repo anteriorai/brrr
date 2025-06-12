@@ -83,7 +83,7 @@ class DynamoDbMemStore(Store):
                 ConditionExpression="attribute_not_exists(#value)",
             )
         except self.client.exceptions.ConditionalCheckFailedException:
-            raise CompareMismatch
+            raise CompareMismatch()
 
     async def compare_and_set(self, key: MemKey, value: bytes, expected: bytes):
         if expected is None:
@@ -101,7 +101,7 @@ class DynamoDbMemStore(Store):
                 ConditionExpression="#value = :expected",
             )
         except self.client.exceptions.ConditionalCheckFailedException:
-            raise CompareMismatch
+            raise CompareMismatch()
 
     async def compare_and_delete(self, key: MemKey, expected: bytes):
         if expected is None:
@@ -116,7 +116,7 @@ class DynamoDbMemStore(Store):
                 ExpressionAttributeValues={":expected": {"B": expected}},
             )
         except self.client.exceptions.ConditionalCheckFailedException:
-            raise CompareMismatch
+            raise CompareMismatch()
 
     async def create_table(self):
         try:
