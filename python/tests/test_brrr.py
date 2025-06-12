@@ -53,7 +53,7 @@ async def _call_nested_gather(*, use_brrr_gather: bool) -> list[str]:
     b = Brrr()
     calls = []
     store = InMemoryByteStore()
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue([TOPIC])
 
     @b.task
     async def foo(a: int) -> int:
@@ -131,7 +131,7 @@ async def test_topics():
     b1 = Brrr()
     b2 = Brrr()
     store = InMemoryByteStore()
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue(["t1", "t2"])
 
     @b1.task
     async def one(a: int) -> int:
@@ -166,7 +166,7 @@ async def test_asyncio_gather():
 async def test_nop_closed_queue():
     b = Brrr()
     store = InMemoryByteStore()
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue([TOPIC])
     await queue.close()
     b.setup(queue, store, store, PickleCodec())
     await b.wrrrk(TOPIC)
@@ -180,7 +180,7 @@ async def test_stop_when_empty():
     calls_pre = Counter()
     calls_post = Counter()
     store = InMemoryByteStore()
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue([TOPIC])
 
     @b.task
     async def foo(a: int) -> int:
@@ -204,7 +204,7 @@ async def test_stop_when_empty():
 async def test_wrrrk_resumable():
     b = Brrr()
     store = InMemoryByteStore()
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue([TOPIC])
 
     errors = 5
 
@@ -237,7 +237,7 @@ async def test_debounce_child():
     b = Brrr()
     calls = Counter()
     store = InMemoryByteStore()
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue([TOPIC])
 
     @b.task
     async def foo(a: int) -> int:
@@ -263,7 +263,7 @@ async def test_no_debounce_parent():
     b = Brrr()
     calls = Counter()
     store = InMemoryByteStore()
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue([TOPIC])
 
     @b.task
     async def one(_: int) -> int:
@@ -290,7 +290,7 @@ async def test_no_debounce_parent():
 
 async def test_wrrrk_recoverable():
     b = Brrr()
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue([TOPIC])
     store = InMemoryByteStore()
     calls = Counter()
 
@@ -324,7 +324,7 @@ async def test_wrrrk_recoverable():
     assert my_error_encountered
 
     # Trick the test queue implementation to survive this
-    queue.received[TOPIC] = asyncio.Queue()
+    queue.queues[TOPIC] = asyncio.Queue()
     await b.schedule(TOPIC, "bar", (2,), {})
     await b.wrrrk(TOPIC)
     await queue.join()

@@ -126,7 +126,7 @@
             ...
           }:
           let
-            python = pkgs.python312;
+            python = pkgs.python313;
             devPackages = [
               pkgs.process-compose
               pkgs.redis # For the CLI

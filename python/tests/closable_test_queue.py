@@ -1,5 +1,5 @@
 import asyncio
-import collections
+from collections.abc import Sequence
 
 
 import brrr.queue as bqueue
@@ -11,34 +11,31 @@ _CloseSentinel = object()
 class ClosableInMemQueue(bqueue.Queue):
     """A message queue which can be closed."""
 
-    def __init__(self):
-        self.operational = True
+    def __init__(self, topics: Sequence[str]):
         self.closing = False
-        self.received = collections.defaultdict(asyncio.Queue)
+        self.queues = {k: asyncio.Queue() for k in topics}
 
     async def close(self):
         assert not self.closing
         self.closing = True
-        await asyncio.gather(*(q.put(_CloseSentinel) for q in self.received.values()))
+        for q in self.queues.values():
+            q.shutdown()
 
     async def join(self):
-        await asyncio.gather(*(q.join() for q in self.received.values()))
+        await asyncio.gather(*(q.join() for q in self.queues.values()))
 
     async def get_message(self, topic: str):
-        if self.closing and topic not in self.received:
-            raise bqueue.QueueIsClosed()
+        if topic not in self.queues:
+            raise ValueError("invalid topic name")
 
-        q = self.received[topic]
-        payload = await q.get()
-        if payload is _CloseSentinel:
-            self.operational = False
-            q.task_done()
-            del self.received[topic]
+        q = self.queues[topic]
+        try:
+            payload = await q.get()
+        except asyncio.QueueShutDown:
             raise bqueue.QueueIsClosed()
 
         q.task_done()
         return bqueue.Message(body=payload)
 
     async def put_message(self, topic: str, body: str):
-        assert self.operational
-        await self.received[topic].put(body)
+        await self.queues[topic].put(body)
