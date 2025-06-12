@@ -14,7 +14,7 @@ TOPIC = "brrr-test"
 async def test_spawn_limit_depth():
     b = Brrr()
     b._spawn_limit = 100
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue([TOPIC])
     store = InMemoryByteStore()
     n = 0
 
@@ -39,7 +39,7 @@ async def test_spawn_limit_depth():
 async def test_spawn_limit_breadth_mapped():
     b = Brrr()
     b._spawn_limit = 100
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue([TOPIC])
     store = InMemoryByteStore()
     calls = Counter()
 
@@ -69,7 +69,7 @@ async def test_spawn_limit_breadth_mapped():
 async def test_spawn_limit_recoverable():
     b = Brrr()
     b._spawn_limit = 100
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue([TOPIC])
     store = InMemoryByteStore()
     cache = InMemoryByteStore()
     calls = Counter()
@@ -111,7 +111,7 @@ async def test_spawn_limit_recoverable():
 async def test_spawn_limit_breadth_manual():
     b = Brrr()
     b._spawn_limit = 100
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue([TOPIC])
     store = InMemoryByteStore()
     calls = Counter()
 
@@ -142,7 +142,7 @@ async def test_spawn_limit_breadth_manual():
 async def test_spawn_limit_cached():
     b = Brrr()
     b._spawn_limit = 100
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue([TOPIC])
     store = InMemoryByteStore()
     n = 0
     final = None

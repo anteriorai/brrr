@@ -14,7 +14,7 @@ async def test_codec_key_no_args():
     b = Brrr()
     calls = Counter()
     store = InMemoryByteStore()
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue(["test"])
     codec = PickleCodec()
 
     old = codec.create_call
@@ -66,7 +66,7 @@ async def test_codec_determinstic():
 async def test_codec_api():
     b = Brrr()
     store = InMemoryByteStore()
-    queue = ClosableInMemQueue()
+    queue = ClosableInMemQueue(["test"])
     codec = Mock(wraps=PickleCodec())
 
     @b.task
