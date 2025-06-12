@@ -12,14 +12,14 @@ class ClosableInMemQueue(bqueue.Queue):
     """A message queue which can be closed."""
 
     def __init__(self):
-        self.operational = True
         self.closing = False
         self.received = collections.defaultdict(asyncio.Queue)
 
     async def close(self):
         assert not self.closing
         self.closing = True
-        await asyncio.gather(*(q.put(_CloseSentinel) for q in self.received.values()))
+        for q in self.received.values():
+            q.shutdown()
 
     async def join(self):
         await asyncio.gather(*(q.join() for q in self.received.values()))
@@ -29,10 +29,9 @@ class ClosableInMemQueue(bqueue.Queue):
             raise bqueue.QueueIsClosed()
 
         q = self.received[topic]
-        payload = await q.get()
-        if payload is _CloseSentinel:
-            self.operational = False
-            q.task_done()
+        try:
+            payload = await q.get()
+        except asyncio.QueueShutDown:
             del self.received[topic]
             raise bqueue.QueueIsClosed()
 
@@ -40,5 +39,4 @@ class ClosableInMemQueue(bqueue.Queue):
         return bqueue.Message(body=payload)
 
     async def put_message(self, topic: str, body: str):
-        assert self.operational
         await self.received[topic].put(body)
