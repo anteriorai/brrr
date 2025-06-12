@@ -368,25 +368,6 @@ class Task[**P, R]:
             return await self.evaluate(args, kwargs)
         return await self.brrr.call(None, self.name, args, kwargs)
 
-    async def map(self, args: Sequence[dict | list | tuple[tuple, dict]]) -> list[R]:
-        """
-        Fanning out, a map function returns the values if they have already been computed.
-        Otherwise, it raises a list of Call exceptions to schedule the computation,
-        for the ones that aren't already computed
-
-        Offers a few syntaxes, TBD whether that is useful
-        #TODO we _could_ support a list of elements to get passed as a single arg each
-        """
-        argvs = [
-            (arg, {})
-            if isinstance(arg, list)
-            else ((), arg)
-            if isinstance(arg, dict)
-            else arg
-            for arg in args
-        ]
-        return await self.brrr.gather(*(self(*argv[0], **argv[1]) for argv in argvs))
-
     # I think /technically/ the async + await here cancel each other out and you
     # could do without either, but there are so many gotchas around it and
     # possible points of failure that it’s nice to at least ensure this _is_ a
