@@ -164,7 +164,12 @@ async def worker():
         # instances, even if they use different topics.  In particular the
         # memory store is topic-agnostic.
         b2.setup(redis, dynamo, redis, PickleCodec())
-        await asyncio.gather(brrr.wrrrk("brrr-demo-main"), b2.wrrrk("brrr-demo-side"))
+        async with brrr.wrrrk() as client_main:
+            async with b2.wrrrk() as client_side:
+                await asyncio.gather(
+                    client_main.loop("brrr-demo-main"),
+                    client_side.loop("brrr-demo-side"),
+                )
 
 
 @cmd

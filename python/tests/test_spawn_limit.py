@@ -31,7 +31,8 @@ async def test_spawn_limit_depth():
     b.setup(queue, store, store, PickleCodec())
     await b.schedule(TOPIC, "foo", (b._spawn_limit + 3,), {})
     with pytest.raises(SpawnLimitError):
-        await b.wrrrk(TOPIC)
+        async with b.wrrrk() as c:
+            await c.loop(TOPIC)
 
     assert n == b._spawn_limit
 
@@ -61,7 +62,8 @@ async def test_spawn_limit_breadth_mapped():
     b.setup(queue, store, store, PickleCodec())
     await b.schedule(TOPIC, "foo", (b._spawn_limit + 4,), {})
     with pytest.raises(SpawnLimitError):
-        await b.wrrrk(TOPIC)
+        async with b.wrrrk() as c:
+            await c.loop(TOPIC)
 
     assert calls["foo"] == 1
 
@@ -97,7 +99,8 @@ async def test_spawn_limit_recoverable():
         # Very ugly but this works for testing
         cache.inner = {}
         try:
-            await b.wrrrk(TOPIC)
+            async with b.wrrrk() as c:
+                await c.loop(TOPIC)
             break
         except SpawnLimitError:
             spawn_limit_encountered = True
@@ -134,7 +137,8 @@ async def test_spawn_limit_breadth_manual():
     b.setup(queue, store, store, PickleCodec())
     await b.schedule(TOPIC, "foo", (b._spawn_limit + 3,), {})
     with pytest.raises(SpawnLimitError):
-        await b.wrrrk(TOPIC)
+        async with b.wrrrk() as c:
+            await c.loop(TOPIC)
 
     assert calls == Counter(dict(one=b._spawn_limit / 2, foo=b._spawn_limit / 2))
 
@@ -163,7 +167,8 @@ async def test_spawn_limit_cached():
 
     b.setup(queue, store, store, PickleCodec())
     await b.schedule(TOPIC, "foo", (b._spawn_limit + 5,), {})
-    await b.wrrrk(TOPIC)
+    async with b.wrrrk() as c:
+        await c.loop(TOPIC)
     await queue.join()
 
     assert n == 1

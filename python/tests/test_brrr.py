@@ -85,7 +85,8 @@ async def _call_nested_gather(*, use_brrr_gather: bool) -> list[str]:
 
     b.setup(queue, store, store, PickleCodec())
     await b.schedule(TOPIC, "top", ([3, 4],), {})
-    await b.wrrrk(TOPIC)
+    async with b.wrrrk() as c:
+        await c.loop(TOPIC)
     await queue.join()
     return calls
 
@@ -147,7 +148,9 @@ async def test_topics():
     b1.setup(queue, store, store, PickleCodec())
     b2.setup(queue, store, store, PickleCodec())
     await b2.schedule("t2", "two", (7,), {})
-    await asyncio.gather(b1.wrrrk("t1"), b2.wrrrk("t2"))
+    async with b1.wrrrk() as c1:
+        async with b2.wrrrk() as c2:
+            await asyncio.gather(c1.loop("t1"), c2.loop("t2"))
     await queue.join()
 
 
@@ -169,9 +172,10 @@ async def test_nop_closed_queue():
     queue = ClosableInMemQueue([TOPIC])
     await queue.close()
     b.setup(queue, store, store, PickleCodec())
-    await b.wrrrk(TOPIC)
-    await b.wrrrk(TOPIC)
-    await b.wrrrk(TOPIC)
+    async with b.wrrrk() as c:
+        await c.loop(TOPIC)
+        await c.loop(TOPIC)
+        await c.loop(TOPIC)
 
 
 async def test_stop_when_empty():
@@ -195,7 +199,8 @@ async def test_stop_when_empty():
 
     b.setup(queue, store, store, PickleCodec())
     await b.schedule(TOPIC, "foo", (3,), {})
-    await b.wrrrk(TOPIC)
+    async with b.wrrrk() as c:
+        await c.loop(TOPIC)
     await queue.join()
     assert calls_pre == Counter({0: 1, 1: 2, 2: 2, 3: 2})
     assert calls_post == Counter({1: 1, 2: 1, 3: 1})
@@ -224,13 +229,97 @@ async def test_wrrrk_resumable():
     while True:
         try:
             await b.schedule(TOPIC, "foo", (3,), {})
-            await b.wrrrk(TOPIC)
+            async with b.wrrrk() as c:
+                await c.loop(TOPIC)
             break
         except MyError:
             continue
 
     await queue.join()
     assert errors == 0
+
+
+@pytest.mark.parametrize("use_gather", [(False,)])
+async def test_wrrrk_parallel(use_gather: bool):
+    b = Brrr()
+    store = InMemoryByteStore()
+    queue = ClosableInMemQueue([TOPIC])
+
+    parallel = 5
+    barrier: asyncio.Barrier | None = asyncio.Barrier(parallel)
+
+    top_calls = 0
+
+    @b.task
+    async def block(a: int) -> int:
+        nonlocal barrier
+        if barrier is not None:
+            await barrier.wait()
+        # The barrier was breached once: that is enough to prove _this_ test to
+        # be correct.  The tasks end up being run and re-run a few times, and
+        # with caching etc it can get confusing to nail the exact amount of
+        # parallel runs.  But that’s not what this is testing, this is just
+        # testing: if you start N parallel workers, will they all independently
+        # handle a job in parallel.  Reaching this line of code proves that.
+        # Now it’s done.
+        barrier = None
+        return a
+
+    @b.task
+    async def top() -> None:
+        if use_gather:
+            await b.gather(*(block(x) for x in range(parallel)))
+        else:
+            await block.map([[(x,), {}] for x in range(parallel)])
+
+        # Mega hack workaround for our lack of parent debouncing, which causes
+        # this to be called multiple times, all of which goes through the queue
+        # we’re trying to close.  This if guard guarantees that the queue is
+        # only closed on the _last_ call to ‘top’, and we know no other message
+        # are put on the queue after this.  Of course the real solution is to
+        # debounce calls to the parent!
+        nonlocal top_calls
+        top_calls += 1
+        if top_calls == parallel:
+            await queue.close()
+
+    b.setup(queue, store, store, PickleCodec())
+    await b.schedule(TOPIC, "top", (), {})
+    async with b.wrrrk() as c:
+        await asyncio.gather(*(c.loop(TOPIC) for _ in range(parallel)))
+    await queue.join()
+
+
+async def test_stress_parallel():
+    b = Brrr()
+    store = InMemoryByteStore()
+    queue = ClosableInMemQueue([TOPIC])
+
+    @b.task
+    async def fib(a: int) -> int:
+        if a < 2:
+            return a
+        return sum(await b.gather(fib(a - 1), fib(a - 2)))
+
+    @b.task
+    async def top() -> None:
+        n = await fib(1000)
+        assert (
+            n
+            == 43466557686937456435688527675040625802564660517371780402481729089536555417949051890403879840079255169295922593080322634775209689623239873322471161642996440906533187938298969649928516003704476137795166849228875
+        )
+
+    b.setup(queue, store, store, PickleCodec())
+    await b.schedule(TOPIC, "top", (), {})
+    async with b.wrrrk() as c:
+        # Terrible hack: because we don’t do proper parent debouncing, this stress
+        # test ends up with a metric ton of duplicate calls.
+        async def wait_and_close():
+            await asyncio.sleep(1)
+            await queue.close()
+
+        await asyncio.gather(*([c.loop(TOPIC) for _ in range(10)] + [wait_and_close()]))
+    await queue.join()
 
 
 async def test_debounce_child():
@@ -252,7 +341,8 @@ async def test_debounce_child():
 
     b.setup(queue, store, store, PickleCodec())
     await b.schedule(TOPIC, "foo", (3,), {})
-    await b.wrrrk(TOPIC)
+    async with b.wrrrk() as c:
+        await c.loop(TOPIC)
     await queue.join()
     assert calls == Counter({0: 1, 1: 2, 2: 2, 3: 2})
 
@@ -282,7 +372,8 @@ async def test_no_debounce_parent():
 
     b.setup(queue, store, store, PickleCodec())
     await b.schedule(TOPIC, "foo", (50,), {})
-    await b.wrrrk(TOPIC)
+    async with b.wrrrk() as c:
+        await c.loop(TOPIC)
     await queue.join()
     # We want foo=2 here
     assert calls == Counter(one=50, foo=51)
@@ -318,7 +409,8 @@ async def test_wrrrk_recoverable():
     my_error_encountered = False
     await b.schedule(TOPIC, "foo", (2,), {})
     try:
-        await b.wrrrk(TOPIC)
+        async with b.wrrrk() as c:
+            await c.loop(TOPIC)
     except MyError:
         my_error_encountered = True
     assert my_error_encountered
@@ -326,7 +418,8 @@ async def test_wrrrk_recoverable():
     # Trick the test queue implementation to survive this
     queue.queues[TOPIC] = asyncio.Queue()
     await b.schedule(TOPIC, "bar", (2,), {})
-    await b.wrrrk(TOPIC)
+    async with b.wrrrk() as c:
+        await c.loop(TOPIC)
     await queue.join()
 
     assert calls == Counter(
