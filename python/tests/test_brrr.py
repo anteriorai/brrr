@@ -436,6 +436,8 @@ async def test_wrrrk_recoverable():
 
 def test_error_on_setup():
     b = Brrr()
+    queue = ClosableInMemQueue([TOPIC])
+    store = InMemoryByteStore()
 
     @b.task
     async def foo(a: int):
@@ -446,7 +448,7 @@ def test_error_on_setup():
         return a * a
 
     with pytest.raises(Exception):
-        b.setup()
+        b.setup(queue, store, store, PickleCodec())
 
 
 def test_get_tasks():
