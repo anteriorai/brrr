@@ -15,7 +15,11 @@
 # These are all the pytest tests, with the required database dependencies spun
 # up.
 
-{ self, pkgs }:
+{
+  self,
+  pkgs,
+  dynamodb-module,
+}:
 
 pkgs.testers.runNixOSTest {
   name = "brrr-integration";
@@ -23,7 +27,7 @@ pkgs.testers.runNixOSTest {
   nodes.datastores =
     { config, pkgs, ... }:
     {
-      imports = [ ./dynamodb.module.nix ];
+      imports = [ dynamodb-module ];
       services.redis.servers.main = {
         enable = true;
         port = 6379;

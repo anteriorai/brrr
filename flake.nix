@@ -113,6 +113,7 @@
           # WIP, exporting is best effort.
           nixosModules = {
             brrr-demo = import ./nix/brrr-demo.module.nix;
+            dynamodb = import ./nix/dynamodb.module.nix;
           };
         };
         perSystem =
@@ -187,10 +188,16 @@
               };
               checks =
                 {
-                  pytestIntegration = pkgs.callPackage ./nix/brrr-integration.test.nix { inherit self; };
+                  pytestIntegration = pkgs.callPackage ./nix/brrr-integration.test.nix {
+                    inherit self;
+                    dynamodb-module = self.nixosModules.dynamodb;
+                  };
                 }
                 // brrrpy.brrr.tests
-                // import ./nix/brrr-demo.test.nix { inherit self pkgs; };
+                // import ./nix/brrr-demo.test.nix {
+                  inherit self pkgs;
+                  dynamodb-module = self.nixosModules.dynamodb;
+                };
               devshells = {
                 default = {
                   packages = devPackages ++ [ self'.packages.python ];
