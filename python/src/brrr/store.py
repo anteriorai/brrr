@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from abc import abstractmethod, ABC
 from collections.abc import Awaitable, Callable, Iterable
-from collections import namedtuple
 from dataclasses import dataclass
 import logging
 import time
-from typing import Any
+from typing import Any, Literal
 
 import bencodepy
 
@@ -75,7 +74,11 @@ class PendingReturns:
         )
 
 
-MemKey = namedtuple("MemKey", ["type", "id"])
+@dataclass
+class MemKey:
+    type: Literal["pending_returns", "call", "value"]
+    # Hashes only contain printable us-ascii characters
+    call_hash: str
 
 
 class CompareMismatch(Exception): ...
@@ -193,16 +196,16 @@ class Memory:
         """
         return self.codec.create_call(task_name, args, kwargs)
 
-    async def get_call_bytes(self, memo_key: str) -> tuple[str, bytes]:
+    async def get_call_bytes(self, call_hash: str) -> tuple[str, bytes]:
         # If this ever becomes a bottleneck I’ll eat my shoe.  O(who_cares).
-        payload = await self.store.get(MemKey("call", memo_key))
+        payload = await self.store.get(MemKey("call", call_hash))
         decoded = bencodepy.decode(payload)
         task_name = decoded[b"task_name"]
         task_args = decoded[b"task_args"]
         return task_name.decode("utf-8"), task_args
 
     async def has_call(self, call: Call):
-        return await self.store.has(MemKey("call", call.memo_key))
+        return await self.store.has(MemKey("call", call.call_hash))
 
     async def set_call(self, call: Call):
         if not isinstance(call, Call):
@@ -213,25 +216,25 @@ class Memory:
                 b"task_args": self.codec.encode_call(call),
             }
         )
-        await self.store.set(MemKey("call", call.memo_key), payload)
+        await self.store.set(MemKey("call", call.call_hash), payload)
 
     async def has_value(self, call: Call) -> bool:
-        return await self.store.has(MemKey("value", call.memo_key))
+        return await self.store.has(MemKey("value", call.call_hash))
 
     async def get_value(self, call: Call) -> Any:
-        return await self.store.get(MemKey("value", call.memo_key))
+        return await self.store.get(MemKey("value", call.call_hash))
 
     # The API is not completely clean--there’s disagreement around whether this
     # class should deal with bytes or with decoded values.  It is semantically
     # correct, though, so it will do for now.
-    async def set_value(self, memo_key: str, payload: bytes):
+    async def set_value(self, call_hash: str, payload: bytes):
         try:
-            await self.store.set_new_value(MemKey("value", memo_key), payload)
+            await self.store.set_new_value(MemKey("value", call_hash), payload)
         except CompareMismatch:
             # Throwing over passing here; Because of idempotency, we only ever want
             # one value to be set for a given memo_key. If we silently ignored this here,
             # we could end up executing code with the wrong value
-            raise AlreadyExists(f"set_value: value already set for {memo_key}")
+            raise AlreadyExists(f"set_value: value already set for {call_hash}")
 
     async def _with_cas[T](self, f: Callable[[], Awaitable[T]]) -> T:
         """Wrap a CAS exception generating body.
@@ -262,7 +265,7 @@ class Memory:
 
     async def add_pending_return(
         self,
-        memo_key: str,
+        call_hash: str,
         new_return: str,
         schedule_job: Callable[[], Awaitable[None]],
     ):
@@ -283,7 +286,7 @@ class Memory:
         # Beware race conditions here!  Be aware of concurrency corner cases on
         # every single line.
         async def cas_body():
-            memkey = MemKey("pending_returns", memo_key)
+            memkey = MemKey("pending_returns", call_hash)
             should_store_again = False
             try:
                 existing_enc = await self.store.get(memkey)
@@ -321,15 +324,14 @@ class Memory:
                     memkey, existing.encode(), existing_enc
                 )
 
-            logger.debug(f"{adj} pending return {new_return} {verb} {memo_key}")
+            logger.debug(f"{adj} pending return {new_return} {verb} {call_hash}")
 
         await self._with_cas(cas_body)
 
     async def with_pending_returns_remove(
-        self, memo_key: str, f: Callable[[Iterable[str]], Awaitable[None]]
+        self, call_hash: str, f: Callable[[Iterable[str]], Awaitable[None]]
     ) -> None:
-        """ """
-        memkey = MemKey("pending_returns", memo_key)
+        memkey = MemKey("pending_returns", call_hash)
         handled: set[str] = set()
 
         async def cas_body():
@@ -345,7 +347,7 @@ class Memory:
                 # https://stackoverflow.com/a/34519857
                 return await f([])
             to_handle = PendingReturns.decode(pending_enc).returns - handled
-            logger.debug(f"Handling returns for {memo_key}: {to_handle}...")
+            logger.debug(f"Handling returns for {call_hash}: {to_handle}...")
             await f(to_handle)
             handled |= to_handle
             await self.store.compare_and_delete(memkey, pending_enc)

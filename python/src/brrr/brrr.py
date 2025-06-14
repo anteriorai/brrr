@@ -212,7 +212,7 @@ class Client:
         self._memory = Memory(store, codec)
         self._queue = queue
 
-    async def _put_job(self, topic: str, memo_key: str, root_id: str):
+    async def _put_job(self, topic: str, call_hash: str, root_id: str):
         # Incredibly mother-of-all ad-hoc definitions.  Doesn’t use the topic
         # for counting spawn limits: the spawn limit is currently intended to
         # never be hit at all: it’s a /semantic/ check, not a /runtime/ check.
@@ -220,7 +220,7 @@ class Client:
         # limit than free ones.  It’s intended to catch infinite recursion and
         # non-idempotent call graphs.
         if (await self._cache.incr(f"brrr_count/{root_id}")) > self._spawn_limit:
-            msg = f"Spawn limit {self._spawn_limit} reached for {root_id} at job {memo_key}"
+            msg = f"Spawn limit {self._spawn_limit} reached for {root_id} at job {call_hash}"
             logger.error(msg)
             # Throw here because it allows the user of brrrlib to decide how to
             # handle this: what kind of logging?  Does the worker crash in order
@@ -229,7 +229,7 @@ class Client:
             # bigger issue to admins?  Or just wrap it in a while True loop
             # which catches and ignores specifically this error?
             raise SpawnLimitError(msg)
-        await self._queue.put_message(topic, f"{root_id}/{memo_key}")
+        await self._queue.put_message(topic, f"{root_id}/{call_hash}")
 
     async def _schedule_call_root(self, topic: str, call: Call):
         """Schedule this call on the brrr workforce.
@@ -244,7 +244,15 @@ class Client:
         await self._memory.set_call(call)
         # Random root id for every call so we can disambiguate retries
         root_id = base64.urlsafe_b64encode(uuid4().bytes).decode("ascii").strip("=")
-        await self._put_job(topic, call.memo_key, root_id)
+        await self._put_job(topic, call.call_hash, root_id)
+
+    async def read(self, task_name: str, args: tuple, kwargs: dict):
+        """
+        Returns the value of a task, or raises a KeyError if it's not present in the store
+        """
+        call = self._memory.make_call(task_name, args, kwargs)
+        encoded_val = await self._memory.get_value(call)
+        return self._codec.decode_return(encoded_val)
 
     def schedule(self, topic: str, task_name: str):
         """Public-facing one-shot schedule method.
@@ -397,7 +405,7 @@ class Wrrrker(Client):
         # because it will then immediately call this parent flow back, which is
         # fine because the result does in fact exist.
         child_topic = child.topic or my_topic
-        memo_key = child.call.memo_key
+        memo_key = child.call.call_hash
         schedule_job = functools.partial(self._put_job, child_topic, memo_key, root_id)
         await self._memory.add_pending_return(
             memo_key, f"{my_topic}/{parent_key}", schedule_job
@@ -408,14 +416,6 @@ class Wrrrker(Client):
         # every return should be retried in its original root context.
         topic, root_id, parent_key = return_addr.split("/")
         await self._put_job(topic, parent_key, root_id)
-
-    async def read(self, task_name: str, args: tuple, kwargs: dict):
-        """
-        Returns the value of a task, or raises a KeyError if it's not present in the store
-        """
-        call = self._memory.make_call(task_name, args, kwargs)
-        encoded_val = await self._memory.get_value(call)
-        return self._codec.decode_return(encoded_val)
 
     def call(self, topic: str | None, task_name):
         """Directly call a brrr task FROM WITHIN ANOTHER TASK.
