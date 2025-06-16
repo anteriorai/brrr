@@ -15,7 +15,11 @@
 # Inspired by
 # https://blakesmith.me/2024/03/02/running-nixos-tests-with-flakes.html
 
-{ self, pkgs }:
+{
+  self,
+  pkgs,
+  dynamodb-module,
+}:
 
 # Distributed test across multiple VMs, so there’s still some room for bugs to
 # creep into the actual demo.  Both are nice to have so we should probably add a
@@ -30,10 +34,7 @@ let
         datastores =
           { config, pkgs, ... }:
           {
-            imports = [
-              # Not going to export and dogfood this--it’s just local only
-              ./dynamodb.module.nix
-            ];
+            imports = [ dynamodb-module ];
             services.redis.servers.main = {
               enable = true;
               port = 6379;
