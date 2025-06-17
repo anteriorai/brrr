@@ -216,8 +216,10 @@ class Brrr:
         """
         call = self.memory.make_call(task_name, args, kwargs)
         if await self.memory.has_value(call):
+            logger.info(f"BRRR CACHE HIT (schedule): {task_name} (memo_key: {call.memo_key[:12]}...)")
             return
-
+        
+        logger.info(f"BRRR CACHE MISS (schedule): {task_name} (memo_key: {call.memo_key[:12]}...)")
         return await self._schedule_call_root(topic, call)
 
     @requires_setup
@@ -233,7 +235,9 @@ class Brrr:
         call = self.memory.make_call(task_name, args, kwargs)
         try:
             encoded_val = await self.memory.get_value(call)
+            logger.info(f"BRRR CACHE HIT: {task_name} (memo_key: {call.memo_key[:12]}...)")
         except KeyError:
+            logger.info(f"BRRR CACHE MISS: {task_name} (memo_key: {call.memo_key[:12]}...)")
             raise Defer([DeferredCall(topic, call)])
         else:
             return self._codec.decode_return(encoded_val)
