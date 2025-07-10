@@ -28,6 +28,21 @@ class ByteStoreContract(ABC):
         """
         raise NotImplementedError()
 
+    # There are tests in this file which require read-after-write consistency.
+    # Technically that’s not actually required by brrr, nor by the datastores.
+    # What’s really needed in fact, is a store which is explicitly NOT
+    # read-after-write consistent so we can check which guarantees are and
+    # aren’t violated at the application layer.  To make these (actually
+    # fundamentally spurious) tests more "future proof" and be more explicit
+    # about allowing stores which are not read-after-write consistent, this
+    # method will be called in any test where a read operation wants to see the
+    # result of all previous writes.  Most practical non-read-after-write
+    # consistent stores are in fact consistent after a certain timeout, so you
+    # can put an asyncio.sleep here to bridge that gap between theory and
+    # reality.  In the end these tests are still a useful sanity check.
+    async def read_after_write_barrier(self):
+        pass
+
     async def test_has(self):
         async with self.with_store() as store:
             a1 = MemKey("type-a", "id-1")
@@ -39,31 +54,37 @@ class ByteStoreContract(ABC):
             assert not await store.has(b1)
 
             await store.set(a1, b"value-1")
+            await self.read_after_write_barrier()
             assert await store.has(a1)
             assert not await store.has(a2)
             assert not await store.has(b1)
 
             await store.set(a2, b"value-2")
+            await self.read_after_write_barrier()
             assert await store.has(a1)
             assert await store.has(a2)
             assert not await store.has(b1)
 
             await store.set(b1, b"value-3")
+            await self.read_after_write_barrier()
             assert await store.has(a1)
             assert await store.has(a2)
             assert await store.has(b1)
 
             await store.delete(a1)
+            await self.read_after_write_barrier()
             assert not await store.has(a1)
             assert await store.has(a2)
             assert await store.has(b1)
 
             await store.delete(a2)
+            await self.read_after_write_barrier()
             assert not await store.has(a1)
             assert not await store.has(a2)
             assert await store.has(b1)
 
             await store.delete(b1)
+            await self.read_after_write_barrier()
             assert not await store.has(a1)
             assert not await store.has(a2)
             assert not await store.has(b1)
@@ -78,12 +99,14 @@ class ByteStoreContract(ABC):
             await store.set(a1, b"value-1")
             await store.set(a2, b"value-2")
             await store.set(b1, b"value-3")
+            await self.read_after_write_barrier()
 
             assert await store.get(a1) == b"value-1"
             assert await store.get(a2) == b"value-2"
             assert await store.get(b1) == b"value-3"
 
             await store.set(a1, b"value-4")
+            await self.read_after_write_barrier()
             assert await store.get(a1) == b"value-4"
 
     async def test_key_error(self):
@@ -98,10 +121,12 @@ class ByteStoreContract(ABC):
                 await store.get(a1)
 
             await store.set(a1, b"value-1")
+            await self.read_after_write_barrier()
 
             assert await store.get(a1) == b"value-1"
 
             await store.delete(a1)
+            await self.read_after_write_barrier()
             with pytest.raises(KeyError):
                 await store.get(a1)
 
@@ -110,6 +135,7 @@ class ByteStoreContract(ABC):
             a1 = MemKey("type-a", "id-1")
 
             await store.set_new_value(a1, b"value-1")
+            await self.read_after_write_barrier()
 
             assert await store.get(a1) == b"value-1"
 
@@ -117,6 +143,7 @@ class ByteStoreContract(ABC):
                 await store.set_new_value(a1, b"value-2")
 
             await store.set(a1, b"value-2")
+            await self.read_after_write_barrier()
 
             assert await store.get(a1) == b"value-2"
 
@@ -125,11 +152,13 @@ class ByteStoreContract(ABC):
             a1 = MemKey("type-a", "id-1")
 
             await store.set(a1, b"value-1")
+            await self.read_after_write_barrier()
 
             with pytest.raises(CompareMismatch):
                 await store.compare_and_set(a1, b"value-2", b"value-3")
 
             await store.compare_and_set(a1, b"value-2", b"value-1")
+            await self.read_after_write_barrier()
 
             assert await store.get(a1) == b"value-2"
 
@@ -141,6 +170,7 @@ class ByteStoreContract(ABC):
                 await store.compare_and_delete(a1, b"value-2")
 
             await store.set(a1, b"value-1")
+            await self.read_after_write_barrier()
 
             with pytest.raises(CompareMismatch):
                 await store.compare_and_delete(a1, b"value-2")
@@ -148,6 +178,7 @@ class ByteStoreContract(ABC):
             assert await store.get(a1) == b"value-1"
 
             await store.compare_and_delete(a1, b"value-1")
+            await self.read_after_write_barrier()
 
             with pytest.raises(KeyError):
                 await store.get(a1)
@@ -171,6 +202,7 @@ class MemoryContract(ByteStoreContract):
             assert not await memory.has_call(call)
 
             await memory.set_call(call)
+            await self.read_after_write_barrier()
             assert await memory.has_call(call)
             task_name, payload = await memory.get_call_bytes(call.memo_key)
             assert task_name == "task"
@@ -194,6 +226,7 @@ class MemoryContract(ByteStoreContract):
             assert not await memory.has_value(call)
 
             await memory.set_value(call.memo_key, b"123")
+            await self.read_after_write_barrier()
             assert await memory.has_value(call)
             assert await memory.get_value(call) == b"123"
 
@@ -233,6 +266,7 @@ class MemoryContract(ByteStoreContract):
                 assert set(keys) == {"p1", "p2"}
 
             await memory.with_pending_returns_remove("key", body2)
+            await self.read_after_write_barrier()
 
             async def body3(keys):
                 assert not keys

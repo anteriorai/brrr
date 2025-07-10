@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 import uuid
@@ -20,3 +21,8 @@ class TestDynamoByteStore(MemoryContract):
             memory = DynamoDbMemStore(dync, table_name)
             await memory.create_table()
             yield memory
+
+    async def read_after_write_barrier(self):
+        # Totally random guess that dynamo is generally RAW-consistent after
+        # about 300ms.
+        await asyncio.sleep(0.3)
