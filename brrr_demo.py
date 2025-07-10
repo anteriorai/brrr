@@ -20,7 +20,7 @@ from types_aiobotocore_dynamodb import DynamoDBClient
 from brrr.backends.redis import RedisQueue
 from brrr.backends.dynamo import DynamoDbMemStore
 import brrr
-from brrr.naive_codec import PickleCodec
+from brrr.pickle_codec import PickleCodec
 
 logger = logging.getLogger(__name__)
 routes = web.RouteTableDef()

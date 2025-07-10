@@ -5,7 +5,7 @@ from unittest.mock import Mock, call
 
 from brrr import Brrr
 from brrr.backends.in_memory import InMemoryByteStore
-from brrr.naive_codec import PickleCodec
+from brrr.pickle_codec import PickleCodec
 
 from .closable_test_queue import ClosableInMemQueue
 
