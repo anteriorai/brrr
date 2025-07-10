@@ -84,7 +84,7 @@ class InMemoryByteStore(Store, Cache):
             raise CompareMismatch()
         del self.inner[k]
 
-    async def incr(self, k: str) -> int:
-        n = self.inner.get(k, 0) + 1
-        self.inner[k] = n
+    async def incr(self, key: str) -> int:
+        n = self.inner.get(key, 0) + 1
+        self.inner[key] = n
         return n
