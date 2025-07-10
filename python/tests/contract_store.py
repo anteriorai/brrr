@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 import functools
-from typing import AsyncIterable, Awaitable, Callable
+from typing import Awaitable, Callable
 
 import pytest
 
@@ -22,7 +23,7 @@ class FakeError(Exception):
 class ByteStoreContract(ABC):
     @abstractmethod
     @asynccontextmanager
-    async def with_store(self) -> AsyncIterable[Store]:
+    async def with_store(self) -> AsyncIterator[Store]:
         """
         This should return a fresh, empty store instance
         """
@@ -224,7 +225,7 @@ class ByteStoreContract(ABC):
 
 class MemoryContract(ByteStoreContract):
     @asynccontextmanager
-    async def with_memory(self) -> AsyncIterable[Memory]:
+    async def with_memory(self) -> AsyncIterator[Memory]:
         async with self.with_store() as store:
             yield Memory(store, PickleCodec())
 
