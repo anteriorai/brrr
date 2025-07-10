@@ -108,9 +108,8 @@ class ByteStoreContract(ABC):
 
             await self.read_after_write(r6)
 
-        async def test_get_set(self):
-            store = self.get_store()
-
+    async def test_get_set(self):
+        async with self.with_store() as store:
             a1 = MemKey("type-a", "id-1")
             a2 = MemKey("type-a", "id-2")
             b1 = MemKey("type-b", "id-1")
