@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import AsyncIterator, Awaitable, Callable
 import uuid
 
 import aioboto3
@@ -22,7 +22,8 @@ class TestDynamoByteStore(MemoryContract):
             await memory.create_table()
             yield memory
 
-    async def read_after_write_barrier(self):
+    async def read_after_write[T](self, f: Callable[[], Awaitable[T]]) -> T:
         # Totally random guess that dynamo is generally RAW-consistent after
         # about 300ms.
         await asyncio.sleep(0.3)
+        return await f()
