@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 import functools
-from typing import AsyncIterable, Awaitable, Callable
+from typing import Awaitable, Callable
 
 import pytest
 
@@ -22,7 +23,7 @@ class FakeError(Exception):
 class ByteStoreContract(ABC):
     @abstractmethod
     @asynccontextmanager
-    async def with_store(self) -> AsyncIterable[Store]:
+    async def with_store(self) -> AsyncIterator[Store]:
         """
         This should return a fresh, empty store instance
         """
@@ -34,13 +35,13 @@ class ByteStoreContract(ABC):
     # read-after-write consistent so we can check which guarantees are and
     # aren’t violated at the application layer.  To make these (actually
     # fundamentally spurious) tests more "future proof" and be more explicit
-    # about allowing stores which are not read-after-write consistent, this any
-    # tests which read after a write will be passed as a closure to this
-    # wrapper.  Most practical non-read-after-write consistent stores are in
-    # fact consistent after a certain timeout, so you can put an asyncio.sleep
-    # here to bridge that gap between theory and reality, or you could execute
-    # it in a loop with a max timeout, or you can just #yolo it and leave the
-    # default implementation which assumes RAW consistency.
+    # about allowing stores which are not read-after-write consistent, any tests
+    # which read after a write will be passed as a closure to this wrapper.
+    # Most practical non-read-after-write consistent stores are in fact
+    # consistent after a certain timeout, so you can put an asyncio.sleep here
+    # to bridge that gap between theory and reality, or you could execute it in
+    # a loop with a max timeout, or you can just #yolo it and leave the default
+    # implementation which assumes RAW consistency.
     async def read_after_write[T](self, f: Callable[[], Awaitable[T]]) -> T:
         return await f()
 
@@ -108,9 +109,8 @@ class ByteStoreContract(ABC):
 
             await self.read_after_write(r6)
 
-        async def test_get_set(self):
-            store = self.get_store()
-
+    async def test_get_set(self):
+        async with self.with_store() as store:
             a1 = MemKey("type-a", "id-1")
             a2 = MemKey("type-a", "id-2")
             b1 = MemKey("type-b", "id-1")
@@ -225,7 +225,7 @@ class ByteStoreContract(ABC):
 
 class MemoryContract(ByteStoreContract):
     @asynccontextmanager
-    async def with_memory(self) -> AsyncIterable[Memory]:
+    async def with_memory(self) -> AsyncIterator[Memory]:
         async with self.with_store() as store:
             yield Memory(store, PickleCodec())
 
