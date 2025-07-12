@@ -4,7 +4,7 @@ import pytest
 
 from brrr import Brrr, SpawnLimitError
 from brrr.backends.in_memory import InMemoryByteStore
-from brrr.naive_codec import PickleCodec
+from brrr.pickle_codec import PickleCodec
 
 from .closable_test_queue import ClosableInMemQueue
 

@@ -6,7 +6,7 @@ from typing import Awaitable, Callable
 
 import pytest
 
-from brrr.naive_codec import PickleCodec
+from brrr.pickle_codec import PickleCodec
 from brrr.store import (
     AlreadyExists,
     CompareMismatch,

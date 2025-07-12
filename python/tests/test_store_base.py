@@ -1,7 +1,7 @@
 import functools
 
 from brrr.backends.in_memory import InMemoryByteStore
-from brrr.naive_codec import PickleCodec
+from brrr.pickle_codec import PickleCodec
 from brrr.store import (
     CompareMismatch,
     Memory,
