@@ -10,7 +10,7 @@ import json
 import os
 from pprint import pprint
 import sys
-from typing import Iterable
+from typing import Any, Iterable
 
 import aioboto3
 from aiohttp import web
@@ -187,7 +187,7 @@ async def server():
         await asyncio.Event().wait()
 
 
-def args2dict(args: Iterable[str]) -> dict[str, str]:
+def args2dict(args: Iterable[str]) -> dict[str, Any]:
     """
     Extremely rudimentary arbitrary argparser.
 
