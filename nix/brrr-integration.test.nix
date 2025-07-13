@@ -33,7 +33,7 @@ pkgs.testers.runNixOSTest {
         port = 6379;
         openFirewall = true;
         bind = null;
-        logLevel = "debug";
+        logLevel = "notice";
         settings.protected-mode = "no";
       };
       services.dynamodb = {
@@ -53,7 +53,7 @@ pkgs.testers.runNixOSTest {
         name = "test-brrr";
         runtimeInputs = [ self.packages.${pkgs.system}.brrr-venv-test ];
         runtimeEnv = {
-          AWS_DEFAULT_REGION = "fake";
+          AWS_DEFAULT_REGION = "us-east-1";
           AWS_ENDPOINT_URL = "http://datastores:8000";
           AWS_ACCESS_KEY_ID = "fake";
           AWS_SECRET_ACCESS_KEY = "fake";
