@@ -4,7 +4,7 @@ import collections
 from collections.abc import MutableMapping
 import typing
 
-from brrr.store import AlreadyExistsError, CompareMismatch, NotFoundError
+from brrr.store import CompareMismatch, NotFoundError
 from ..queue import Queue, Message, QueueInfo, QueueIsClosed, QueueIsEmpty
 from ..store import Cache, MemKey, Store
 
@@ -60,10 +60,7 @@ class InMemoryByteStore(Store, Cache):
             raise NotFoundError(key)
         return self.inner[full_hash]
 
-    async def set_first_value(self, key: MemKey, value: bytes) -> None:
-        k = _key2str(key)
-        if k in self.inner and self.inner[k] != value:
-            raise AlreadyExistsError()
+    async def set(self, key: MemKey, value: bytes) -> None:
         self.inner[_key2str(key)] = value
 
     async def delete(self, key: MemKey):

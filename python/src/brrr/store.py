@@ -83,9 +83,6 @@ class MemKey:
 class CompareMismatch(Exception): ...
 
 
-class AlreadyExistsError(Exception): ...
-
-
 class NotFoundError(Exception):
     def __init__(self, key: MemKey):
         super().__init__(f"Not found: {key!r}")
@@ -109,13 +106,14 @@ class Store(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def set_first_value(self, key: MemKey, value: bytes):
-        """Set a value if none previously exists, or if it's already that value.
+    async def set(self, key: MemKey, value: bytes):
+        """Set a value, overriding any existing value if present.
 
-        An implementation could theoretically choose to overwrite any
-        preexisting value regardless and I _think_ the semantics would bubble up
-        to the application layer predictably, without fundamentally breaking
-        anything (just weakening the semantics), but I'm not 100% sure.
+        You don't have to provide read-after-write consistency, nor even
+        write-after-write consistency if you don't want it.  The guarantees
+        offered by your storage layer bubble up to the application layer, it's
+        up to you where you want to spend your effort dealing with the inherent
+        complexity in distributed storage.
 
         """
         raise NotImplementedError()
@@ -128,11 +126,11 @@ class Store(ABC):
     async def set_new_value(self, key: MemKey, value: bytes):
         """Set a fresh value, throwing if any value already exists.
 
-        Like set_first_value but actually detect if this was the first write.
+        This must provide a hard detection of whether this was the first write.
         This CAS operation allows validating / invalidating related external
         work depending on if this write ended up being "final".  If the only
         importance of this operation is the final value itself, use
-        `set_first_value' instead.
+        `set' instead.
 
         """
         raise NotImplementedError()
@@ -209,15 +207,21 @@ class Memory:
         )
 
     async def set_call(self, call: Call):
+        """Store this call in the storage layer.
+
+        If you override an existing call (i.e. same hash), ensure that the
+        payload round trips through the codec unchanged.  It doesn't need to be
+        the exact same byte representation, but it must _decode_ to the same
+        call.
+
+        """
         enc = bencodepy.encode(
             {
                 b"task_name": call.task_name.encode("utf-8"),
                 b"payload": call.payload,
             }
         )
-        await self.store.set_first_value(
-            MemKey(type="call", call_hash=call.call_hash), enc
-        )
+        await self.store.set(MemKey(type="call", call_hash=call.call_hash), enc)
 
     async def has_value(self, call_hash: str) -> bool:
         """Inherently racy check for existence of a value.
@@ -243,13 +247,16 @@ class Memory:
         responsibility of the application layer to never try and do that in the
         first place, or to accept the fact that if you return a different value
         for the same call, you might also observe different results for the same
-        call in different parts of the system.
+        call in different parts of the system.  This could be a sensible
+        approach if you trust your encoder to generate different representations
+        for the same input, which all do still decode back to the same original
+        input (e.g. python's pickle).
 
         It's your choice where you want to solve this: application or storage
         layer?
 
         """
-        await self.store.set_first_value(MemKey("value", call_hash), payload)
+        await self.store.set(MemKey("value", call_hash), payload)
 
     async def _with_cas[T](self, f: Callable[[], Awaitable[T]]) -> T:
         """Wrap a CAS exception generating body.

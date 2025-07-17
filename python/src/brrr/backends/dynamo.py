@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import typing
 
-from ..store import AlreadyExistsError, CompareMismatch, MemKey, NotFoundError, Store
+from ..store import CompareMismatch, MemKey, NotFoundError, Store
 
 if typing.TYPE_CHECKING:
     from types_aiobotocore_dynamodb import DynamoDBClient
@@ -60,24 +60,10 @@ class DynamoDbMemStore(Store):
         logger.debug(f"getting key: {key}: found")
         return response["Item"]["value"]["B"]
 
-    async def set_first_value(self, key: MemKey, value: bytes):
-        """Use the DynamoDB API to set a fresh value.
-
-        - If the value didn't exist yet, that's good: set the new value
-        - If the value is already set, but at this same value: also ok, ignore
-        - If the value already exists, but is currently different: raise an error
-
-        """
-        try:
-            await self.client.put_item(
-                TableName=self.table_name,
-                Item={**self.key(key), "value": {"B": value}},
-                ExpressionAttributeNames={"#value": "value"},
-                ExpressionAttributeValues={":value": {"B": value}},
-                ConditionExpression="attribute_not_exists(#value) OR #value = :value",
-            )
-        except self.client.exceptions.ConditionalCheckFailedException as e:
-            raise AlreadyExistsError() from e
+    async def set(self, key: MemKey, value: bytes):
+        await self.client.put_item(
+            TableName=self.table_name, Item={**self.key(key), "value": {"B": value}}
+        )
 
     async def delete(self, key: MemKey):
         await self.client.delete_item(

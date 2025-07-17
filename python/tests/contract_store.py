@@ -9,7 +9,6 @@ from brrr.call import Call
 import pytest
 
 from brrr.store import (
-    AlreadyExistsError,
     CompareMismatch,
     Memory,
     NotFoundError,
@@ -57,7 +56,7 @@ class ByteStoreContract(ABC):
             assert not await store.has(a2)
             assert not await store.has(b1)
 
-            await store.set_first_value(a1, b"value-1")
+            await store.set(a1, b"value-1")
 
             async def r1():
                 assert await store.has(a1)
@@ -66,7 +65,7 @@ class ByteStoreContract(ABC):
 
             await self.read_after_write(r1)
 
-            await store.set_first_value(a2, b"value-2")
+            await store.set(a2, b"value-2")
 
             async def r2():
                 assert await store.has(a1)
@@ -75,7 +74,7 @@ class ByteStoreContract(ABC):
 
             await self.read_after_write(r2)
 
-            await store.set_first_value(b1, b"value-3")
+            await store.set(b1, b"value-3")
 
             async def r3():
                 assert await store.has(a1)
@@ -117,9 +116,9 @@ class ByteStoreContract(ABC):
             a2 = MemKey("call", "id-2")
             b1 = MemKey("pending_returns", "id-1")
 
-            await store.set_first_value(a1, b"value-1")
-            await store.set_first_value(a2, b"value-2")
-            await store.set_first_value(b1, b"value-3")
+            await store.set(a1, b"value-1")
+            await store.set(a2, b"value-2")
+            await store.set(b1, b"value-3")
 
             async def r1():
                 assert await store.get(a1) == b"value-1"
@@ -139,7 +138,7 @@ class ByteStoreContract(ABC):
             with pytest.raises(NotFoundError):
                 await store.get(a1)
 
-            await store.set_first_value(a1, b"value-1")
+            await store.set(a1, b"value-1")
 
             async def r1():
                 assert await store.get(a1) == b"value-1"
@@ -174,30 +173,30 @@ class ByteStoreContract(ABC):
 
             await self.read_after_write(r1)
 
-    async def test_set_first_value(self):
+    async def test_set(self):
         async with self.with_store() as store:
             a1 = MemKey("value", "id-1")
 
-            await store.set_first_value(a1, b"value-1")
+            await store.set(a1, b"value-1")
 
             async def r1():
                 assert await store.get(a1) == b"value-1"
 
             await self.read_after_write(r1)
 
-            with pytest.raises(AlreadyExistsError):
-                await store.set_first_value(a1, b"value-2")
+            # Overriding with a different value is allowed
+            await store.set(a1, b"value-2")
 
-            # Overriding with the same value is allowed
-            await store.set_first_value(a1, b"value-1")
+            async def r2():
+                assert await store.get(a1) == b"value-2"
 
-            await self.read_after_write(r1)
+            await self.read_after_write(r2)
 
     async def test_compare_and_set(self):
         async with self.with_store() as store:
             a1 = MemKey("value", "id-1")
 
-            await store.set_first_value(a1, b"value-1")
+            await store.set(a1, b"value-1")
 
             async def r1():
                 with pytest.raises(CompareMismatch):
@@ -219,7 +218,7 @@ class ByteStoreContract(ABC):
             with pytest.raises(CompareMismatch):
                 await store.compare_and_delete(a1, b"value-2")
 
-            await store.set_first_value(a1, b"value-1")
+            await store.set(a1, b"value-1")
 
             async def r1():
                 with pytest.raises(CompareMismatch):
@@ -277,13 +276,12 @@ class MemoryContract(ByteStoreContract):
 
             await self.read_after_write(r1)
 
-            with pytest.raises(AlreadyExistsError):
-                await memory.set_value(call_hash, b"456")
+            await memory.set_value(call_hash, b"456")
 
-            # Overwriting a value with the same value is allowed
-            await memory.set_value(call_hash, b"123")
+            async def r2():
+                assert await memory.get_value(call_hash) == b"456"
 
-            assert await memory.get_value(call_hash) == b"123"
+            await self.read_after_write(r2)
 
     async def test_pending_returns(self):
         async with self.with_memory() as memory:
