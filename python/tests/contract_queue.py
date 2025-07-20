@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
@@ -12,20 +13,20 @@ class QueueContract(ABC):
 
     @abstractmethod
     @asynccontextmanager
-    async def with_queue(self) -> AsyncIterator[Queue]:
+    async def with_queue(self, topics: Sequence[str]) -> AsyncIterator[Queue]:
         """
         A context manager which calls test function f with a queue
         """
         ...
 
     async def test_queue_raises_empty(self):
-        async with self.with_queue() as queue:
+        async with self.with_queue(["foo"]) as queue:
             with pytest.raises(QueueIsEmpty):
                 await queue.get_message("foo")
 
     async def test_queue_enqueues(self):
         queue: Queue
-        async with self.with_queue() as queue:
+        async with self.with_queue(["test-topic"]) as queue:
             messages = {"message-1", "message-2", "message-3"}
 
             if self.has_accurate_info:
@@ -50,7 +51,7 @@ class QueueContract(ABC):
 
     async def test_topics(self):
         queue: Queue
-        async with self.with_queue() as queue:
+        async with self.with_queue(["test1", "test2"]) as queue:
             await queue.put_message("test1", "one")
             await queue.put_message("test2", "two")
             await queue.put_message("test1", "one")
