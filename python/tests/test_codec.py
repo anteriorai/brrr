@@ -30,12 +30,13 @@ async def test_codec_key_no_args():
 
     codec.encode_call = Mock(side_effect=encode_call)
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def same(a: int) -> int:
         assert a == 1
         calls[f"same({a})"] += 1
         return a
 
+    @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
         calls[f"foo({a})"] += 1
 
@@ -74,10 +75,11 @@ async def test_codec_api():
     queue = ClosableInMemQueue([TOPIC])
     codec = Mock(wraps=PickleCodec())
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def plus(x: int, y: str) -> int:
         return x + int(y)
 
+    @brrr.handler
     async def foo(app: ActiveWorker) -> int:
         val = (
             await app.call(plus)(1, "2")

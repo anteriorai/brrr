@@ -17,6 +17,7 @@ async def test_spawn_limit_depth():
     store = InMemoryByteStore()
     n = 0
 
+    @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
         nonlocal n
         n += 1
@@ -42,10 +43,12 @@ async def test_spawn_limit_breadth_mapped():
     store = InMemoryByteStore()
     calls = Counter()
 
-    async def one(_: ActiveWorker, _2: int) -> int:
+    @brrr.handler_no_arg
+    async def one(_: int) -> int:
         calls["one"] += 1
         return 1
 
+    @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
         calls["foo"] += 1
         # Pass a different argument to avoid the debouncer
@@ -74,10 +77,12 @@ async def test_spawn_limit_recoverable():
     cache = InMemoryByteStore()
     calls = Counter()
 
-    async def one(_: ActiveWorker, _2: int) -> int:
+    @brrr.handler_no_arg
+    async def one(_: int) -> int:
         calls["one"] += 1
         return 1
 
+    @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
         calls["foo"] += 1
         # Pass a different argument to avoid the debouncer
@@ -116,10 +121,12 @@ async def test_spawn_limit_breadth_manual():
     store = InMemoryByteStore()
     calls = Counter()
 
-    async def one(_: ActiveWorker, _2: int) -> int:
+    @brrr.handler_no_arg
+    async def one(_: int) -> int:
         calls["one"] += 1
         return 1
 
+    @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
         calls["foo"] += 1
         total = 0
@@ -150,11 +157,13 @@ async def test_spawn_limit_cached():
     n = 0
     final = None
 
-    async def same(_: ActiveWorker, a: int) -> int:
+    @brrr.handler_no_arg
+    async def same(a: int) -> int:
         nonlocal n
         n += 1
         return a
 
+    @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
         val = sum(await app.gather(*map(app.call(same), [1] * a)))
         await queue.close()

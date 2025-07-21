@@ -33,19 +33,21 @@ brrr_app: ContextVar[AppWorker] = ContextVar("brrr_demo.app")
 ### Brrr handlers
 
 
+@brrr.handler
 async def fib_and_print(app: ActiveWorker, n: str, salt=None):
     f = await app.call("fib", topic="brrr-demo-side")(int(n), salt)
     print(f"fib({n}) = {f}", flush=True)
     return f
 
 
-@brrr.no_app_arg
+@brrr.handler_no_arg
 async def hello(greetee: str):
     greeting = f"Hello, {greetee}!"
     print(greeting, flush=True)
     return greeting
 
 
+@brrr.handler
 async def fib(app: ActiveWorker, n: int, salt=None):
     match n:
         case 0 | 1:

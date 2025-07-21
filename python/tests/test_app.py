@@ -20,11 +20,12 @@ async def test_app_worker():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue([TOPIC])
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def bar(a: int) -> int:
         assert a == 123
         return 456
 
+    @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
         res = await app.call(bar, topic=TOPIC)(a + 1) + 1
         await queue.close()
@@ -47,7 +48,7 @@ async def test_app_consumer():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue([TOPIC])
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def foo(a: int) -> int:
         res = a * a
         await queue.close()
@@ -79,12 +80,12 @@ async def _call_nested_gather(*, use_brrr_gather: bool) -> list[str]:
     store = InMemoryByteStore()
     queue = ClosableInMemQueue([TOPIC])
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def foo(a: int) -> int:
         calls.append(f"foo({a})")
         return a * 2
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def bar(a: int) -> int:
         calls.append(f"bar({a})")
         return a - 1
@@ -93,6 +94,7 @@ async def _call_nested_gather(*, use_brrr_gather: bool) -> list[str]:
         b = await app.call(foo)(a)
         return await app.call(bar)(b)
 
+    @brrr.handler
     async def top(app: ActiveWorker, xs: list[int]) -> list[int]:
         calls.append(f"top({xs})")
         gather = app.gather if use_brrr_gather else asyncio.gather
@@ -167,10 +169,11 @@ async def test_topics_separate_app_same_conn():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue(["t1", "t2"])
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def one(a: int) -> int:
         return a + 5
 
+    @brrr.handler
     async def two(app: ActiveWorker, a: int):
         result = await app.call("one", topic="t1")(a + 3)
         assert result == 15
@@ -189,10 +192,11 @@ async def test_topics_separate_app_separate_conn():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue(["t1", "t2"])
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def one(a: int) -> int:
         return a + 5
 
+    @brrr.handler
     async def two(app: ActiveWorker, a: int):
         result = await app.call("one", topic="t1")(a + 3)
         assert result == 15
@@ -218,10 +222,11 @@ async def test_topics_same_app():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue(["t1", "t2"])
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def one(a: int) -> int:
         return a + 5
 
+    @brrr.handler
     async def two(app: ActiveWorker, a: int):
         # N.B.: b2 can use its own brrr instance
         result = await app.call("one", topic="t1")(a + 3)
@@ -257,6 +262,7 @@ async def test_stop_when_empty():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue([TOPIC])
 
+    @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
         calls_pre[a] += 1
         if a == 0:
@@ -287,7 +293,7 @@ async def test_parallel(use_gather: bool):
 
     top_calls = 0
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def block(a: int) -> int:
         nonlocal barrier
         if barrier is not None:
@@ -302,6 +308,7 @@ async def test_parallel(use_gather: bool):
         barrier = None
         return a
 
+    @brrr.handler
     async def top(app: ActiveWorker) -> None:
         gather = app.gather if use_gather else asyncio.gather
         await gather(*(app.call(block)(x) for x in range(parallel)))
@@ -330,6 +337,7 @@ async def test_stress_parallel():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue([TOPIC])
 
+    @brrr.handler
     async def fib(app: ActiveWorker, a: int) -> int:
         if a < 2:
             return a
@@ -340,6 +348,7 @@ async def test_stress_parallel():
             )
         )
 
+    @brrr.handler
     async def top(app: ActiveWorker) -> None:
         n = await app.call(fib)(1000)
         assert (
@@ -370,6 +379,7 @@ async def test_debounce_child():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue([TOPIC])
 
+    @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
         calls[a] += 1
         if a == 0:
@@ -396,11 +406,12 @@ async def test_no_debounce_parent():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue([TOPIC])
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def one(_: int) -> int:
         calls["one"] += 1
         return 1
 
+    @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
         calls["foo"] += 1
         # Different argument to avoid debouncing children
@@ -431,7 +442,7 @@ async def test_app_loop_resumable():
     class MyError(Exception):
         pass
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def foo(a: int) -> int:
         nonlocal errors
         if errors:
@@ -458,10 +469,11 @@ async def test_app_handler_names():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue([TOPIC])
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def foo(a: int) -> int:
         return a * a
 
+    @brrr.handler
     async def bar(app: ActiveWorker, a: int) -> int:
         # Both are the same.
         res = await app.call(foo)(a) * await app.call("quux/zim")(a)
@@ -485,14 +497,15 @@ async def test_app_subclass():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue([TOPIC])
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def bar(a: int) -> int:
         return a + 1
 
-    @brrr.no_app_arg
+    @brrr.handler_no_arg
     async def baz(a: int) -> int:
         return a + 10
 
+    @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
         ret = await app.call(bar)(a)
         await queue.close()

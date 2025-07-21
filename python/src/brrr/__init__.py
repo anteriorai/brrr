@@ -1,5 +1,6 @@
 from .app import (
-    no_app_arg as no_app_arg,
+    handler as handler,
+    handler_no_arg as handler_no_arg,
     AppConsumer as AppConsumer,
     AppWorker as AppWorker,
     ActiveWorker as ActiveWorker,

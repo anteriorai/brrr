@@ -11,6 +11,7 @@ TOPIC = "brrr-test"
 
 
 async def test_only_no_brrr():
+    @brrr.handler_no_arg
     @brrr.only
     async def foo(a: int) -> int:
         return a * 2
@@ -23,8 +24,8 @@ async def test_only_in_brrr():
     store = InMemoryByteStore()
     queue = ClosableInMemQueue([TOPIC])
 
+    @brrr.handler_no_arg
     @brrr.only
-    @brrr.no_app_arg
     async def foo(a: int) -> int:
         await queue.close()
         return a * 2
@@ -38,6 +39,7 @@ async def test_only_in_brrr():
 
 
 async def test_only_in_fake_brrr():
+    @brrr.handler_no_arg
     @brrr.only
     async def foo(a: int) -> int:
         return a * 2

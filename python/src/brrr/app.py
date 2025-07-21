@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import abstractmethod
 from collections.abc import (
     Awaitable,
     Callable,
@@ -7,7 +8,7 @@ from collections.abc import (
 )
 from collections import UserDict
 import functools
-from typing import Any, Concatenate, overload
+from typing import Any, Concatenate, Protocol, overload
 
 from brrr.store import NotFoundError
 
@@ -16,7 +17,18 @@ from .connection import Connection, Defer, DeferredCall, Request, Response
 from .only import allow_only
 
 
-type Handler = Callable[Concatenate[ActiveWorker, ...], Awaitable[Any]]
+class WrappedTask[**P, R](Protocol):
+    _brrr_handler: Callable[P, Awaitable[R]]
+
+
+class CallableTask[**P, **V, R](WrappedTask[V, R]):
+    @abstractmethod
+    async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R: ...
+
+
+class CallableTaskNoArg[**P, **V, R](WrappedTask[V, R]):
+    @abstractmethod
+    async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R: ...
 
 
 class NotInBrrrError(Exception):
@@ -32,21 +44,37 @@ def _val2key[K, V](d: Mapping[K, V], val: V) -> K:
     raise KeyError(val)
 
 
-def no_app_arg[**P, R](
+def handler_no_arg[**P, R](
     f: Callable[P, Awaitable[R]],
-) -> Callable[Concatenate[ActiveWorker, P], Awaitable[R]]:
-    @functools.wraps(f)
-    async def wrap(_: ActiveWorker, *args: P.args, **kwargs: P.kwargs) -> R:
+) -> CallableTaskNoArg[P, Concatenate[ActiveWorker, P], R]:
+    """A brrr handler which does not care for the worker app as an argument."""
+
+    # A brrr task API compatible version of this function is one which just
+    # ignores its first arg
+    async def _brrr_handler(_: ActiveWorker, *args: P.args, **kwargs: P.kwargs) -> R:
         return await f(*args, **kwargs)
 
-    return wrap
+    # Rather than create a wrapper for the original arg, we can tack this
+    # brrr-internal property onto that function instead.  This makes the
+    # decorator inherently low-touch: we don’t mess with the function at all.
+    # This also saves us from having to muck with __call__.
+    setattr(f, "_brrr_handler", _brrr_handler)
+    return f  # type: ignore[return-value]
 
 
-class TaskCollection(UserDict[str, Handler]):
-    def task2name(self, task: Handler) -> str:
+def handler[**P, R](
+    f: Callable[Concatenate[ActiveWorker, P], Awaitable[R]],
+) -> CallableTask[Concatenate[ActiveWorker, P], Concatenate[ActiveWorker, P], R]:
+    # This function already satisfies the brrr task API
+    setattr(f, "_brrr_handler", f)
+    return f  # type: ignore[return-value]
+
+
+class TaskCollection(UserDict[str, WrappedTask[..., Any]]):
+    def task2name(self, task: WrappedTask[..., Any]) -> str:
         return _val2key(self, task)
 
-    def spec2name(self, spec: str | Handler) -> str:
+    def spec2name(self, spec: str | WrappedTask[..., Any]) -> str:
         return spec if isinstance(spec, str) else self.task2name(spec)
 
 
@@ -59,7 +87,7 @@ class AppConsumer:
         self,
         codec: Codec,
         connection: Connection,
-        handlers: Mapping[str, Handler] | None = None,
+        handlers: Mapping[str, WrappedTask[..., Any]] | None = None,
     ):
         self._codec = codec
         self._connection = connection
@@ -69,6 +97,13 @@ class AppConsumer:
     def schedule[**P, R](
         self,
         task_spec: Callable[Concatenate[ActiveWorker, P], Awaitable[R]],
+        *,
+        topic: str,
+    ) -> Callable[P, Awaitable[None]]: ...
+    @overload
+    def schedule[**P, R](
+        self,
+        task_spec: Callable[P, Awaitable[R]],
         *,
         topic: str,
     ) -> Callable[P, Awaitable[None]]: ...
@@ -93,8 +128,12 @@ class AppConsumer:
         self, task_spec: Callable[Concatenate[ActiveWorker, P], Awaitable[R]]
     ) -> Callable[P, Awaitable[R]]: ...
     @overload
-    def read(self, task_spec: str) -> Callable: ...
-    def read(self, task_spec):
+    def read[**P, R](
+        self, task_spec: Callable[P, Awaitable[R]]
+    ) -> Callable[P, Awaitable[R]]: ...
+    @overload
+    def read(self, task_spec: str) -> Callable[..., Awaitable[Any]]: ...
+    def read(self, task_spec: Any) -> Callable[..., Awaitable[Any]]:
         task_name = self.tasks.spec2name(task_spec)
 
         async def f(*args: Any, **kwargs: Any) -> Any:
@@ -113,7 +152,8 @@ class AppWorker(AppConsumer):
         # bubbling up somewhere and no matter how often I push it down, it pops
         # up somewhere else.
         handler = functools.partial(
-            self.tasks[task_name], ActiveWorker(conn, self._codec, self.tasks)
+            self.tasks[task_name]._brrr_handler,
+            ActiveWorker(conn, self._codec, self.tasks),
         )
         with allow_only():
             try:
@@ -141,8 +181,19 @@ class ActiveWorker:
         topic: str | None = None,
     ) -> Callable[P, Awaitable[R]]: ...
     @overload
-    def call(self, task_spec: str, *, topic: str | None = None) -> Callable: ...
-    def call(self, task_spec, *, topic: str | None = None):
+    def call[**P, R](
+        self,
+        task_spec: Callable[P, Awaitable[R]],
+        *,
+        topic: str | None = None,
+    ) -> Callable[P, Awaitable[R]]: ...
+    @overload
+    def call(
+        self, task_spec: str, *, topic: str | None = None
+    ) -> Callable[..., Awaitable[Any]]: ...
+    def call(
+        self, task_spec: Any, *, topic: str | None = None
+    ) -> Callable[..., Awaitable[Any]]:
         """Directly call a brrr task from within another task.
 
         Do not call this unless you are, yourself, already inside a brrr task.
