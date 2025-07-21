@@ -1,9 +1,9 @@
+from brrr.local_app import local_app
 import pytest
 
 import brrr
-from brrr import AppWorker, OnlyInBrrrError
+from brrr import OnlyInBrrrError
 from brrr.pickle_codec import PickleCodec
-from brrr.backends.in_memory import InMemoryByteStore, InMemoryQueue
 
 TOPIC = "brrr-test"
 
@@ -19,19 +19,16 @@ async def test_only_no_brrr():
 
 
 async def test_only_in_brrr():
-    store = InMemoryByteStore()
-    queue = InMemoryQueue([TOPIC])
-
     @brrr.handler_no_arg
     @brrr.only
     async def foo(a: int) -> int:
         return a * 2
 
-    async with brrr.serve(queue, store, store) as conn:
-        app = AppWorker(handlers=dict(foo=foo), codec=PickleCodec(), connection=conn)
-        await app.schedule(foo, topic=TOPIC)(5)
-        queue.flush()
-        await conn.loop(TOPIC, app.handle)
+    async with local_app(
+        topic=TOPIC, handlers=dict(foo=foo), codec=PickleCodec()
+    ) as app:
+        await app.schedule(foo)(5)
+        await app.run()
         assert await app.read(foo)(5) == 10
 
 
