@@ -374,7 +374,7 @@ class Task[**P, R]:
 
     # Calling a function returns the value if it has already been computed.
     # Otherwise, it raises a Call exception to schedule the computation
-    async def __call__(self, *args, **kwargs):
+    async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         if not self.brrr._inside_worker_context_p():
             return await self.evaluate(args, kwargs)
         return await self.brrr.call(None, self.name, args, kwargs)
