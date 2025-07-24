@@ -99,12 +99,12 @@
                     dynamodb.enable = true;
                     brrr-demo.worker = {
                       package = self.packages.${pkgs.system}.brrr-demo;
-                      args = [ "worker" ];
+                      args = [ "brrr_worker" ];
                       environment = demoEnv;
                     };
                     brrr-demo.server = {
                       package = self.packages.${pkgs.system}.brrr-demo;
-                      args = [ "server" ];
+                      args = [ "web_server" ];
                       environment = demoEnv;
                     };
                   };
