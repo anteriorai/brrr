@@ -270,13 +270,13 @@ class Brrr:
         # because it will then immediately call this parent flow back, which is
         # fine because the result does in fact exist.
         child_topic = child.topic or my_topic
-        memo_key = child.call.memo_key
-        schedule_job = functools.partial(self._put_job, child_topic, memo_key, root_id)
+        call_hash = child.call.call_hash
+        schedule_job = functools.partial(self._put_job, child_topic, call_hash, root_id)
         await self.memory.add_pending_return(
-            memo_key, f"{my_topic}/{parent_key}", schedule_job
+            call_hash, f"{my_topic}/{parent_key}", schedule_job
         )
 
-    async def _put_job(self, topic: str, memo_key: str, root_id: str):
+    async def _put_job(self, topic: str, call_hash: str, root_id: str):
         # Incredibly mother-of-all ad-hoc definitions.  Doesn’t use the topic
         # for counting spawn limits: the spawn limit is currently intended to
         # never be hit at all: it’s a /semantic/ check, not a /runtime/ check.
@@ -284,7 +284,7 @@ class Brrr:
         # limit than free ones.  It’s intended to catch infinite recursion and
         # non-idempotent call graphs.
         if (await self.cache.incr(f"brrr_count/{root_id}")) > self._spawn_limit:
-            msg = f"Spawn limit {self._spawn_limit} reached for {root_id} at job {memo_key}"
+            msg = f"Spawn limit {self._spawn_limit} reached for {root_id} at job {call_hash}"
             logger.error(msg)
             # Throw here because it allows the user of brrrlib to decide how to
             # handle this: what kind of logging?  Does the worker crash in order
@@ -293,7 +293,7 @@ class Brrr:
             # bigger issue to admins?  Or just wrap it in a while True loop
             # which catches and ignores specifically this error?
             raise SpawnLimitError(msg)
-        await self.queue.put_message(topic, f"{root_id}/{memo_key}")
+        await self.queue.put_message(topic, f"{root_id}/{call_hash}")
 
     @requires_setup
     async def _schedule_call_root(self, topic: str, call: Call):
@@ -309,7 +309,7 @@ class Brrr:
         await self.memory.set_call(call)
         # Random root id for every call so we can disambiguate retries
         root_id = base64.urlsafe_b64encode(uuid4().bytes).decode("ascii").strip("=")
-        await self._put_job(topic, call.memo_key, root_id)
+        await self._put_job(topic, call.call_hash, root_id)
 
     @requires_setup
     async def read(self, task_name: str, args: tuple, kwargs: dict):

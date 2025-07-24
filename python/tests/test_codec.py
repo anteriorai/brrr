@@ -22,7 +22,7 @@ async def test_codec_key_no_args():
     def create_call(task_name, args, kwargs):
         call = old(task_name, args, kwargs)
         bare_call = old(task_name, (), {})
-        return dataclasses.replace(call, memo_key=bare_call.memo_key)
+        return dataclasses.replace(call, call_hash=bare_call.call_hash)
 
     codec.create_call = Mock(side_effect=create_call)
 
@@ -61,7 +61,7 @@ async def test_codec_key_no_args():
 async def test_codec_determinstic():
     call1 = PickleCodec().create_call("foo", (1, 2), dict(b=4, a=3))
     call2 = PickleCodec().create_call("foo", (1, 2), dict(a=3, b=4))
-    assert call1.memo_key == call2.memo_key
+    assert call1.call_hash == call2.call_hash
 
 
 async def test_codec_api():

@@ -47,9 +47,9 @@ class ByteStoreContract(ABC):
 
     async def test_has(self):
         async with self.with_store() as store:
-            a1 = MemKey("type-a", "id-1")
-            a2 = MemKey("type-a", "id-2")
-            b1 = MemKey("type-b", "id-1")
+            a1 = MemKey("pending_returns", "id-1")
+            a2 = MemKey("pending_returns", "id-2")
+            b1 = MemKey("call", "id-1")
 
             assert not await store.has(a1)
             assert not await store.has(a2)
@@ -111,9 +111,9 @@ class ByteStoreContract(ABC):
 
     async def test_get_set(self):
         async with self.with_store() as store:
-            a1 = MemKey("type-a", "id-1")
-            a2 = MemKey("type-a", "id-2")
-            b1 = MemKey("type-b", "id-1")
+            a1 = MemKey("call", "id-1")
+            a2 = MemKey("call", "id-2")
+            b1 = MemKey("pending_returns", "id-1")
 
             await store.set(a1, b"value-1")
             await store.set(a2, b"value-2")
@@ -135,7 +135,7 @@ class ByteStoreContract(ABC):
 
     async def test_key_error(self):
         async with self.with_store() as store:
-            a1 = MemKey("type-a", "id-1")
+            a1 = MemKey("value", "id-1")
 
             with pytest.raises(KeyError):
                 await store.get(a1)
@@ -159,7 +159,7 @@ class ByteStoreContract(ABC):
 
     async def test_set_new_value(self):
         async with self.with_store() as store:
-            a1 = MemKey("type-a", "id-1")
+            a1 = MemKey("value", "id-1")
 
             await store.set_new_value(a1, b"value-1")
 
@@ -180,7 +180,7 @@ class ByteStoreContract(ABC):
 
     async def test_compare_and_set(self):
         async with self.with_store() as store:
-            a1 = MemKey("type-a", "id-1")
+            a1 = MemKey("value", "id-1")
 
             await store.set(a1, b"value-1")
 
@@ -199,7 +199,7 @@ class ByteStoreContract(ABC):
 
     async def test_compare_and_delete(self):
         async with self.with_store() as store:
-            a1 = MemKey("type-a", "id-1")
+            a1 = MemKey("value", "id-1")
 
             with pytest.raises(CompareMismatch):
                 await store.compare_and_delete(a1, b"value-2")
@@ -247,7 +247,7 @@ class MemoryContract(ByteStoreContract):
 
             await self.read_after_write(r1)
 
-            task_name, payload = await memory.get_call_bytes(call.memo_key)
+            task_name, payload = await memory.get_call_bytes(call.call_hash)
             assert task_name == "task"
 
             called = False
@@ -260,7 +260,7 @@ class MemoryContract(ByteStoreContract):
                 assert a == 1
                 assert b == 2
 
-            await memory.codec.invoke_task(call.memo_key, "name", task, payload)
+            await memory.codec.invoke_task(call.call_hash, "name", task, payload)
             assert called
 
     async def test_value(self):
@@ -268,7 +268,7 @@ class MemoryContract(ByteStoreContract):
             call = memory.make_call("task", (), {})
             assert not await memory.has_value(call)
 
-            await memory.set_value(call.memo_key, b"123")
+            await memory.set_value(call.call_hash, b"123")
 
             async def r1():
                 assert await memory.has_value(call)
@@ -277,7 +277,7 @@ class MemoryContract(ByteStoreContract):
             await self.read_after_write(r1)
 
             with pytest.raises(AlreadyExists):
-                await memory.set_value(call.memo_key, b"456")
+                await memory.set_value(call.call_hash, b"456")
 
             assert await memory.get_value(call) == b"123"
 
