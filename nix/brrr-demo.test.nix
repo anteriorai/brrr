@@ -100,7 +100,7 @@ let
         services.brrr-demo = {
           enable = true;
           package = self.packages.${pkgs.system}.brrr-demo;
-          args = [ "server" ];
+          args = [ "web_server" ];
           environment = {
             BRRR_DEMO_LISTEN_HOST = "0.0.0.0";
             BRRR_DEMO_REDIS_URL = "redis://datastores:6379";
@@ -118,7 +118,7 @@ let
         services.brrr-demo = {
           enable = true;
           package = self.packages.${pkgs.system}.brrr-demo;
-          args = [ "worker" ];
+          args = [ "brrr_worker" ];
           environment = {
             BRRR_DEMO_REDIS_URL = "redis://datastores:6379";
             AWS_DEFAULT_REGION = "foo";
@@ -148,7 +148,7 @@ let
             AWS_ACCESS_KEY_ID = "foo";
             AWS_SECRET_ACCESS_KEY = "bar";
           };
-          cmd = [ "server" ];
+          cmd = [ "web_server" ];
         };
         networking.firewall.allowedTCPPorts = [ 8080 ];
       };
@@ -160,7 +160,7 @@ let
           extraOptions = [ "--network=host" ];
           image = "brrr-demo:latest";
           imageFile = self.packages.${pkgs.system}.docker;
-          cmd = [ "worker" ];
+          cmd = [ "brrr_worker" ];
           environment = {
             BRRR_DEMO_REDIS_URL = "redis://datastores:6379";
             AWS_DEFAULT_REGION = "foo";

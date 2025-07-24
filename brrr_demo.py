@@ -157,7 +157,7 @@ def cmd(f):
 
 
 @cmd
-async def worker():
+async def brrr_worker():
     async with with_brrr_resources() as (redis, dynamo):
         brrr.setup(redis, dynamo, redis, PickleCodec())
         # You can safely share the exact same resources between different brrr
@@ -173,7 +173,7 @@ async def worker():
 
 
 @cmd
-async def server():
+async def web_server():
     bind_addr = os.environ.get("BRRR_DEMO_LISTEN_HOST", "127.0.0.1")
     bind_port = int(os.environ.get("BRRR_DEMO_LISTEN_PORT", "8080"))
     async with with_brrr(True):
