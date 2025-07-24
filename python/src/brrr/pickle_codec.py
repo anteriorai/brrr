@@ -36,9 +36,9 @@ class PickleCodec(Codec):
         return h.hexdigest()
 
     def create_call(self, task_name: str, args: tuple, kwargs: dict) -> ArgsKwargsCall:
-        memo_key = self._hash_call(task_name, args, kwargs)
+        call_hash = self._hash_call(task_name, args, kwargs)
         return ArgsKwargsCall(
-            task_name=task_name, args=args, kwargs=kwargs, memo_key=memo_key
+            task_name=task_name, args=args, kwargs=kwargs, call_hash=call_hash
         )
 
     def encode_call(self, call: Call) -> bytes:

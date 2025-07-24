@@ -33,10 +33,13 @@ class Call:
     # a task served by Go, from a worker (or other code) in Python, they must
     # both agree on what the input arguments to that call would look like for
     # the environment, and derive the same hash from it.
-    memo_key: str
+    #
+    # The value MUST be a string with only characters in the printable US-ASCII
+    # range.  Obvious candidates are base64 and hexadecimal.
+    call_hash: str
 
     def __eq__(self, other):
-        return isinstance(other, Call) and self.memo_key == other.memo_key
+        return isinstance(other, Call) and self.call_hash == other.call_hash
 
     def __str__(self):
         return f"Call({self.task_name})"
