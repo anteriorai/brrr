@@ -3,51 +3,56 @@ import dataclasses
 import pickle
 from unittest.mock import Mock, call
 
-from brrr import Brrr
+import brrr
+from brrr import AppWorker
+from brrr.app import ActiveWorker
 from brrr.backends.in_memory import InMemoryByteStore
 from brrr.pickle_codec import PickleCodec
 
 from .closable_test_queue import ClosableInMemQueue
 
 
+TOPIC = "test"
+
+
 async def test_codec_key_no_args():
-    b = Brrr()
     calls = Counter()
     store = InMemoryByteStore()
-    queue = ClosableInMemQueue(["test"])
+    queue = ClosableInMemQueue([TOPIC])
     codec = PickleCodec()
 
-    old = codec.create_call
+    old = codec.encode_call
 
-    def create_call(task_name, args, kwargs):
+    def encode_call(task_name, args, kwargs):
         call = old(task_name, args, kwargs)
         bare_call = old(task_name, (), {})
         return dataclasses.replace(call, call_hash=bare_call.call_hash)
 
-    codec.create_call = Mock(side_effect=create_call)
+    codec.encode_call = Mock(side_effect=encode_call)
 
-    @b.task
+    @brrr.no_app_arg
     async def same(a: int) -> int:
+        assert a == 1
         calls[f"same({a})"] += 1
         return a
 
-    @b.task
-    async def foo(a: int) -> int:
+    async def foo(app: ActiveWorker, a: int) -> int:
         calls[f"foo({a})"] += 1
 
         val = 0
         # Call in deterministic order for the test’s sake
         for i in range(1, a + 1):
-            val += await same(i)
+            val += await app.call(same)(i)
 
         assert val == a
         await queue.close()
         return val
 
-    b.setup(queue, store, store, codec)
-    await b.schedule("test", "foo", (50,), {})
-    async with b.wrrrk() as c:
-        await c.loop("test")
+    async with brrr.serve(queue, store, store) as conn:
+        app = AppWorker(handlers=dict(foo=foo, same=same), codec=codec, connection=conn)
+        await app.schedule(foo, topic=TOPIC)(50)
+        await conn.loop(TOPIC, app.handle)
+
     await queue.join()
     assert calls == Counter(
         {
@@ -55,43 +60,42 @@ async def test_codec_key_no_args():
             "foo(50)": 2,
         }
     )
-    codec.create_call.assert_called()
+    codec.encode_call.assert_called()
 
 
 async def test_codec_determinstic():
-    call1 = PickleCodec().create_call("foo", (1, 2), dict(b=4, a=3))
-    call2 = PickleCodec().create_call("foo", (1, 2), dict(a=3, b=4))
+    call1 = PickleCodec().encode_call("foo", (1, 2), dict(b=4, a=3))
+    call2 = PickleCodec().encode_call("foo", (1, 2), dict(a=3, b=4))
     assert call1.call_hash == call2.call_hash
 
 
 async def test_codec_api():
-    b = Brrr()
     store = InMemoryByteStore()
-    queue = ClosableInMemQueue(["test"])
+    queue = ClosableInMemQueue([TOPIC])
     codec = Mock(wraps=PickleCodec())
 
-    @b.task
+    @brrr.no_app_arg
     async def plus(x: int, y: str) -> int:
         return x + int(y)
 
-    @b.task
-    async def foo() -> int:
+    async def foo(app: ActiveWorker) -> int:
         val = (
-            await plus(1, "2")
-            + await plus(x=3, y="4")
-            + await plus(*(5, "6"))
-            + await plus(**dict(x=7, y="8"))
+            await app.call(plus)(1, "2")
+            + await app.call(plus)(x=3, y="4")
+            + await app.call(plus)(*(5, "6"))
+            + await app.call(plus)(**dict(x=7, y="8"))
         )
         assert val == sum(range(9))
         await queue.close()
         return val
 
-    b.setup(queue, store, store, codec)
-    await b.schedule("test", "foo", (), {})
-    async with b.wrrrk() as c:
-        await c.loop("test")
+    async with brrr.serve(queue, store, store) as conn:
+        app = AppWorker(handlers=dict(foo=foo, plus=plus), codec=codec, connection=conn)
+        await app.schedule("foo", topic=TOPIC)()
+        await conn.loop(TOPIC, app.handle)
+
     await queue.join()
-    codec.create_call.assert_has_calls(
+    codec.encode_call.assert_has_calls(
         [
             call("foo", (), {}),
             call("plus", (1, "2"), {}),
@@ -101,14 +105,19 @@ async def test_codec_api():
         ],
         any_order=True,
     )
-    assert codec.encode_call.call_count == 5
 
-    # The “name” argument to invoke_task is easiest to test.
+    # The Call argument’s task_name to invoke_task is easiest to test.
     assert Counter(foo=5, plus=4) == Counter(
-        map(lambda c: c[0][1], codec.invoke_task.call_args_list)
+        map(lambda c: c[0][0].task_name, codec.invoke_task.call_args_list)
     )
 
     for c in codec.decode_return.call_args_list:
-        ret = pickle.loads(c[0][0])
+        ret = c[0][0], pickle.loads(c[0][1])
         # I don’t want to hard-code too much of the implementation in the test
-        assert ret in (3, 7, 11, 15, sum(range(9)))
+        assert ret in {
+            ("plus", 3),
+            ("plus", 7),
+            ("plus", 11),
+            ("plus", 15),
+            ("foo", sum(range(9))),
+        }

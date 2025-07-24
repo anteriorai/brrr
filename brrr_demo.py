@@ -3,9 +3,10 @@
 import ast
 import asyncio
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from collections.abc import AsyncIterator
 import logging
-import logging.config
+
 import json
 import os
 from pprint import pprint
@@ -20,10 +21,45 @@ from types_aiobotocore_dynamodb import DynamoDBClient
 from brrr.backends.redis import RedisQueue
 from brrr.backends.dynamo import DynamoDbMemStore
 import brrr
+from brrr import ActiveWorker, AppWorker, NotFoundError
 from brrr.pickle_codec import PickleCodec
 
 logger = logging.getLogger(__name__)
 routes = web.RouteTableDef()
+
+brrr_app: ContextVar[AppWorker] = ContextVar("brrr_demo.app")
+
+
+### Brrr handlers
+
+
+async def fib_and_print(app: ActiveWorker, n: str, salt=None):
+    f = await app.call("fib", topic="brrr-demo-side")(int(n), salt)
+    print(f"fib({n}) = {f}", flush=True)
+    return f
+
+
+@brrr.no_app_arg
+async def hello(greetee: str):
+    greeting = f"Hello, {greetee}!"
+    print(greeting, flush=True)
+    return greeting
+
+
+async def fib(app: ActiveWorker, n: int, salt=None):
+    match n:
+        case 0 | 1:
+            return n
+        case _:
+            return sum(
+                await app.gather(
+                    app.call(fib)(n - 2, salt),
+                    app.call(fib)(n - 1, salt),
+                )
+            )
+
+
+### Brrr setup
 
 
 def table_name() -> str:
@@ -31,38 +67,6 @@ def table_name() -> str:
     Get table name from environment
     """
     return os.environ.get("DYNAMODB_TABLE_NAME", "brrr")
-
-
-def response(status: int, content: dict):
-    return web.Response(status=status, text=json.dumps(content))
-
-
-@routes.get("/{task_name}")
-async def get_task_result(request: web.BaseRequest):
-    # aiohttp uses a multidict but we don’t need that for this demo.
-    kwargs = dict(request.query)
-
-    task_name = request.match_info["task_name"]
-    if task_name not in brrr.tasks:
-        return response(404, {"error": "No such task"})
-
-    try:
-        result = await brrr.read(task_name, (), kwargs)
-    except KeyError:
-        return response(404, dict(error="No result for this task"))
-    return response(200, dict(status="ok", result=result))
-
-
-@routes.post("/{task_name}")
-async def schedule_task(request: web.BaseRequest):
-    kwargs = dict(request.query)
-
-    task_name = request.match_info["task_name"]
-    if task_name not in brrr.tasks:
-        return response(404, {"error": "No such task"})
-
-    await brrr.schedule("brrr-demo-main", task_name, (), kwargs)
-    return response(202, {"status": "accepted"})
 
 
 # ... where is the python contextmanager monad?
@@ -108,45 +112,66 @@ async def with_brrr_resources() -> AsyncIterator[tuple[RedisQueue, DynamoDbMemSt
 
 
 @asynccontextmanager
-async def with_brrr(reset_backends):
+async def with_brrr(
+    reset_backends,
+) -> AsyncIterator[tuple[brrr.Server, brrr.AppWorker]]:
     async with with_brrr_resources() as (redis, dynamo):
         if reset_backends:
             await redis.setup()
             await dynamo.create_table()
-        brrr.setup(redis, dynamo, redis, PickleCodec())
-        yield
+        async with brrr.serve(redis, dynamo, redis) as conn:
+            app = AppWorker(
+                handlers=dict(
+                    fib_and_print=fib_and_print,
+                    hello=hello,
+                    fib=fib,
+                ),
+                codec=PickleCodec(),
+                connection=conn,
+            )
+            token = brrr_app.set(app)
+            try:
+                yield (conn, app)
+            finally:
+                brrr_app.reset(token)
 
 
-# This is the normal way to initialize tasks: just directly use the module
-# singleton.
-@brrr.task
-async def fib_and_print(n: str, salt=None):
-    f = await brrr.call("brrr-demo-side", "fib", (int(n), salt), {})
-    print(f"fib({n}) = {f}", flush=True)
-    return f
+### Demo HTTP API implementation
 
 
-@brrr.task
-async def hello(greetee: str):
-    greeting = f"Hello, {greetee}!"
-    print(greeting, flush=True)
-    return greeting
+def response(status: int, content: dict):
+    return web.Response(status=status, text=json.dumps(content))
 
 
-# In-line demo of separate topics.  Normally you would probably just have this
-# in an entirely separate file, or even an entirely separate project.  But this
-# works, too.
-b2 = brrr.Brrr()
+@routes.get("/{task_name}")
+async def get_task_result(request: web.BaseRequest):
+    # aiohttp uses a multidict but we don’t need that for this demo.
+    kwargs = dict(request.query)
+
+    task_name = request.match_info["task_name"]
+    if task_name not in brrr_app.get().tasks:
+        return response(404, {"error": "No such task"})
+
+    try:
+        result = await brrr_app.get().read(task_name)(**kwargs)
+    except NotFoundError:
+        return response(404, dict(error="No result for this task"))
+    return response(200, dict(status="ok", result=result))
 
 
-@b2.task
-async def fib(n: int, salt=None):
-    match n:
-        case 0 | 1:
-            return n
-        case _:
-            return sum(await brrr.gather(fib(n - 2, salt), fib(n - 1, salt)))
+@routes.post("/{task_name}")
+async def schedule_task(request: web.BaseRequest):
+    kwargs = dict(request.query)
 
+    task_name = request.match_info["task_name"]
+    if task_name not in brrr_app.get().tasks:
+        return response(404, {"error": "No such task"})
+
+    await brrr_app.get().schedule(task_name, topic="brrr-demo-main")(**kwargs)
+    return response(202, {"status": "accepted"})
+
+
+### Demo CLI
 
 cmds = {}
 
@@ -158,18 +183,11 @@ def cmd(f):
 
 @cmd
 async def brrr_worker():
-    async with with_brrr_resources() as (redis, dynamo):
-        brrr.setup(redis, dynamo, redis, PickleCodec())
-        # You can safely share the exact same resources between different brrr
-        # instances, even if they use different topics.  In particular the
-        # memory store is topic-agnostic.
-        b2.setup(redis, dynamo, redis, PickleCodec())
-        async with brrr.wrrrk() as client_main:
-            async with b2.wrrrk() as client_side:
-                await asyncio.gather(
-                    client_main.loop("brrr-demo-main"),
-                    client_side.loop("brrr-demo-side"),
-                )
+    async with with_brrr(False) as (conn, app):
+        await asyncio.gather(
+            conn.loop("brrr-demo-main", app.handle),
+            conn.loop("brrr-demo-side", app.handle),
+        )
 
 
 @cmd
@@ -212,8 +230,8 @@ async def schedule(topic: str, job: str, *args: str):
     """
     Put a single job onto the queue
     """
-    async with with_brrr(False):
-        await brrr.schedule(topic, job, (), args2dict(args))
+    async with with_brrr(False) as (_, app):
+        await app.schedule(job, topic=topic)(**args2dict(args))
 
 
 @cmd

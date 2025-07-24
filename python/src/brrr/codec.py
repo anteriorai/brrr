@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import abstractmethod, ABC
-from typing import Any
+from typing import Any, Callable
 
 from brrr.call import Call
 
@@ -21,19 +21,13 @@ class Codec(ABC):
     """
 
     @abstractmethod
-    def create_call(self, task_name: str, args: tuple, kwargs: dict) -> Call:
+    def encode_call(self, task_name: str, args: tuple, kwargs: dict) -> Call:
         raise NotImplementedError()
 
     @abstractmethod
-    def encode_call(self, call: Call) -> bytes:
+    async def invoke_task(self, call: Call, task: Callable) -> bytes:
         raise NotImplementedError()
 
     @abstractmethod
-    async def invoke_task(
-        self, memo_key: str, name: str, handler, payload: bytes
-    ) -> bytes:
-        raise NotImplementedError()
-
-    @abstractmethod
-    def decode_return(self, payload: bytes) -> Any:
+    def decode_return(self, task_name: str, payload: bytes) -> Any:
         raise NotImplementedError()

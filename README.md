@@ -54,27 +54,29 @@ Highlights:
 ```py
 import brrr
 
-@brrr.task
-async def fib(n: int, salt=None):
+async def fib(app: brrr.ActiveWorker, n: int, salt=None):
     match n:
         case 0: return 0
         case 1: return 1
-        case _: return sum(await brrr.gather(fib(n - 2), fib(n - 1)))
+        case _: return sum(await app().gather(
+            app.call(fib)(n - 2),
+            app.call(fib)(n - 1),
+        ))
 
-@brrr.task
-async def fib_and_print(n: str):
-    f = await fib(int(n))
+async def fib_and_print(app: brrr.ActiveWorker, n: str):
+    f = await app.call(fib)(int(n))
     print(f"fib({n}) = {f}", flush=True)
     return f
 
-@brrr.task
 async def hello(greetee: str):
     greeting = f"Hello, {greetee}!"
     print(greeting, flush=True)
     return greeting
+
+...
 ```
 
-Note: the `fib()` function looks like it blocks for two sub-calls to `fib(n-1)` and `fib(n-2)`, but in reality it is aborted and re-executed multiple times until all its inputs are available.
+Note: the `.call(fib)` calls don’t ever actually block for the execution of the underlying logic: the entire parent function instead is aborted and re-executed multiple times until all its inputs are available.
 
 Benefit: your code looks intuitive.
 

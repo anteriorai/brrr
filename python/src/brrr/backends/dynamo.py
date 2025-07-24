@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import typing
 
-from ..store import CompareMismatch, MemKey, Store
+from ..store import AlreadyExistsError, CompareMismatch, MemKey, NotFoundError, Store
 
 if typing.TYPE_CHECKING:
     from types_aiobotocore_dynamodb import DynamoDBClient
@@ -56,14 +56,28 @@ class DynamoDbMemStore(Store):
         )
         if "Item" not in response:
             logger.debug(f"getting key: {key}: not found")
-            raise KeyError(key)
+            raise NotFoundError(key)
         logger.debug(f"getting key: {key}: found")
         return response["Item"]["value"]["B"]
 
-    async def set(self, key: MemKey, value: bytes):
-        await self.client.put_item(
-            TableName=self.table_name, Item={**self.key(key), "value": {"B": value}}
-        )
+    async def set_first_value(self, key: MemKey, value: bytes):
+        """Use the DynamoDB API to set a fresh value.
+
+        - If the value didn't exist yet, that's good: set the new value
+        - If the value is already set, but at this same value: also ok, ignore
+        - If the value already exists, but is currently different: raise an error
+
+        """
+        try:
+            await self.client.put_item(
+                TableName=self.table_name,
+                Item={**self.key(key), "value": {"B": value}},
+                ExpressionAttributeNames={"#value": "value"},
+                ExpressionAttributeValues={":value": {"B": value}},
+                ConditionExpression="attribute_not_exists(#value) OR #value = :value",
+            )
+        except self.client.exceptions.ConditionalCheckFailedException as e:
+            raise AlreadyExistsError() from e
 
     async def delete(self, key: MemKey):
         await self.client.delete_item(
@@ -82,8 +96,8 @@ class DynamoDbMemStore(Store):
                 ExpressionAttributeValues={":value": {"B": value}},
                 ConditionExpression="attribute_not_exists(#value)",
             )
-        except self.client.exceptions.ConditionalCheckFailedException:
-            raise CompareMismatch()
+        except self.client.exceptions.ConditionalCheckFailedException as e:
+            raise CompareMismatch() from e
 
     async def compare_and_set(self, key: MemKey, value: bytes, expected: bytes):
         if expected is None:
@@ -100,8 +114,8 @@ class DynamoDbMemStore(Store):
                 },
                 ConditionExpression="#value = :expected",
             )
-        except self.client.exceptions.ConditionalCheckFailedException:
-            raise CompareMismatch()
+        except self.client.exceptions.ConditionalCheckFailedException as e:
+            raise CompareMismatch() from e
 
     async def compare_and_delete(self, key: MemKey, expected: bytes):
         if expected is None:
@@ -115,8 +129,8 @@ class DynamoDbMemStore(Store):
                 ExpressionAttributeNames={"#value": "value"},
                 ExpressionAttributeValues={":expected": {"B": expected}},
             )
-        except self.client.exceptions.ConditionalCheckFailedException:
-            raise CompareMismatch()
+        except self.client.exceptions.ConditionalCheckFailedException as e:
+            raise CompareMismatch() from e
 
     async def create_table(self):
         try:

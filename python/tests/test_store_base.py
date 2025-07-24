@@ -1,7 +1,6 @@
 import functools
 
 from brrr.backends.in_memory import InMemoryByteStore
-from brrr.pickle_codec import PickleCodec
 from brrr.store import (
     CompareMismatch,
     Memory,
@@ -38,8 +37,8 @@ class FlakyStore(InMemoryByteStore):
 
 async def test_memory_cas():
     store = FlakyStore()
-    memory = Memory(store, PickleCodec())
-    key = MemKey("foo", "bar")
+    memory = Memory(store)
+    key = MemKey("value", "bar")
     # Testing a private method is technically a bit of an anti pattern.  Tbh I
     # don’t think the API for the store is correct to begin with and we should
     # probably just remove it entirely.  This primitive though seems broken and
