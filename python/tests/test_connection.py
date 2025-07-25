@@ -6,7 +6,7 @@ from brrr.backends.in_memory import InMemoryByteStore, InMemoryQueue
 TOPIC = "brrr-test"
 
 
-async def test_conn_raw():
+async def test_conn_raw() -> None:
     store = InMemoryByteStore()
     queue = InMemoryQueue([TOPIC])
 
@@ -45,7 +45,7 @@ async def test_conn_raw():
         assert await conn.read_raw("hash3") is None
 
 
-async def test_conn_nop_closed_queue():
+async def test_conn_nop_closed_queue() -> None:
     store = InMemoryByteStore()
     queue = InMemoryQueue([TOPIC])
     await queue.close()

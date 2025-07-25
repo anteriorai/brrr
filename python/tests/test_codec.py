@@ -1,10 +1,12 @@
 from collections import Counter
 import dataclasses
 import pickle
+from typing import Any
 from unittest.mock import Mock, call
 
 import brrr
 from brrr.app import ActiveWorker
+from brrr.call import Call
 from brrr.local_app import local_app
 from brrr.pickle_codec import PickleCodec
 
@@ -12,18 +14,18 @@ from brrr.pickle_codec import PickleCodec
 TOPIC = "test"
 
 
-async def test_codec_key_no_args():
-    calls = Counter()
+async def test_codec_key_no_args() -> None:
+    calls = Counter[str]()
     codec = PickleCodec()
 
     old = codec.encode_call
 
-    def encode_call(task_name, args, kwargs):
+    def encode_call(task_name: str, args: Any, kwargs: Any) -> Call:
         call = old(task_name, args, kwargs)
         bare_call = old(task_name, (), {})
         return dataclasses.replace(call, call_hash=bare_call.call_hash)
 
-    codec.encode_call = Mock(side_effect=encode_call)
+    codec.encode_call = Mock(side_effect=encode_call)  # type: ignore[method-assign]
 
     @brrr.handler_no_arg
     async def same(a: int) -> int:
@@ -58,13 +60,13 @@ async def test_codec_key_no_args():
     codec.encode_call.assert_called()
 
 
-async def test_codec_determinstic():
+async def test_codec_determinstic() -> None:
     call1 = PickleCodec().encode_call("foo", (1, 2), dict(b=4, a=3))
     call2 = PickleCodec().encode_call("foo", (1, 2), dict(a=3, b=4))
     assert call1.call_hash == call2.call_hash
 
 
-async def test_codec_api():
+async def test_codec_api() -> None:
     codec = Mock(wraps=PickleCodec())
 
     @brrr.handler_no_arg

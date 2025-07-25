@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 
 
@@ -68,13 +70,13 @@ class Call:
     # HTTP requests don’t have a good analog for this.
     call_hash: str
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         # Note the absence of checking the payload here.  That’s the point of
         # the call_hash.  Even the absence of the task_name!  Again the point.
         return isinstance(other, Call) and self.call_hash == other.call_hash
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"Call({self.task_name}, {self.call_hash[:6]}...)"
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"<Call({self.task_name!r}, {self.call_hash!r})>"
