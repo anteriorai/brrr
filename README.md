@@ -51,30 +51,46 @@ Look at the [`brrr_demo.py`](brrr_demo.py) file for a full demo.
 
 Highlights:
 
-```py
+```python
 import brrr
 
-@brrr.task
-async def fib(n: int, salt=None):
+@brrr.handler
+async def fib(app: brrr.ActiveWorker, n: int, salt=None):
     match n:
         case 0: return 0
         case 1: return 1
-        case _: return sum(await brrr.gather(fib(n - 2), fib(n - 1)))
+        case _: return sum(await app().gather(
+            app.call(fib)(n - 2),
+            app.call(fib)(n - 1),
+        ))
 
-@brrr.task
-async def fib_and_print(n: str):
-    f = await fib(int(n))
+
+@brrr.handler
+async def fib_and_print(app: brrr.ActiveWorker, n: str):
+    f = await app.call(fib)(int(n))
     print(f"fib({n}) = {f}", flush=True)
     return f
 
-@brrr.task
+
+@brrr.handler_no_arg
 async def hello(greetee: str):
     greeting = f"Hello, {greetee}!"
     print(greeting, flush=True)
     return greeting
+
+
+async def amain():
+    queue, store, cache, codec = ...
+    async with brrr.serve(queue, store, cache) as conn:
+        app = brrr.AppWorker(
+            handlers=dict(fib=fib, hello=hello, fib_and_print=fib_and_print)),
+            codec=codec,
+            connection=conn
+        )
+        await conn.loop("demo", app.handle)
 ```
 
-Note: the `fib()` function looks like it blocks for two sub-calls to `fib(n-1)` and `fib(n-2)`, but in reality it is aborted and re-executed multiple times until all its inputs are available.
+Note: the `.call(fib)` calls don’t ever actually block for the execution of the underlying logic: the entire parent function instead is aborted and re-executed multiple times until all its inputs are available.
 
 Benefit: your code looks intuitive.
 

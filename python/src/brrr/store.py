@@ -5,12 +5,11 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 import logging
 import time
-from typing import Any, Literal
+from typing import Literal
 
 import bencodepy
 
-from brrr.call import Call
-from brrr.codec import Codec
+from .call import Call
 
 
 logger = logging.getLogger(__name__)
@@ -84,20 +83,22 @@ class MemKey:
 class CompareMismatch(Exception): ...
 
 
-class AlreadyExists(Exception): ...
+class NotFoundError(Exception):
+    def __init__(self, key: MemKey):
+        super().__init__(f"Not found: {key!r}")
 
 
 class Store(ABC):
-    """
-    A key-value store with a dict-like interface.
-    This expresses the requirements for a store to be suitable as a Memory backend.
+    """A key-value store with a dict-like interface.
 
-    All mutate operations MUST be idempotent
-    All getters MUST throw a KeyError for missing keys
+    This expresses the requirements for a store to be suitable as a Memory
+    backend.
+
     """
 
     @abstractmethod
     async def has(self, key: MemKey) -> bool:
+        """Inherently racy operation, be careful when using this"""
         raise NotImplementedError()
 
     @abstractmethod
@@ -106,6 +107,15 @@ class Store(ABC):
 
     @abstractmethod
     async def set(self, key: MemKey, value: bytes):
+        """Set a value, overriding any existing value if present.
+
+        You don't have to provide read-after-write consistency, nor even
+        write-after-write consistency if you don't want it.  The guarantees
+        offered by your storage layer bubble up to the application layer, it's
+        up to you where you want to spend your effort dealing with the inherent
+        complexity in distributed storage.
+
+        """
         raise NotImplementedError()
 
     @abstractmethod
@@ -114,7 +124,15 @@ class Store(ABC):
 
     @abstractmethod
     async def set_new_value(self, key: MemKey, value: bytes):
-        """Set a fresh value, throwing if any value already exists."""
+        """Set a fresh value, throwing if any value already exists.
+
+        This must provide a hard detection of whether this was the first write.
+        This CAS operation allows validating / invalidating related external
+        work depending on if this write ended up being "final".  If the only
+        importance of this operation is the final value itself, use
+        `set' instead.
+
+        """
         raise NotImplementedError()
 
     @abstractmethod
@@ -176,65 +194,69 @@ class Cache(ABC):
 
 
 class Memory:
-    """
-    A memstore that uses a pickle jar as its backend
-    """
-
-    def __init__(self, store: Store, codec: Codec):
+    def __init__(self, store: Store):
         self.store = store
-        self.codec = codec
 
-    # This method feels slightly like the plumbing sticking out through the
-    # floor but it’s a step in the right direction.  At least it is explicit
-    # that Calls only make sense in the context of both a store *and* a codec.
-    # This is essential for cross-language functionality.
-    def make_call(self, task_name: str, args: tuple, kwargs: dict) -> Call:
-        """Create a Call instance.
-
-        Defined on the memory because it is inherently tied to the codec.
-
-        """
-        return self.codec.create_call(task_name, args, kwargs)
-
-    async def get_call_bytes(self, call_hash: str) -> tuple[str, bytes]:
-        # If this ever becomes a bottleneck I’ll eat my shoe.  O(who_cares).
-        payload = await self.store.get(MemKey("call", call_hash))
-        decoded = bencodepy.decode(payload)
+    async def get_call(self, call_hash: str) -> Call:
+        enc = await self.store.get(MemKey("call", call_hash))
+        decoded = bencodepy.decode(enc)
         task_name = decoded[b"task_name"]
-        task_args = decoded[b"task_args"]
-        return task_name.decode("utf-8"), task_args
-
-    async def has_call(self, call: Call):
-        return await self.store.has(MemKey("call", call.call_hash))
+        payload = decoded[b"payload"]
+        return Call(
+            task_name=task_name.decode("utf-8"), payload=payload, call_hash=call_hash
+        )
 
     async def set_call(self, call: Call):
-        if not isinstance(call, Call):
-            raise ValueError(f"set_call expected a Call, got {call}")
-        payload = bencodepy.encode(
+        """Store this call in the storage layer.
+
+        If you override an existing call (i.e. same hash), ensure that the
+        payload round trips through the codec unchanged.  It doesn't need to be
+        the exact same byte representation, but it must _decode_ to the same
+        call.
+
+        """
+        enc = bencodepy.encode(
             {
                 b"task_name": call.task_name.encode("utf-8"),
-                b"task_args": self.codec.encode_call(call),
+                b"payload": call.payload,
             }
         )
-        await self.store.set(MemKey("call", call.call_hash), payload)
+        await self.store.set(MemKey(type="call", call_hash=call.call_hash), enc)
 
-    async def has_value(self, call: Call) -> bool:
-        return await self.store.has(MemKey("value", call.call_hash))
+    async def has_value(self, call_hash: str) -> bool:
+        """Inherently racy check for existence of a value.
 
-    async def get_value(self, call: Call) -> Any:
-        return await self.store.get(MemKey("value", call.call_hash))
+        If this returns true you can be sure there is a value.  If it returns
+        false you don't know anything because a value might be created by the
+        time the function returned.
 
-    # The API is not completely clean--there’s disagreement around whether this
-    # class should deal with bytes or with decoded values.  It is semantically
-    # correct, though, so it will do for now.
-    async def set_value(self, call_hash: str, payload: bytes):
-        try:
-            await self.store.set_new_value(MemKey("value", call_hash), payload)
-        except CompareMismatch:
-            # Throwing over passing here; Because of idempotency, we only ever want
-            # one value to be set for a given memo_key. If we silently ignored this here,
-            # we could end up executing code with the wrong value
-            raise AlreadyExists(f"set_value: value already set for {call_hash}")
+        """
+        return await self.store.has(MemKey("value", call_hash))
+
+    async def get_value(self, call_hash: str) -> bytes:
+        return await self.store.get(MemKey("value", call_hash))
+
+    async def set_value(self, call_hash: str, payload: bytes) -> None:
+        """Set a [return] value for this call.
+
+        It is the responsibility of the storage layer to ensure
+        write-after-write consistency here by throwing an error if you are
+        trying to overwrite an incompatible value to a pre-existing call.  The
+        store is allowed to not offer that protection, at which point brrr
+        itself will also not offer that protection, and suddenly it becomes the
+        responsibility of the application layer to never try and do that in the
+        first place, or to accept the fact that if you return a different value
+        for the same call, you might also observe different results for the same
+        call in different parts of the system.  This could be a sensible
+        approach if you trust your encoder to generate different representations
+        for the same input, which all do still decode back to the same original
+        input (e.g. python's pickle).
+
+        It's your choice where you want to solve this: application or storage
+        layer?
+
+        """
+        await self.store.set(MemKey("value", call_hash), payload)
 
     async def _with_cas[T](self, f: Callable[[], Awaitable[T]]) -> T:
         """Wrap a CAS exception generating body.
@@ -290,7 +312,7 @@ class Memory:
             should_store_again = False
             try:
                 existing_enc = await self.store.get(memkey)
-            except KeyError:
+            except NotFoundError:
                 existing = PendingReturns(None, {new_return})
                 existing_enc = existing.encode()
                 logger.debug(f"    ... none found. Creating new: {existing_enc!r}")
@@ -338,7 +360,7 @@ class Memory:
             nonlocal handled
             try:
                 pending_enc = await self.store.get(memkey)
-            except KeyError:
+            except NotFoundError:
                 # No pending returns means we were raced by a concurrent
                 # execution of the same call with the same parent.
                 # Unfortunately because of how Python context managers work, we

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import typing
 
-from ..store import CompareMismatch, MemKey, Store
+from ..store import CompareMismatch, MemKey, NotFoundError, Store
 
 if typing.TYPE_CHECKING:
     from types_aiobotocore_dynamodb import DynamoDBClient
@@ -56,7 +56,7 @@ class DynamoDbMemStore(Store):
         )
         if "Item" not in response:
             logger.debug(f"getting key: {key}: not found")
-            raise KeyError(key)
+            raise NotFoundError(key)
         logger.debug(f"getting key: {key}: found")
         return response["Item"]["value"]["B"]
 
@@ -82,8 +82,8 @@ class DynamoDbMemStore(Store):
                 ExpressionAttributeValues={":value": {"B": value}},
                 ConditionExpression="attribute_not_exists(#value)",
             )
-        except self.client.exceptions.ConditionalCheckFailedException:
-            raise CompareMismatch()
+        except self.client.exceptions.ConditionalCheckFailedException as e:
+            raise CompareMismatch() from e
 
     async def compare_and_set(self, key: MemKey, value: bytes, expected: bytes):
         if expected is None:
@@ -100,8 +100,8 @@ class DynamoDbMemStore(Store):
                 },
                 ConditionExpression="#value = :expected",
             )
-        except self.client.exceptions.ConditionalCheckFailedException:
-            raise CompareMismatch()
+        except self.client.exceptions.ConditionalCheckFailedException as e:
+            raise CompareMismatch() from e
 
     async def compare_and_delete(self, key: MemKey, expected: bytes):
         if expected is None:
@@ -115,8 +115,8 @@ class DynamoDbMemStore(Store):
                 ExpressionAttributeNames={"#value": "value"},
                 ExpressionAttributeValues={":expected": {"B": expected}},
             )
-        except self.client.exceptions.ConditionalCheckFailedException:
-            raise CompareMismatch()
+        except self.client.exceptions.ConditionalCheckFailedException as e:
+            raise CompareMismatch() from e
 
     async def create_table(self):
         try:

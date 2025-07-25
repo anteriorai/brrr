@@ -5,9 +5,6 @@ from collections.abc import Sequence
 import brrr.queue as bqueue
 
 
-_CloseSentinel = object()
-
-
 class ClosableInMemQueue(bqueue.Queue):
     """A message queue which can be closed."""
 
