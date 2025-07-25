@@ -4,9 +4,8 @@ import pickle
 from unittest.mock import Mock, call
 
 import brrr
-from brrr import AppWorker
 from brrr.app import ActiveWorker
-from brrr.backends.in_memory import InMemoryByteStore, InMemoryQueue
+from brrr.local_app import local_app
 from brrr.pickle_codec import PickleCodec
 
 
@@ -15,8 +14,6 @@ TOPIC = "test"
 
 async def test_codec_key_no_args():
     calls = Counter()
-    store = InMemoryByteStore()
-    queue = InMemoryQueue([TOPIC])
     codec = PickleCodec()
 
     old = codec.encode_call
@@ -46,11 +43,11 @@ async def test_codec_key_no_args():
         assert val == a
         return val
 
-    async with brrr.serve(queue, store, store) as conn:
-        app = AppWorker(handlers=dict(foo=foo, same=same), codec=codec, connection=conn)
-        await app.schedule(foo, topic=TOPIC)(50)
-        queue.flush()
-        await conn.loop(TOPIC, app.handle)
+    async with local_app(
+        topic=TOPIC, handlers=dict(foo=foo, same=same), codec=codec
+    ) as app:
+        await app.schedule(foo)(50)
+        await app.run()
 
     assert calls == Counter(
         {
@@ -68,8 +65,6 @@ async def test_codec_determinstic():
 
 
 async def test_codec_api():
-    store = InMemoryByteStore()
-    queue = InMemoryQueue([TOPIC])
     codec = Mock(wraps=PickleCodec())
 
     @brrr.handler_no_arg
@@ -87,11 +82,11 @@ async def test_codec_api():
         assert val == sum(range(9))
         return val
 
-    async with brrr.serve(queue, store, store) as conn:
-        app = AppWorker(handlers=dict(foo=foo, plus=plus), codec=codec, connection=conn)
-        await app.schedule("foo", topic=TOPIC)()
-        queue.flush()
-        await conn.loop(TOPIC, app.handle)
+    async with local_app(
+        topic=TOPIC, handlers=dict(foo=foo, plus=plus), codec=codec
+    ) as app:
+        await app.schedule("foo")()
+        await app.run()
 
     codec.encode_call.assert_has_calls(
         [

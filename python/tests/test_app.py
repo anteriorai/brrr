@@ -3,6 +3,7 @@ from collections import Counter
 import dataclasses
 import typing
 
+from brrr.local_app import local_app
 import pytest
 
 import brrr
@@ -65,14 +66,30 @@ async def test_app_consumer():
             await app.read("bar")(5)
 
 
+async def test_local_app():
+    @brrr.handler_no_arg
+    async def bar(a: int) -> int:
+        assert a == 123
+        return 456
+
+    @brrr.handler
+    async def foo(app: ActiveWorker, a: int) -> int:
+        return await app.call(bar, topic=TOPIC)(a + 1) + 1
+
+    async with local_app(
+        topic=TOPIC, handlers=dict(foo=foo, bar=bar), codec=PickleCodec()
+    ) as app:
+        await app.schedule(foo)(122)
+        await app.run()
+        assert await app.read(foo)(122) == 457
+
+
 async def _call_nested_gather(*, use_brrr_gather: bool) -> list[str]:
     """
     Helper function to test that brrr.gather runs all brrr tasks in parallel,
     in contrast with how asyncio.gather only runs one at a time.
     """
     calls = []
-    store = InMemoryByteStore()
-    queue = InMemoryQueue([TOPIC])
 
     @brrr.handler_no_arg
     async def foo(a: int) -> int:
@@ -96,12 +113,10 @@ async def _call_nested_gather(*, use_brrr_gather: bool) -> list[str]:
         typing.assert_type(result, list[int])
         return result
 
-    async with brrr.serve(queue, store, store) as conn:
-        handlers = dict(foo=foo, bar=bar, top=top)
-        app = AppWorker(handlers=handlers, codec=PickleCodec(), connection=conn)
-        await app.schedule(top, topic=TOPIC)([3, 4])
-        queue.flush()
-        await conn.loop(TOPIC, app.handle)
+    handlers = dict(foo=foo, bar=bar, top=top)
+    async with local_app(topic=TOPIC, handlers=handlers, codec=PickleCodec()) as app:
+        await app.schedule(top)([3, 4])
+        await app.run()
 
     return calls
 
@@ -366,8 +381,6 @@ async def test_stress_parallel():
 
 async def test_debounce_child():
     calls = Counter()
-    store = InMemoryByteStore()
-    queue = InMemoryQueue([TOPIC])
 
     @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
@@ -377,11 +390,11 @@ async def test_debounce_child():
 
         return sum(await app.gather(*map(app.call(foo), [a - 1] * 50)))
 
-    async with brrr.serve(queue, store, store) as conn:
-        app = AppWorker(handlers=dict(foo=foo), codec=PickleCodec(), connection=conn)
-        await app.schedule(foo, topic=TOPIC)(3)
-        queue.flush()
-        await conn.loop(TOPIC, app.handle)
+    async with local_app(
+        topic=TOPIC, handlers=dict(foo=foo), codec=PickleCodec()
+    ) as app:
+        await app.schedule(foo)(3)
+        await app.run()
 
     assert calls == Counter({0: 1, 1: 2, 2: 2, 3: 2})
 
@@ -390,8 +403,6 @@ async def test_debounce_child():
 # same parent.  Let’s at least be explicit about this for now.
 async def test_no_debounce_parent():
     calls = Counter()
-    store = InMemoryByteStore()
-    queue = InMemoryQueue([TOPIC])
 
     @brrr.handler_no_arg
     async def one(_: int) -> int:
@@ -404,13 +415,11 @@ async def test_no_debounce_parent():
         # Different argument to avoid debouncing children
         return sum(await app.gather(*map(app.call(one), range(a))))
 
-    async with brrr.serve(queue, store, store) as conn:
-        app = AppWorker(
-            handlers=dict(foo=foo, one=one), codec=PickleCodec(), connection=conn
-        )
-        await app.schedule(foo, topic=TOPIC)(50)
-        queue.flush()
-        await conn.loop(TOPIC, app.handle)
+    async with local_app(
+        topic=TOPIC, handlers=dict(one=one, foo=foo), codec=PickleCodec()
+    ) as app:
+        await app.schedule(foo)(50)
+        await app.run()
 
     # We want foo=2 here
     assert calls == Counter(one=50, foo=51)
@@ -449,9 +458,6 @@ async def test_app_loop_resumable():
 
 
 async def test_app_handler_names():
-    store = InMemoryByteStore()
-    queue = InMemoryQueue([TOPIC])
-
     @brrr.handler_no_arg
     async def foo(a: int) -> int:
         return a * a
@@ -465,11 +471,9 @@ async def test_app_handler_names():
         "quux/zim": foo,
         "quux/bar": bar,
     }
-    async with brrr.serve(queue, store, store) as conn:
-        app = AppWorker(handlers=handlers, codec=PickleCodec(), connection=conn)
-        await app.schedule("quux/bar", topic=TOPIC)(4)
-        queue.flush()
-        await conn.loop(TOPIC, app.handle)
+    async with local_app(topic=TOPIC, handlers=handlers, codec=PickleCodec()) as app:
+        await app.schedule("quux/bar")(4)
+        await app.run()
         assert await app.read("quux/zim")(4) == 16
         assert await app.read(foo)(4) == 16
 
