@@ -4,16 +4,14 @@ import pytest
 
 import brrr
 from brrr import ActiveWorker, AppWorker, SpawnLimitError
-from brrr.backends.in_memory import InMemoryByteStore
+from brrr.backends.in_memory import InMemoryByteStore, InMemoryQueue
 from brrr.pickle_codec import PickleCodec
-
-from .closable_test_queue import ClosableInMemQueue
 
 TOPIC = "brrr-test"
 
 
 async def test_spawn_limit_depth():
-    queue = ClosableInMemQueue([TOPIC])
+    queue = InMemoryQueue([TOPIC])
     store = InMemoryByteStore()
     n = 0
 
@@ -23,7 +21,6 @@ async def test_spawn_limit_depth():
         n += 1
         if a == 0:
             # Prevent false positives from this test by exiting cleanly at some point
-            await queue.close()
             return 0
         return await app.call(foo)(a - 1)
 
@@ -31,6 +28,7 @@ async def test_spawn_limit_depth():
         conn._spawn_limit = 100
         app = AppWorker(handlers=dict(foo=foo), codec=PickleCodec(), connection=conn)
         await app.schedule("foo", topic=TOPIC)(conn._spawn_limit + 3)
+        queue.flush()
 
         with pytest.raises(SpawnLimitError):
             await conn.loop(TOPIC, app.handle)
@@ -39,7 +37,7 @@ async def test_spawn_limit_depth():
 
 
 async def test_spawn_limit_breadth_mapped():
-    queue = ClosableInMemQueue([TOPIC])
+    queue = InMemoryQueue([TOPIC])
     store = InMemoryByteStore()
     calls = Counter()
 
@@ -52,11 +50,7 @@ async def test_spawn_limit_breadth_mapped():
     async def foo(app: ActiveWorker, a: int) -> int:
         calls["foo"] += 1
         # Pass a different argument to avoid the debouncer
-        val = sum(await app.gather(*map(app.call(one), range(a))))
-        # Remove this if-guard when return calls are debounced.
-        if calls["foo"] == a + 1:
-            await queue.close()
-        return val
+        return sum(await app.gather(*map(app.call(one), range(a))))
 
     async with brrr.serve(queue, store, store) as conn:
         conn._spawn_limit = 100
@@ -64,6 +58,7 @@ async def test_spawn_limit_breadth_mapped():
             handlers=dict(foo=foo, one=one), codec=PickleCodec(), connection=conn
         )
         await app.schedule("foo", topic=TOPIC)(conn._spawn_limit + 4)
+        queue.flush()
 
         with pytest.raises(SpawnLimitError):
             await conn.loop(TOPIC, app.handle)
@@ -72,7 +67,7 @@ async def test_spawn_limit_breadth_mapped():
 
 
 async def test_spawn_limit_recoverable():
-    queue = ClosableInMemQueue([TOPIC])
+    queue = InMemoryQueue([TOPIC])
     store = InMemoryByteStore()
     cache = InMemoryByteStore()
     calls = Counter()
@@ -86,11 +81,7 @@ async def test_spawn_limit_recoverable():
     async def foo(app: ActiveWorker, a: int) -> int:
         calls["foo"] += 1
         # Pass a different argument to avoid the debouncer
-        val = sum(await app.gather(*map(app.call(one), range(a))))
-        # Remove this if-guard when return calls are debounced.
-        if calls["foo"] == a + 1:
-            await queue.close()
-        return val
+        return sum(await app.gather(*map(app.call(one), range(a))))
 
     async with brrr.serve(queue, store, cache) as conn:
         conn._spawn_limit = 100
@@ -100,6 +91,7 @@ async def test_spawn_limit_recoverable():
             handlers=dict(foo=foo, one=one), codec=PickleCodec(), connection=conn
         )
         await app.schedule("foo", topic=TOPIC)(n)
+        queue.flush()
 
         while True:
             # Very ugly but this works for testing
@@ -117,7 +109,7 @@ async def test_spawn_limit_recoverable():
 
 
 async def test_spawn_limit_breadth_manual():
-    queue = ClosableInMemQueue([TOPIC])
+    queue = InMemoryQueue([TOPIC])
     store = InMemoryByteStore()
     calls = Counter()
 
@@ -134,7 +126,6 @@ async def test_spawn_limit_breadth_manual():
             # Pass a different argument to avoid the debouncer
             total += await app.call(one)(i)
 
-        await queue.close()
         return total
 
     async with brrr.serve(queue, store, store) as conn:
@@ -143,6 +134,7 @@ async def test_spawn_limit_breadth_manual():
             handlers=dict(foo=foo, one=one), codec=PickleCodec(), connection=conn
         )
         await app.schedule("foo", topic=TOPIC)(conn._spawn_limit + 3)
+        queue.flush()
         with pytest.raises(SpawnLimitError):
             await conn.loop(TOPIC, app.handle)
 
@@ -152,7 +144,7 @@ async def test_spawn_limit_breadth_manual():
 
 
 async def test_spawn_limit_cached():
-    queue = ClosableInMemQueue([TOPIC])
+    queue = InMemoryQueue([TOPIC])
     store = InMemoryByteStore()
     n = 0
     final = None
@@ -166,7 +158,6 @@ async def test_spawn_limit_cached():
     @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
         val = sum(await app.gather(*map(app.call(same), [1] * a)))
-        await queue.close()
         nonlocal final
         final = val
         return val
@@ -177,8 +168,8 @@ async def test_spawn_limit_cached():
             handlers=dict(foo=foo, same=same), codec=PickleCodec(), connection=conn
         )
         await app.schedule("foo", topic=TOPIC)(conn._spawn_limit + 5)
+        queue.flush()
         await conn.loop(TOPIC, app.handle)
-        await queue.join()
 
         assert n == 1
         assert final == conn._spawn_limit + 5

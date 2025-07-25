@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from contextlib import asynccontextmanager
 import os
 from typing import AsyncIterator
@@ -37,14 +38,14 @@ class TestRedisQueue(QueueContract):
     has_accurate_info = True
 
     @asynccontextmanager
-    async def with_queue(self) -> AsyncIterator[Queue]:
+    async def with_queue(self, topics: Sequence[str]) -> AsyncIterator[Queue]:
         # Hack but worth it for testing
         RedisQueue.recv_block_secs = 1
         async with with_redis(os.environ.get("BRRR_TEST_REDIS_URL")) as rc:
             yield RedisQueue(rc)
 
     async def test_decode_error(self):
-        async with self.with_queue() as queue:
+        async with self.with_queue(["test"]) as queue:
             assert isinstance(queue, RedisQueue)
             await queue.client.rpush("test", b"wrong")
             with pytest.raises(Exception):

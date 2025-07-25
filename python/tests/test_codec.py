@@ -6,10 +6,8 @@ from unittest.mock import Mock, call
 import brrr
 from brrr import AppWorker
 from brrr.app import ActiveWorker
-from brrr.backends.in_memory import InMemoryByteStore
+from brrr.backends.in_memory import InMemoryByteStore, InMemoryQueue
 from brrr.pickle_codec import PickleCodec
-
-from .closable_test_queue import ClosableInMemQueue
 
 
 TOPIC = "test"
@@ -18,7 +16,7 @@ TOPIC = "test"
 async def test_codec_key_no_args():
     calls = Counter()
     store = InMemoryByteStore()
-    queue = ClosableInMemQueue([TOPIC])
+    queue = InMemoryQueue([TOPIC])
     codec = PickleCodec()
 
     old = codec.encode_call
@@ -46,15 +44,14 @@ async def test_codec_key_no_args():
             val += await app.call(same)(i)
 
         assert val == a
-        await queue.close()
         return val
 
     async with brrr.serve(queue, store, store) as conn:
         app = AppWorker(handlers=dict(foo=foo, same=same), codec=codec, connection=conn)
         await app.schedule(foo, topic=TOPIC)(50)
+        queue.flush()
         await conn.loop(TOPIC, app.handle)
 
-    await queue.join()
     assert calls == Counter(
         {
             "same(1)": 1,
@@ -72,7 +69,7 @@ async def test_codec_determinstic():
 
 async def test_codec_api():
     store = InMemoryByteStore()
-    queue = ClosableInMemQueue([TOPIC])
+    queue = InMemoryQueue([TOPIC])
     codec = Mock(wraps=PickleCodec())
 
     @brrr.handler_no_arg
@@ -88,15 +85,14 @@ async def test_codec_api():
             + await app.call(plus)(**dict(x=7, y="8"))
         )
         assert val == sum(range(9))
-        await queue.close()
         return val
 
     async with brrr.serve(queue, store, store) as conn:
         app = AppWorker(handlers=dict(foo=foo, plus=plus), codec=codec, connection=conn)
         await app.schedule("foo", topic=TOPIC)()
+        queue.flush()
         await conn.loop(TOPIC, app.handle)
 
-    await queue.join()
     codec.encode_call.assert_has_calls(
         [
             call("foo", (), {}),
