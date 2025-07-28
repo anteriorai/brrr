@@ -96,7 +96,10 @@
                   in
                   {
                     redis.r1.enable = true;
-                    dynamodb.enable = true;
+                    dynamodb = {
+                      enable = true;
+                      args = [ "-disableTelemetry" ];
+                    };
                     brrr-demo.worker = {
                       package = self.packages.${pkgs.system}.brrr-demo;
                       args = [ "brrr_worker" ];
