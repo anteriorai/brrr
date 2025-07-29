@@ -1,7 +1,6 @@
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 import functools
-from typing import Any
 
 from .app import AppWorker, WrappedTask
 from .backends.in_memory import InMemoryByteStore, InMemoryQueue
@@ -31,7 +30,7 @@ class LocalApp:
 
 @asynccontextmanager
 async def local_app(
-    topic: str, handlers: Mapping[str, WrappedTask[..., Any]], codec: Codec
+    topic: str, handlers: Mapping[str, WrappedTask], codec: Codec
 ) -> AsyncIterator[LocalApp]:
     """
     Helper function for unit tests which use brrr

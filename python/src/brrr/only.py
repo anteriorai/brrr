@@ -23,7 +23,7 @@ def with_context[T](var: ContextVar[T], val: T) -> Iterator[None]:
 
 def only[**P, R](f: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
     @functools.wraps(f)
-    async def wrapper(*args, **kwargs) -> R:
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
         if not _in_brrr.get():
             raise OnlyInBrrrError()
         return await f(*args, **kwargs)
@@ -32,6 +32,6 @@ def only[**P, R](f: Callable[P, Awaitable[R]]) -> Callable[P, Awaitable[R]]:
 
 
 @contextmanager
-def allow_only():
+def allow_only() -> Iterator[None]:
     with with_context(_in_brrr, True):
         yield

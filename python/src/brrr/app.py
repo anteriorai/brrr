@@ -5,6 +5,7 @@ from collections.abc import (
     Awaitable,
     Callable,
     Mapping,
+    Sequence,
 )
 from collections import UserDict
 import functools
@@ -17,18 +18,36 @@ from .connection import Connection, Defer, DeferredCall, Request, Response
 from .only import allow_only
 
 
-class WrappedTask[**P, R](Protocol):
-    _brrr_handler: Callable[P, Awaitable[R]]
+class WrappedTask(Protocol):
+    """Base class for functions which have been registered as app handlers.
+
+    Artificial because of mypy struggles.  Ideally you'd give this a member
+    _brrr_handler with type Callable[..., Awaitable[Any]], but when you do mypy
+    loses the ability to automatically infer the GCD base class between
+    different type-specific instances of the typed WrappedTaskT.  That's a
+    desirable property because it makes intuitive the passing of a dictionary of
+    such functions as the `handlers' argument.
+
+    """
+
+    pass
 
 
-class CallableTask[**P, **V, R](WrappedTask[V, R]):
+class WrappedTaskT[**H, **U, R](WrappedTask):
+    """Type-aware wrapped brrr handler for apps.
+
+    - H: argskwargs of the original handler
+    - U: unwrapped argskwargs without ActiveWorker no matter what
+    - R: Unwrapped return value (no awaitable)
+
+    H could be U (no-arg handler) or H could include an ActiveWorker.
+
+    """
+
     @abstractmethod
-    async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R: ...
+    async def __call__(self, *args: H.args, **kwargs: H.kwargs) -> R: ...
 
-
-class CallableTaskNoArg[**P, **V, R](WrappedTask[V, R]):
-    @abstractmethod
-    async def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R: ...
+    _brrr_handler: Callable[Concatenate[ActiveWorker, U], Awaitable[R]]
 
 
 class NotInBrrrError(Exception):
@@ -46,7 +65,7 @@ def _val2key[K, V](d: Mapping[K, V], val: V) -> K:
 
 def handler_no_arg[**P, R](
     f: Callable[P, Awaitable[R]],
-) -> CallableTaskNoArg[P, Concatenate[ActiveWorker, P], R]:
+) -> WrappedTaskT[P, P, R]:
     """A brrr handler which does not care for the worker app as an argument."""
 
     # A brrr task API compatible version of this function is one which just
@@ -64,17 +83,17 @@ def handler_no_arg[**P, R](
 
 def handler[**P, R](
     f: Callable[Concatenate[ActiveWorker, P], Awaitable[R]],
-) -> CallableTask[Concatenate[ActiveWorker, P], Concatenate[ActiveWorker, P], R]:
+) -> WrappedTaskT[Concatenate[ActiveWorker, P], P, R]:
     # This function already satisfies the brrr task API
     setattr(f, "_brrr_handler", f)
     return f  # type: ignore[return-value]
 
 
-class TaskCollection(UserDict[str, WrappedTask[..., Any]]):
-    def task2name(self, task: WrappedTask[..., Any]) -> str:
+class TaskCollection(UserDict[str, WrappedTask]):
+    def task2name(self, task: WrappedTask) -> str:
         return _val2key(self, task)
 
-    def spec2name(self, spec: str | WrappedTask[..., Any]) -> str:
+    def spec2name(self, spec: str | WrappedTask) -> str:
         return spec if isinstance(spec, str) else self.task2name(spec)
 
 
@@ -87,7 +106,7 @@ class AppConsumer:
         self,
         codec: Codec,
         connection: Connection,
-        handlers: Mapping[str, WrappedTask[..., Any]] | None = None,
+        handlers: Mapping[str, WrappedTask] | None = None,
     ):
         self._codec = codec
         self._connection = connection
@@ -152,7 +171,16 @@ class AppWorker(AppConsumer):
         # bubbling up somewhere and no matter how often I push it down, it pops
         # up somewhere else.
         handler = functools.partial(
-            self.tasks[task_name]._brrr_handler,
+            # If WrappedTask exposed ._brrr_handler as a property we would be
+            # able to access it here.  Unfortunately, doing so defeats mypy’s
+            # ability to recognize it as the common base class for different
+            # WrappedTaskT instantiations (with different types substituted for
+            # the generic parametesr).  Currently, if you have multiple
+            # different WrappedTaskT objects, with different concrete types,
+            # mypy still recognizes that they’re all WrappedTask, which is
+            # useful for the api (see its own docstring).  But this is the price
+            # you pay:
+            getattr(self.tasks[task_name], "_brrr_handler"),
             ActiveWorker(conn, self._codec, self.tasks),
         )
         with allow_only():
@@ -257,7 +285,7 @@ class ActiveWorker:
         coro_or_future5: Awaitable[Any],
         *coro_or_futures: Awaitable[Any],
     ) -> list[Any]: ...
-    async def gather(self, *task_awaitables):
+    async def gather(self, *task_awaitables: Awaitable[Any]) -> Sequence[Any]:  # type: ignore[misc]
         """
         Takes a number of task lambdas and calls each of them.
         If they've all been computed, return their values,
