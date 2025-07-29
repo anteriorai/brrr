@@ -14,6 +14,7 @@
     /* Strictness */
     "strict": true,
     "noUncheckedIndexedAccess": true,
+    "noUncheckedSideEffectImports": true,
     "noImplicitOverride": true,
 
     /* Module Resolution */
