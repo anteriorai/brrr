@@ -43,7 +43,7 @@ class DynamoDbMemStore(Store):
         self.client = client
         self.table_name = table_name
 
-    async def has(self, key: MemKey):
+    async def has(self, key: MemKey) -> bool:
         return "Item" in await self.client.get_item(
             TableName=self.table_name,
             Key=self.key(key),
@@ -60,18 +60,18 @@ class DynamoDbMemStore(Store):
         logger.debug(f"getting key: {key}: found")
         return response["Item"]["value"]["B"]
 
-    async def set(self, key: MemKey, value: bytes):
+    async def set(self, key: MemKey, value: bytes) -> None:
         await self.client.put_item(
             TableName=self.table_name, Item={**self.key(key), "value": {"B": value}}
         )
 
-    async def delete(self, key: MemKey):
+    async def delete(self, key: MemKey) -> None:
         await self.client.delete_item(
             TableName=self.table_name,
             Key=self.key(key),
         )
 
-    async def set_new_value(self, key: MemKey, value: bytes):
+    async def set_new_value(self, key: MemKey, value: bytes) -> None:
         """Set a value, ensuring none was previously set"""
         try:
             await self.client.update_item(
@@ -85,7 +85,7 @@ class DynamoDbMemStore(Store):
         except self.client.exceptions.ConditionalCheckFailedException as e:
             raise CompareMismatch() from e
 
-    async def compare_and_set(self, key: MemKey, value: bytes, expected: bytes):
+    async def compare_and_set(self, key: MemKey, value: bytes, expected: bytes) -> None:
         if expected is None:
             raise ValueError("dynamo cannot CAS a missing value")
         try:
@@ -103,7 +103,7 @@ class DynamoDbMemStore(Store):
         except self.client.exceptions.ConditionalCheckFailedException as e:
             raise CompareMismatch() from e
 
-    async def compare_and_delete(self, key: MemKey, expected: bytes):
+    async def compare_and_delete(self, key: MemKey, expected: bytes) -> None:
         if expected is None:
             raise ValueError("dynamo cannot CAS delete a missing value")
         try:
@@ -118,7 +118,7 @@ class DynamoDbMemStore(Store):
         except self.client.exceptions.ConditionalCheckFailedException as e:
             raise CompareMismatch() from e
 
-    async def create_table(self):
+    async def create_table(self) -> None:
         try:
             await self.client.create_table(
                 TableName=self.table_name,

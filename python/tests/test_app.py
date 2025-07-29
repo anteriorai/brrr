@@ -2,8 +2,9 @@ import asyncio
 from collections import Counter
 import dataclasses
 import typing
+from typing import cast
 
-from brrr.local_app import local_app
+from brrr.local_app import local_app, LocalBrrr
 import pytest
 
 import brrr
@@ -15,7 +16,7 @@ from brrr.pickle_codec import PickleCodec
 TOPIC = "brrr-test"
 
 
-async def test_app_worker():
+async def test_app_worker() -> None:
     store = InMemoryByteStore()
     queue = InMemoryQueue([TOPIC])
 
@@ -41,7 +42,7 @@ async def test_app_worker():
         assert await app.read("bar")(123) == 456
 
 
-async def test_app_consumer():
+async def test_app_consumer() -> None:
     store = InMemoryByteStore()
     queue = InMemoryQueue([TOPIC])
 
@@ -51,22 +52,22 @@ async def test_app_consumer():
 
     # Seed the db with a known value
     async with brrr.serve(queue, store, store) as conn:
-        app = AppWorker(handlers=dict(foo=foo), codec=PickleCodec(), connection=conn)
-        await app.schedule(foo, topic=TOPIC)(5)
+        appw = AppWorker(handlers=dict(foo=foo), codec=PickleCodec(), connection=conn)
+        await appw.schedule(foo, topic=TOPIC)(5)
         queue.flush()
-        await conn.loop(TOPIC, app.handle)
+        await conn.loop(TOPIC, appw.handle)
 
     # Now test that a read-only app can read that
     async with brrr.serve(queue, store, store) as conn:
-        app = AppConsumer(codec=PickleCodec(), connection=conn)
-        assert await app.read("foo")(5) == 25
+        appc = AppConsumer(codec=PickleCodec(), connection=conn)
+        assert await appc.read("foo")(5) == 25
         with pytest.raises(NotFoundError):
-            await app.read("foo")(3)
+            await appc.read("foo")(3)
         with pytest.raises(NotFoundError):
-            await app.read("bar")(5)
+            await appc.read("bar")(5)
 
 
-async def test_local_app():
+async def test_local_brrr() -> None:
     @brrr.handler_no_arg
     async def bar(a: int) -> int:
         assert a == 123
@@ -76,12 +77,8 @@ async def test_local_app():
     async def foo(app: ActiveWorker, a: int) -> int:
         return await app.call(bar, topic=TOPIC)(a + 1) + 1
 
-    async with local_app(
-        topic=TOPIC, handlers=dict(foo=foo, bar=bar), codec=PickleCodec()
-    ) as app:
-        await app.schedule(foo)(122)
-        await app.run()
-        assert await app.read(foo)(122) == 457
+    b = LocalBrrr(topic=TOPIC, handlers=dict(foo=foo, bar=bar), codec=PickleCodec())
+    assert await b.run(foo)(122) == 457
 
 
 async def _call_nested_gather(*, use_brrr_gather: bool) -> list[str]:
@@ -114,14 +111,13 @@ async def _call_nested_gather(*, use_brrr_gather: bool) -> list[str]:
         return result
 
     handlers = dict(foo=foo, bar=bar, top=top)
-    async with local_app(topic=TOPIC, handlers=handlers, codec=PickleCodec()) as app:
-        await app.schedule(top)([3, 4])
-        await app.run()
+    b = LocalBrrr(topic=TOPIC, handlers=handlers, codec=PickleCodec())
+    await b.run(top)([3, 4])
 
     return calls
 
 
-async def test_app_gather():
+async def test_app_gather() -> None:
     """
     Since brrr.gather waits for all Defers to be raised, top should Defer at most twice,
     and both foo calls should happen before both bar calls.
@@ -158,7 +154,7 @@ async def test_app_gather():
     assert foo4 < bar8
 
 
-async def test_asyncio_gather():
+async def test_asyncio_gather() -> None:
     """
     Since asyncio.gather raises the first Defer, top should Defer four times.
     Each foo call should happen before its logical next bar call, but there is no
@@ -170,7 +166,7 @@ async def test_asyncio_gather():
     assert asyncio_calls.index("foo(4)") < asyncio_calls.index("bar(8)")
 
 
-async def test_topics_separate_app_same_conn():
+async def test_topics_separate_app_same_conn() -> None:
     store = InMemoryByteStore()
     queue = InMemoryQueue(["t1", "t2"])
 
@@ -179,7 +175,7 @@ async def test_topics_separate_app_same_conn():
         return a + 5
 
     @brrr.handler
-    async def two(app: ActiveWorker, a: int):
+    async def two(app: ActiveWorker, a: int) -> None:
         result = await app.call("one", topic="t1")(a + 3)
         assert result == 15
         await queue.close()
@@ -193,7 +189,7 @@ async def test_topics_separate_app_same_conn():
     await queue.join()
 
 
-async def test_topics_separate_app_separate_conn():
+async def test_topics_separate_app_separate_conn() -> None:
     store = InMemoryByteStore()
     queue = InMemoryQueue(["t1", "t2"])
 
@@ -202,7 +198,7 @@ async def test_topics_separate_app_separate_conn():
         return a + 5
 
     @brrr.handler
-    async def two(app: ActiveWorker, a: int):
+    async def two(app: ActiveWorker, a: int) -> None:
         result = await app.call("one", topic="t1")(a + 3)
         assert result == 15
         await queue.close()
@@ -223,7 +219,7 @@ async def test_topics_separate_app_separate_conn():
     await queue.join()
 
 
-async def test_topics_same_app():
+async def test_topics_same_app() -> None:
     store = InMemoryByteStore()
     queue = InMemoryQueue(["t1", "t2"])
 
@@ -232,7 +228,7 @@ async def test_topics_same_app():
         return a + 5
 
     @brrr.handler
-    async def two(app: ActiveWorker, a: int):
+    async def two(app: ActiveWorker, a: int) -> None:
         # N.B.: b2 can use its own brrr instance
         result = await app.call("one", topic="t1")(a + 3)
         assert result == 15
@@ -249,7 +245,7 @@ async def test_topics_same_app():
     await queue.join()
 
 
-async def test_app_nop_closed_queue():
+async def test_app_nop_closed_queue() -> None:
     store = InMemoryByteStore()
     queue = InMemoryQueue([TOPIC])
     await queue.close()
@@ -260,10 +256,10 @@ async def test_app_nop_closed_queue():
         await conn.loop(TOPIC, app.handle)
 
 
-async def test_stop_when_empty():
+async def test_stop_when_empty() -> None:
     # Keeping state of the calls to see how often it’s called
-    calls_pre = Counter()
-    calls_post = Counter()
+    calls_pre = Counter[int]()
+    calls_post = Counter[int]()
     store = InMemoryByteStore()
     queue = InMemoryQueue([TOPIC])
 
@@ -288,7 +284,7 @@ async def test_stop_when_empty():
 
 
 @pytest.mark.parametrize("use_gather", [(False,), (True,)])
-async def test_parallel(use_gather: bool):
+async def test_parallel(use_gather: bool) -> None:
     store = InMemoryByteStore()
     queue = InMemoryQueue([TOPIC])
 
@@ -338,7 +334,7 @@ async def test_parallel(use_gather: bool):
         await queue.join()
 
 
-async def test_stress_parallel():
+async def test_stress_parallel() -> None:
     store = InMemoryByteStore()
     queue = InMemoryQueue([TOPIC])
 
@@ -369,7 +365,7 @@ async def test_stress_parallel():
 
         # Terrible hack: because we don’t do proper parent debouncing, this stress
         # test ends up with a metric ton of duplicate calls.
-        async def wait_and_close():
+        async def wait_and_close() -> None:
             await asyncio.sleep(1)
             await queue.close()
 
@@ -379,8 +375,8 @@ async def test_stress_parallel():
         await queue.join()
 
 
-async def test_debounce_child():
-    calls = Counter()
+async def test_debounce_child() -> None:
+    calls = Counter[int]()
 
     @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
@@ -390,19 +386,16 @@ async def test_debounce_child():
 
         return sum(await app.gather(*map(app.call(foo), [a - 1] * 50)))
 
-    async with local_app(
-        topic=TOPIC, handlers=dict(foo=foo), codec=PickleCodec()
-    ) as app:
-        await app.schedule(foo)(3)
-        await app.run()
+    b = LocalBrrr(topic=TOPIC, handlers=dict(foo=foo), codec=PickleCodec())
+    await b.run(foo)(3)
 
     assert calls == Counter({0: 1, 1: 2, 2: 2, 3: 2})
 
 
 # This formalizes an anti-feature: we actually do want to debounce calls to the
 # same parent.  Let’s at least be explicit about this for now.
-async def test_no_debounce_parent():
-    calls = Counter()
+async def test_no_debounce_parent() -> None:
+    calls = Counter[str]()
 
     @brrr.handler_no_arg
     async def one(_: int) -> int:
@@ -415,17 +408,14 @@ async def test_no_debounce_parent():
         # Different argument to avoid debouncing children
         return sum(await app.gather(*map(app.call(one), range(a))))
 
-    async with local_app(
-        topic=TOPIC, handlers=dict(one=one, foo=foo), codec=PickleCodec()
-    ) as app:
-        await app.schedule(foo)(50)
-        await app.run()
+    b = LocalBrrr(topic=TOPIC, handlers=dict(one=one, foo=foo), codec=PickleCodec())
+    await b.run(foo)(50)
 
     # We want foo=2 here
     assert calls == Counter(one=50, foo=51)
 
 
-async def test_app_loop_resumable():
+async def test_app_loop_resumable() -> None:
     store = InMemoryByteStore()
     queue = InMemoryQueue([TOPIC])
 
@@ -457,7 +447,7 @@ async def test_app_loop_resumable():
     assert errors == 0
 
 
-async def test_app_handler_names():
+async def test_app_handler_names() -> None:
     @brrr.handler_no_arg
     async def foo(a: int) -> int:
         return a * a
@@ -465,7 +455,7 @@ async def test_app_handler_names():
     @brrr.handler
     async def bar(app: ActiveWorker, a: int) -> int:
         # Both are the same.
-        return await app.call(foo)(a) * await app.call("quux/zim")(a)
+        return await app.call(foo)(a) * cast(int, await app.call("quux/zim")(a))
 
     handlers = {
         "quux/zim": foo,
@@ -478,7 +468,7 @@ async def test_app_handler_names():
         assert await app.read(foo)(4) == 16
 
 
-async def test_app_subclass():
+async def test_app_subclass() -> None:
     store = InMemoryByteStore()
     queue = InMemoryQueue([TOPIC])
 

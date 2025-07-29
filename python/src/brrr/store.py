@@ -307,7 +307,7 @@ class Memory:
 
         # Beware race conditions here!  Be aware of concurrency corner cases on
         # every single line.
-        async def cas_body():
+        async def cas_body() -> None:
             memkey = MemKey("pending_returns", call_hash)
             should_store_again = False
             try:

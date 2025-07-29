@@ -100,7 +100,7 @@ class InMemoryByteStore(Store, Cache):
 
     inner: dict[str, Any]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.inner = {}
 
     async def has(self, key: MemKey) -> bool:

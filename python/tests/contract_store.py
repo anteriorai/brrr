@@ -23,7 +23,7 @@ class FakeError(Exception):
 
 class ByteStoreContract(ABC):
     @abstractmethod
-    @asynccontextmanager
+    @asynccontextmanager  # type: ignore[arg-type]
     async def with_store(self) -> AsyncIterator[Store]:
         """
         This should return a fresh, empty store instance
@@ -46,7 +46,7 @@ class ByteStoreContract(ABC):
     async def read_after_write[T](self, f: Callable[[], Awaitable[T]]) -> T:
         return await f()
 
-    async def test_has(self):
+    async def test_has(self) -> None:
         async with self.with_store() as store:
             a1 = MemKey("pending_returns", "id-1")
             a2 = MemKey("pending_returns", "id-2")
@@ -58,7 +58,7 @@ class ByteStoreContract(ABC):
 
             await store.set(a1, b"value-1")
 
-            async def r1():
+            async def r1() -> None:
                 assert await store.has(a1)
                 assert not await store.has(a2)
                 assert not await store.has(b1)
@@ -67,7 +67,7 @@ class ByteStoreContract(ABC):
 
             await store.set(a2, b"value-2")
 
-            async def r2():
+            async def r2() -> None:
                 assert await store.has(a1)
                 assert await store.has(a2)
                 assert not await store.has(b1)
@@ -76,7 +76,7 @@ class ByteStoreContract(ABC):
 
             await store.set(b1, b"value-3")
 
-            async def r3():
+            async def r3() -> None:
                 assert await store.has(a1)
                 assert await store.has(a2)
                 assert await store.has(b1)
@@ -85,7 +85,7 @@ class ByteStoreContract(ABC):
 
             await store.delete(a1)
 
-            async def r4():
+            async def r4() -> None:
                 assert not await store.has(a1)
                 assert await store.has(a2)
                 assert await store.has(b1)
@@ -94,7 +94,7 @@ class ByteStoreContract(ABC):
 
             await store.delete(a2)
 
-            async def r5():
+            async def r5() -> None:
                 assert not await store.has(a1)
                 assert not await store.has(a2)
                 assert await store.has(b1)
@@ -103,14 +103,14 @@ class ByteStoreContract(ABC):
 
             await store.delete(b1)
 
-            async def r6():
+            async def r6() -> None:
                 assert not await store.has(a1)
                 assert not await store.has(a2)
                 assert not await store.has(b1)
 
             await self.read_after_write(r6)
 
-    async def test_read_after_write(self):
+    async def test_read_after_write(self) -> None:
         async with self.with_store() as store:
             a1 = MemKey("call", "id-1")
             a2 = MemKey("call", "id-2")
@@ -127,7 +127,7 @@ class ByteStoreContract(ABC):
 
             await self.read_after_write(r1)
 
-    async def test_key_error(self):
+    async def test_key_error(self) -> None:
         async with self.with_store() as store:
             a1 = MemKey("value", "id-1")
 
@@ -140,25 +140,25 @@ class ByteStoreContract(ABC):
 
             await store.set(a1, b"value-1")
 
-            async def r1():
+            async def r1() -> None:
                 assert await store.get(a1) == b"value-1"
                 await store.delete(a1)
 
             await self.read_after_write(r1)
 
-            async def r2():
+            async def r2() -> None:
                 with pytest.raises(NotFoundError):
                     await store.get(a1)
 
             await self.read_after_write(r2)
 
-    async def test_set_new_value(self):
+    async def test_set_new_value(self) -> None:
         async with self.with_store() as store:
             a1 = MemKey("value", "id-1")
 
             await store.set_new_value(a1, b"value-1")
 
-            async def r1():
+            async def r1() -> None:
                 assert await store.get(a1) == b"value-1"
 
             await self.read_after_write(r1)
@@ -173,7 +173,7 @@ class ByteStoreContract(ABC):
 
             await self.read_after_write(r1)
 
-    async def test_set(self):
+    async def test_set(self) -> None:
         async with self.with_store() as store:
             a1 = MemKey("value", "id-1")
 
@@ -187,18 +187,18 @@ class ByteStoreContract(ABC):
             # Overriding with a different value is allowed
             await store.set(a1, b"value-2")
 
-            async def r2():
+            async def r2() -> None:
                 assert await store.get(a1) == b"value-2"
 
             await self.read_after_write(r2)
 
-    async def test_compare_and_set(self):
+    async def test_compare_and_set(self) -> None:
         async with self.with_store() as store:
             a1 = MemKey("value", "id-1")
 
             await store.set(a1, b"value-1")
 
-            async def r1():
+            async def r1() -> None:
                 with pytest.raises(CompareMismatch):
                     await store.compare_and_set(a1, b"value-2", b"value-3")
 
@@ -206,12 +206,12 @@ class ByteStoreContract(ABC):
 
             await store.compare_and_set(a1, b"value-2", b"value-1")
 
-            async def r2():
+            async def r2() -> None:
                 assert await store.get(a1) == b"value-2"
 
             await self.read_after_write(r2)
 
-    async def test_compare_and_delete(self):
+    async def test_compare_and_delete(self) -> None:
         async with self.with_store() as store:
             a1 = MemKey("value", "id-1")
 
@@ -220,7 +220,7 @@ class ByteStoreContract(ABC):
 
             await store.set(a1, b"value-1")
 
-            async def r1():
+            async def r1() -> None:
                 with pytest.raises(CompareMismatch):
                     await store.compare_and_delete(a1, b"value-2")
 
@@ -230,7 +230,7 @@ class ByteStoreContract(ABC):
 
             await store.compare_and_delete(a1, b"value-1")
 
-            async def r2():
+            async def r2() -> None:
                 with pytest.raises(NotFoundError):
                     await store.get(a1)
 
@@ -243,7 +243,7 @@ class MemoryContract(ByteStoreContract):
         async with self.with_store() as store:
             yield Memory(store)
 
-    async def test_call(self):
+    async def test_call(self) -> None:
         async with self.with_memory() as memory:
             with pytest.raises(NotFoundError):
                 await memory.get_call("non-existent")
@@ -252,7 +252,7 @@ class MemoryContract(ByteStoreContract):
 
             await memory.set_call(call)
 
-            async def r1():
+            async def r1() -> None:
                 call_round = await memory.get_call(call.call_hash)
                 assert call == call_round
                 # Call.__eq__ was overridden and I’m not sure if it was the
@@ -264,13 +264,13 @@ class MemoryContract(ByteStoreContract):
 
             await self.read_after_write(r1)
 
-    async def test_value(self):
+    async def test_value(self) -> None:
         async with self.with_memory() as memory:
             call_hash = "abc"
 
             await memory.set_value(call_hash, b"123")
 
-            async def r1():
+            async def r1() -> None:
                 assert await memory.has_value(call_hash)
                 assert await memory.get_value(call_hash) == b"123"
 
@@ -278,22 +278,22 @@ class MemoryContract(ByteStoreContract):
 
             await memory.set_value(call_hash, b"456")
 
-            async def r2():
+            async def r2() -> None:
                 assert await memory.get_value(call_hash) == b"456"
 
             await self.read_after_write(r2)
 
-    async def test_pending_returns(self):
+    async def test_pending_returns(self) -> None:
         async with self.with_memory() as memory:
 
-            async def body(keys):
+            async def body(keys) -> None:
                 assert not keys
 
             await memory.with_pending_returns_remove("key", body)
 
             calls = set()
 
-            async def callback(x):
+            async def callback(x) -> None:
                 calls.add(x)
 
             await memory.add_pending_return("key", "p1", functools.partial(callback, 1))
@@ -304,21 +304,21 @@ class MemoryContract(ByteStoreContract):
 
             with pytest.raises(FakeError):
 
-                async def body(keys):
+                async def body(keys) -> None:
                     assert set(keys) == {"p1", "p2"}
                     raise FakeError()
 
                 await memory.with_pending_returns_remove("key", body)
 
-            async def body2(keys):
+            async def body2(keys) -> None:
                 assert set(keys) == {"p1", "p2"}
 
             await memory.with_pending_returns_remove("key", body2)
 
-            async def body3(keys):
+            async def body3(keys) -> None:
                 assert not keys
 
-            async def r1():
+            async def r1() -> None:
                 await memory.with_pending_returns_remove("key", body3)
 
             await self.read_after_write(r1)

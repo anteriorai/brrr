@@ -10,7 +10,7 @@ from brrr.pickle_codec import PickleCodec
 TOPIC = "brrr-test"
 
 
-async def test_spawn_limit_depth():
+async def test_spawn_limit_depth() -> None:
     queue = InMemoryQueue([TOPIC])
     store = InMemoryByteStore()
     n = 0
@@ -36,7 +36,7 @@ async def test_spawn_limit_depth():
         assert n == conn._spawn_limit
 
 
-async def test_spawn_limit_breadth_mapped():
+async def test_spawn_limit_breadth_mapped() -> None:
     queue = InMemoryQueue([TOPIC])
     store = InMemoryByteStore()
     calls = Counter()
@@ -66,7 +66,7 @@ async def test_spawn_limit_breadth_mapped():
     assert calls["foo"] == 1
 
 
-async def test_spawn_limit_recoverable():
+async def test_spawn_limit_recoverable() -> None:
     queue = InMemoryQueue([TOPIC])
     store = InMemoryByteStore()
     cache = InMemoryByteStore()
@@ -108,7 +108,7 @@ async def test_spawn_limit_recoverable():
     assert calls == Counter(dict(one=n, foo=n + 1))
 
 
-async def test_spawn_limit_breadth_manual():
+async def test_spawn_limit_breadth_manual() -> None:
     queue = InMemoryQueue([TOPIC])
     store = InMemoryByteStore()
     calls = Counter()
@@ -143,7 +143,7 @@ async def test_spawn_limit_breadth_manual():
         )
 
 
-async def test_spawn_limit_cached():
+async def test_spawn_limit_cached() -> None:
     queue = InMemoryQueue([TOPIC])
     store = InMemoryByteStore()
     n = 0
