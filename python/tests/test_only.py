@@ -1,4 +1,4 @@
-from brrr.local_app import local_app
+from brrr.local_app import LocalBrrr
 import pytest
 
 import brrr
@@ -24,12 +24,8 @@ async def test_only_in_brrr() -> None:
     async def foo(a: int) -> int:
         return a * 2
 
-    async with local_app(
-        topic=TOPIC, handlers=dict(foo=foo), codec=PickleCodec()
-    ) as app:
-        await app.schedule(foo)(5)
-        await app.run()
-        assert await app.read(foo)(5) == 10
+    b = LocalBrrr(topic=TOPIC, handlers=dict(foo=foo), codec=PickleCodec())
+    assert await b.run(foo)(5) == 10
 
 
 async def test_only_in_fake_brrr() -> None:
