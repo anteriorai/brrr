@@ -7,7 +7,7 @@ from unittest.mock import Mock, call
 import brrr
 from brrr.app import ActiveWorker
 from brrr.call import Call
-from brrr.local_app import local_app
+from brrr.local_app import LocalBrrr
 from brrr.pickle_codec import PickleCodec
 
 
@@ -45,11 +45,8 @@ async def test_codec_key_no_args() -> None:
         assert val == a
         return val
 
-    async with local_app(
-        topic=TOPIC, handlers=dict(foo=foo, same=same), codec=codec
-    ) as app:
-        await app.schedule(foo)(50)
-        await app.run()
+    b = LocalBrrr(topic=TOPIC, handlers=dict(foo=foo, same=same), codec=codec)
+    await b.run(foo)(50)
 
     assert calls == Counter(
         {
@@ -84,11 +81,8 @@ async def test_codec_api() -> None:
         assert val == sum(range(9))
         return val
 
-    async with local_app(
-        topic=TOPIC, handlers=dict(foo=foo, plus=plus), codec=codec
-    ) as app:
-        await app.schedule("foo")()
-        await app.run()
+    b = LocalBrrr(topic=TOPIC, handlers=dict(foo=foo, plus=plus), codec=codec)
+    await b.run("foo")()
 
     codec.encode_call.assert_has_calls(
         [

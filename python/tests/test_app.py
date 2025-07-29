@@ -4,7 +4,7 @@ import dataclasses
 import typing
 from typing import cast
 
-from brrr.local_app import local_app
+from brrr.local_app import local_app, LocalBrrr
 import pytest
 
 import brrr
@@ -67,7 +67,7 @@ async def test_app_consumer() -> None:
             await appc.read("bar")(5)
 
 
-async def test_local_app() -> None:
+async def test_local_brrr() -> None:
     @brrr.handler_no_arg
     async def bar(a: int) -> int:
         assert a == 123
@@ -77,12 +77,8 @@ async def test_local_app() -> None:
     async def foo(app: ActiveWorker, a: int) -> int:
         return await app.call(bar, topic=TOPIC)(a + 1) + 1
 
-    async with local_app(
-        topic=TOPIC, handlers=dict(foo=foo, bar=bar), codec=PickleCodec()
-    ) as app:
-        await app.schedule(foo)(122)
-        await app.run()
-        assert await app.read(foo)(122) == 457
+    b = LocalBrrr(topic=TOPIC, handlers=dict(foo=foo, bar=bar), codec=PickleCodec())
+    assert await b.run(foo)(122) == 457
 
 
 async def _call_nested_gather(*, use_brrr_gather: bool) -> list[str]:
@@ -115,9 +111,8 @@ async def _call_nested_gather(*, use_brrr_gather: bool) -> list[str]:
         return result
 
     handlers = dict(foo=foo, bar=bar, top=top)
-    async with local_app(topic=TOPIC, handlers=handlers, codec=PickleCodec()) as app:
-        await app.schedule(top)([3, 4])
-        await app.run()
+    b = LocalBrrr(topic=TOPIC, handlers=handlers, codec=PickleCodec())
+    await b.run(top)([3, 4])
 
     return calls
 
@@ -391,11 +386,8 @@ async def test_debounce_child() -> None:
 
         return sum(await app.gather(*map(app.call(foo), [a - 1] * 50)))
 
-    async with local_app(
-        topic=TOPIC, handlers=dict(foo=foo), codec=PickleCodec()
-    ) as app:
-        await app.schedule(foo)(3)
-        await app.run()
+    b = LocalBrrr(topic=TOPIC, handlers=dict(foo=foo), codec=PickleCodec())
+    await b.run(foo)(3)
 
     assert calls == Counter({0: 1, 1: 2, 2: 2, 3: 2})
 
@@ -416,11 +408,8 @@ async def test_no_debounce_parent() -> None:
         # Different argument to avoid debouncing children
         return sum(await app.gather(*map(app.call(one), range(a))))
 
-    async with local_app(
-        topic=TOPIC, handlers=dict(one=one, foo=foo), codec=PickleCodec()
-    ) as app:
-        await app.schedule(foo)(50)
-        await app.run()
+    b = LocalBrrr(topic=TOPIC, handlers=dict(one=one, foo=foo), codec=PickleCodec())
+    await b.run(foo)(50)
 
     # We want foo=2 here
     assert calls == Counter(one=50, foo=51)
