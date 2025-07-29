@@ -5,6 +5,7 @@ import time
 import typing
 
 import bencodepy
+import bencodepy.exceptions
 
 from ..queue import Message, Queue, QueueInfo, QueueIsEmpty
 from ..store import Cache
