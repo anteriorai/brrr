@@ -4,12 +4,12 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "target": "es2022",
-    "allowJs": true,
     "resolveJsonModule": true,
     "moduleDetection": "force",
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "preserveSymlinks": true,
+    "erasableSyntaxOnly": true,
 
     /* Strictness */
     "strict": true,
