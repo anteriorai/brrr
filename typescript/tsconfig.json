@@ -3,12 +3,10 @@
     /* Base Options */
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "target": "es2022",
-    "resolveJsonModule": true,
+    "target": "esnext",
     "moduleDetection": "force",
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
-    "preserveSymlinks": true,
     "erasableSyntaxOnly": true,
 
     /* Strictness */
@@ -16,6 +14,8 @@
     "noUncheckedIndexedAccess": true,
     "noUncheckedSideEffectImports": true,
     "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": true,
+    "useUnknownInCatchVariables": true,
 
     /* Module Resolution */
     "module": "nodenext",
