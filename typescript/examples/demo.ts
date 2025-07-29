@@ -1,20 +1,5 @@
-import { ActiveWorker, CallableTask, CallableTaskNoArg } from "../src/app.ts";
-
-class Brrr {
-  static handler<A extends unknown[], R>(
-    name: string,
-    fn: (app: ActiveWorker, ...args: A) => R,
-  ): CallableTask<A, R> {
-    return new CallableTask(name, fn);
-  }
-
-  static handlerNoArg<A extends unknown[], R>(
-    name: string,
-    fn: (...args: A) => R,
-  ): CallableTaskNoArg<A, R> {
-    return new CallableTaskNoArg(name, fn);
-  }
-}
+import { ActiveWorker } from "../src/app.ts";
+import { Brrr } from "../src/brrr.ts";
 
 const fibAndPrint = Brrr.handler(
   "fib_and_print",
