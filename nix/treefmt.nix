@@ -7,4 +7,8 @@
     enable = true;
     strict = true;
   };
+  programs.prettier = {
+    enable = true;
+    # TODO enable import sorting
+  };
 }

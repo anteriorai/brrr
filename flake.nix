@@ -131,10 +131,12 @@
           }:
           let
             python = pkgs.python313;
+            nodejs = pkgs.nodejs_24;
             devPackages = [
               pkgs.process-compose
               pkgs.redis # For the CLI
               self'.packages.uv
+              nodejs
             ];
             brrrpy = pkgs.callPackage ./python/package.nix {
               inherit (inputs) pyproject-build-systems pyproject-nix uv2nix;
