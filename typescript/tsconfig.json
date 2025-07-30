@@ -33,5 +33,5 @@
     "outDir": "dist",
     "incremental": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": ["src/**/*.ts"]
 }
