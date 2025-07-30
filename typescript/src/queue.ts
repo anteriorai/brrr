@@ -1,7 +1,7 @@
-export abstract class Queue {
-  public abstract put(topic: string, message: string): Promise<void>;
+export interface Queue {
+  put(topic: string, message: string): Promise<void>;
 
-  public abstract get(topic: string): Promise<string>;
+  get(topic: string): Promise<string>;
 
-  public async close(): Promise<void> {}
+  close(): Promise<void>;
 }
