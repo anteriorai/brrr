@@ -1,13 +1,8 @@
-export interface Message {
-  readonly body: string;
-}
-
 export abstract class Queue {
-  protected readonly RECV_BLOCK_SECS = 20;
+  public abstract put(message: string): Promise<void>;
 
-  public abstract putMessage(body: string): Promise<void>;
+  public abstract get(): Promise<string>;
 
-  public abstract getMessage(): Promise<Message>;
-
-  public abstract close(): Promise<void>;
+  public async close(): Promise<void> {
+  }
 }
