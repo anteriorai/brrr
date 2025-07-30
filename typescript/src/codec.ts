@@ -1,7 +1,7 @@
 import type { Call } from "./call.ts";
 
 export interface Codec {
-  encodeCall<A extends unknown[]>(taskName: string, args: A): Promise<Call>;
+  encodeCall<A extends unknown[]>(taskName: string, args: A): Call;
 
   invokeTask<A extends unknown[], R>(
     call: Call,
