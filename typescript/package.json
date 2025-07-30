@@ -5,20 +5,18 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "test": "node --test 'src/**/*.test.ts'",
-    "test:watch": "node --test --watch 'src/**/*.test.ts'"
+    "test": "node --test"
   },
   "repository": "https://github.com/cohelm/brrr",
   "engines": {
     "node": ">=24"
   },
   "dependencies": {
-    "bencode": "^4.0.0",
-    "superjson": "^2.2.2"
+    "bencode": "^4.0.0"
   },
   "devDependencies": {
     "@types/bencode": "^2.0.4",
-    "@types/node": "^24.2.1",
-    "typescript": "^5.9.2"
+    "@types/node": "^24.1.0",
+    "typescript": "^5.8.3"
   }
 }
