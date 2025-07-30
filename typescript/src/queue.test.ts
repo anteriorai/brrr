@@ -1,6 +1,6 @@
 import { describe, test } from "node:test";
 import { deepStrictEqual } from "node:assert/strict";
-import { PendingReturns } from "../src/store.ts";
+import { PendingReturns } from "./store.ts";
 
 await describe(import.meta.filename, async () => {
   await describe(PendingReturns.name, async () => {
