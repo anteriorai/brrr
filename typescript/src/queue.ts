@@ -3,6 +3,5 @@ export abstract class Queue {
 
   public abstract get(): Promise<string>;
 
-  public async close(): Promise<void> {
-  }
+  public async close(): Promise<void> {}
 }
