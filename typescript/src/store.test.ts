@@ -15,6 +15,8 @@ import {
   QueueIsClosedError,
   UnknownTopicError,
 } from "./errors.ts";
+import { InMemoryByteStore } from "./backends/in-memory.ts";
+import { Call } from "./call.ts";
 
 await describe(import.meta.filename, async () => {
   await describe(PendingReturns.name, async () => {
@@ -34,6 +36,60 @@ await describe(import.meta.filename, async () => {
       deepStrictEqual(encoded, decoded.encode());
     });
   });
+
+  await describe(Memory.name, async () => {
+    let store: Store
+    let memory: Memory
+
+    const fixture = {
+      call: new Call(
+        "test-task",
+        new Uint8Array([1, 2, 3]),
+        "test-call-hash",
+      )
+    } as const
+
+    beforeEach(async () => {
+      store = new InMemoryByteStore();
+      memory = new Memory(store);
+      await memory.setCall(fixture.call)
+      await memory.setValue(fixture.call.callHash, fixture.call.payload)
+    });
+
+    await test("getCall", async () => {
+      const retrieved = await memory.getCall(fixture.call.callHash);
+      ok(retrieved.equals(fixture.call))
+    });
+
+    await test("setCall", async () => {
+      const newCall = new Call(
+        "new-task",
+        new Uint8Array([4, 5, 6]),
+        "new-call-hash",
+      );
+      await memory.setCall(newCall);
+      const retrieved = await memory.getCall(newCall.callHash);
+      ok(retrieved.equals(newCall));
+    })
+
+    await test("hasValue", async () => {
+      ok(await memory.hasValue(fixture.call.callHash));
+      ok(!(await memory.hasValue("non-existing-call-hash")));
+    });
+
+    await test("getValue", async () => {
+      const retrieved = await memory.getValue(fixture.call.callHash);
+      deepStrictEqual(retrieved, fixture.call.payload);
+      await rejects(memory.getValue("non-existing-call-hash"), NotFoundError);
+    });
+
+    await test("setValue", async () => {
+      const newPayload = new Uint8Array([7, 8, 9]);
+      await memory.setValue(fixture.call.callHash, newPayload);
+      const retrieved = await memory.getValue(fixture.call.callHash);
+      deepStrictEqual(retrieved, newPayload);
+    });
+  })
 });
 
 export async function storeContractTest(factory: () => Store) {
