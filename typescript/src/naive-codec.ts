@@ -26,9 +26,9 @@ export class NaiveCodec implements Codec {
     return JSON.parse(decoded);
   }
 
-  public async encodeCall<A extends unknown[]>(
+  public async encodeCall(
     taskName: string,
-    args: A,
+    args: unknown[],
   ): Promise<Call> {
     const data = JSON.stringify(args);
     const payload = NaiveCodec.encoder.encode(data);
@@ -36,12 +36,12 @@ export class NaiveCodec implements Codec {
     return new Call(taskName, payload, callHash);
   }
 
-  public async invokeTask<A extends unknown[], R>(
+  public async invokeTask(
     call: Call,
-    task: (...args: A) => Promise<R>,
+    task: (...args: unknown[]) => Promise<unknown>,
   ): Promise<Uint8Array> {
     const decoded = NaiveCodec.decoder.decode(call.payload);
-    const args = JSON.parse(decoded) as A;
+    const args = JSON.parse(decoded) as unknown[];
     const result = await task(...args);
     const resultJson = JSON.stringify(result);
     return NaiveCodec.encoder.encode(resultJson);
