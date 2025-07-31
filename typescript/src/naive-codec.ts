@@ -26,10 +26,7 @@ export class NaiveCodec implements Codec {
     return JSON.parse(decoded);
   }
 
-  public async encodeCall(
-    taskName: string,
-    args: unknown[],
-  ): Promise<Call> {
+  public async encodeCall(taskName: string, args: unknown[]): Promise<Call> {
     const data = JSON.stringify(args);
     const payload = NaiveCodec.encoder.encode(data);
     const callHash = await this.hashCall(taskName, args);
