@@ -38,27 +38,23 @@ await describe(import.meta.filename, async () => {
   });
 
   await describe(Memory.name, async () => {
-    let store: Store
-    let memory: Memory
+    let store: Store;
+    let memory: Memory;
 
     const fixture = {
-      call: new Call(
-        "test-task",
-        new Uint8Array([1, 2, 3]),
-        "test-call-hash",
-      )
-    } as const
+      call: new Call("test-task", new Uint8Array([1, 2, 3]), "test-call-hash"),
+    } as const;
 
     beforeEach(async () => {
       store = new InMemoryByteStore();
       memory = new Memory(store);
-      await memory.setCall(fixture.call)
-      await memory.setValue(fixture.call.callHash, fixture.call.payload)
+      await memory.setCall(fixture.call);
+      await memory.setValue(fixture.call.callHash, fixture.call.payload);
     });
 
     await test("getCall", async () => {
       const retrieved = await memory.getCall(fixture.call.callHash);
-      ok(retrieved.equals(fixture.call))
+      ok(retrieved.equals(fixture.call));
     });
 
     await test("setCall", async () => {
@@ -70,7 +66,7 @@ await describe(import.meta.filename, async () => {
       await memory.setCall(newCall);
       const retrieved = await memory.getCall(newCall.callHash);
       ok(retrieved.equals(newCall));
-    })
+    });
 
     await test("hasValue", async () => {
       ok(await memory.hasValue(fixture.call.callHash));
@@ -89,7 +85,7 @@ await describe(import.meta.filename, async () => {
       const retrieved = await memory.getValue(fixture.call.callHash);
       deepStrictEqual(retrieved, newPayload);
     });
-  })
+  });
 });
 
 export async function storeContractTest(factory: () => Store) {
