@@ -1,84 +1,139 @@
+import type { Queue } from "../queue.ts";
+import {
+  CompareMismatchError,
+  NotFoundError,
+  QueueIsClosedError,
+  QueueIsEmptyError,
+  UnknownTopicError,
+} from "../errors.ts";
 import type { Cache, MemKey, Store } from "../store.ts";
 import type { Publisher, Subscriber } from "../emitter.ts";
 import { EventEmitter } from "node:events";
 import type { Call } from "../call.ts";
 import { BrrrTaskDoneEventSymbol } from "../symbol.ts";
 
-export class InMemoryStore implements Store {
-  private store = new Map<string, Uint8Array>();
+export class InMemoryQueue implements Queue {
+  private readonly queues: Map<string, string[]>;
+
+  private closing = false;
+  private closed = false;
+
+  public constructor(topics: string[]) {
+    this.queues = new Map(topics.map((topic) => [topic, []]));
+  }
+
+  public async put(topic: string, message: string): Promise<void> {
+    this.getTopicQueue(topic).push(message);
+  }
+
+  public async get(topic: string): Promise<string> {
+    this.ensureOpen();
+    const front = this.getTopicQueue(topic).shift();
+    if (!front) {
+      throw new QueueIsEmptyError();
+    }
+    return front;
+  }
+
+  public async close(): Promise<void> {
+    this.ensureOpen();
+    this.closing = true;
+    this.closed = true;
+  }
+
+  private ensureOpen(): void {
+    if (this.closing || this.closed) {
+      throw new QueueIsClosedError();
+    }
+  }
+
+  private getTopicQueue(topic: string): string[] {
+    this.ensureOpen();
+    const queue = this.queues.get(topic);
+    if (!queue) {
+      throw new UnknownTopicError(topic);
+    }
+    return queue;
+  }
+}
+
+export class InMemoryByteStore implements Store, Cache {
+  private innerStore = new Map<string, Uint8Array>();
+  private innerCache = new Map<string, number>();
+
+  private key2str(key: MemKey): string {
+    return `${key.type}/${key.callHash}`;
+  }
 
   public async compareAndDelete(
     key: MemKey,
     expected: Uint8Array,
-  ): Promise<boolean> {
-    const keyStr = this.keyToString(key);
-    const value = this.store.get(keyStr);
+  ): Promise<void> {
+    const keyStr = this.key2str(key);
+    const value = this.innerStore.get(keyStr);
     if (!value || !this.isEqualBytes(value, expected)) {
-      return false;
+      throw new CompareMismatchError(key);
     }
-    this.store.delete(keyStr);
-    return true;
+    this.innerStore.delete(keyStr);
   }
 
   public async compareAndSet(
     key: MemKey,
     value: Uint8Array,
     expected: Uint8Array,
-  ): Promise<boolean> {
-    const keyStr = this.keyToString(key);
-    const current = this.store.get(keyStr);
-    if (!current || !this.isEqualBytes(current, expected)) {
-      return false;
+  ): Promise<void> {
+    const keyStr = this.key2str(key);
+    const currentValue = this.innerStore.get(keyStr);
+    if (!currentValue || !this.isEqualBytes(currentValue, expected)) {
+      throw new CompareMismatchError(key);
     }
-    this.store.set(keyStr, value);
-    return true;
+    this.innerStore.set(keyStr, value);
   }
 
-  public async delete(key: MemKey): Promise<boolean> {
-    const keyStr = this.keyToString(key);
-    return this.store.delete(keyStr);
+  public async delete(key: MemKey): Promise<void> {
+    const keyStr = this.key2str(key);
+    if (!this.innerStore.has(keyStr)) {
+      throw new NotFoundError(key);
+    }
+    this.innerStore.delete(keyStr);
   }
 
-  public async get(key: MemKey): Promise<Uint8Array | undefined> {
-    const keyStr = this.keyToString(key);
-    return this.store.get(keyStr);
+  public async get(key: MemKey): Promise<Uint8Array> {
+    const keyStr = this.key2str(key);
+    const value = this.innerStore.get(keyStr);
+    if (!value) {
+      throw new NotFoundError(key);
+    }
+    return value;
   }
 
   public async has(key: MemKey): Promise<boolean> {
-    const keyStr = this.keyToString(key);
-    return this.store.has(keyStr);
+    const keyStr = this.key2str(key);
+    return this.innerStore.has(keyStr);
+  }
+
+  public async incr(key: string): Promise<number> {
+    const current = this.innerCache.get(key) ?? 0;
+    const next = current + 1;
+    this.innerCache.set(key, next);
+    return next;
   }
 
   public async set(key: MemKey, value: Uint8Array): Promise<void> {
-    const keyStr = this.keyToString(key);
-    this.store.set(keyStr, value);
+    const keyStr = this.key2str(key);
+    this.innerStore.set(keyStr, value);
   }
 
-  public async setNewValue(key: MemKey, value: Uint8Array): Promise<boolean> {
-    const keyStr = this.keyToString(key);
-    if (this.store.has(keyStr)) {
-      return false;
+  public async setNewValue(key: MemKey, value: Uint8Array): Promise<void> {
+    const keyStr = this.key2str(key);
+    if (this.innerStore.has(keyStr)) {
+      throw new CompareMismatchError(key);
     }
-    this.store.set(keyStr, value);
-    return true;
-  }
-
-  private keyToString(key: MemKey): string {
-    return `${key.type}/${key.callHash}`;
+    this.innerStore.set(keyStr, value);
   }
 
   private isEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
-    return a.length === b.length && a.every((it, i) => it === b[i]);
-  }
-}
-
-export class InMemoryCache implements Cache {
-  private readonly cache = new Map<string, number>();
-
-  public async incr(key: string): Promise<number> {
-    const next = (this.cache.get(key) ?? 0) + 1;
-    this.cache.set(key, next);
-    return next;
+    return a.length === b.length && a.every((_, i) => a[i] === b[i]);
   }
 }
 
