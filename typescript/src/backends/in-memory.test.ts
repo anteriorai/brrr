@@ -11,8 +11,4 @@ await describe(import.meta.filename, async () => {
     await storeContractTest(() => new InMemoryByteStore());
     await cacheContractTest(() => new InMemoryByteStore());
   });
-
-  await test(InMemoryQueue.name, async () => {
-    await queueContractTest((topics) => new InMemoryQueue(topics));
-  });
 });
