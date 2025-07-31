@@ -1,4 +1,4 @@
-import { suite, test } from "node:test";
+import { describe, test } from "node:test";
 import { InMemoryByteStore, InMemoryQueue } from "./in-memory.ts";
 import {
   cacheContractTest,
@@ -6,7 +6,7 @@ import {
   storeContractTest,
 } from "../store.test.ts";
 
-await suite(import.meta.filename, async () => {
+await describe(import.meta.filename, async () => {
   await test(InMemoryByteStore.name, async () => {
     await storeContractTest(() => new InMemoryByteStore());
     await cacheContractTest(() => new InMemoryByteStore());
