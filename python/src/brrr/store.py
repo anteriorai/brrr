@@ -54,21 +54,19 @@ class PendingReturns:
     def encode(self) -> bytes:
         return bencodepy.encode(
             {
-                # This is a smell.
-                b"scheduled_at": self.scheduled_at or -1,
                 b"returns": list(
                     sorted(map(lambda x: x.encode("us-ascii"), self.returns))
                 ),
+                **({b"scheduled_at": self.scheduled_at} if self.scheduled_at else {}),
             }
         )
 
     @classmethod
     def decode(cls, enc: bytes) -> PendingReturns:
         decoded = bencodepy.decode(enc)
-        scheduled_at = decoded[b"scheduled_at"]
         returns = decoded[b"returns"]
         return PendingReturns(
-            None if scheduled_at == -1 else scheduled_at,
+            decoded.get(b"scheduled_at"),
             set(map(lambda x: x.decode("us-ascii"), returns)),
         )
 
