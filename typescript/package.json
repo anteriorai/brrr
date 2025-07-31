@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc",
-    "test": "node --test 'src/**/*.test.ts'"
+    "test": "node --test 'src/**/*.test.ts'",
+    "test:watch": "node --test --watch 'src/**/*.test.ts'"
   },
   "repository": "https://github.com/cohelm/brrr",
   "engines": {
