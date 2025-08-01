@@ -1,5 +1,10 @@
 import { inspect } from "node:util";
 
+export interface CallInfo {
+  readonly task_name: string;
+  readonly payload: Uint8Array;
+}
+
 export class Call {
   public readonly taskName: string;
   public readonly payload: Uint8Array;
