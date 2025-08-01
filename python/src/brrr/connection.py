@@ -194,15 +194,14 @@ class Server(Connection):
         self._n = Server._total_workers
         Server._total_workers += 1
 
-    async def _schedule_return_call(self, ret: PendingReturn) -> None:
-        job = ScheduleMessage(root_id=ret.root_id, call_hash=ret.call_hash)
-        await self._put_job(ret.topic, job)
+    async def _schedule_return_call(self, return_addr: str) -> None:
+        # These are all topic/root_id/memo_key triples which is great because
+        # every return should be retried in its original root context.
+        topic, root_id, parent_key = return_addr.split("/")
+        await self._put_job(topic, parent_key, root_id)
 
     async def _schedule_call_nested(
-        self,
-        my_topic: str,
-        child: DeferredCall,
-        parent: ScheduleMessage,
+        self, my_topic: str, child: DeferredCall, root_id: str, parent_key: str
     ) -> None:
         """Schedule this call on the brrr workforce.
 
@@ -231,10 +230,9 @@ class Server(Connection):
         # fine because the result does in fact exist.
         child_topic = child.topic or my_topic
         call_hash = child.call.call_hash
-        ret = PendingReturn(
-            root_id=parent.root_id,
-            call_hash=parent.call_hash,
-            topic=my_topic,
+        schedule_job = functools.partial(self._put_job, child_topic, call_hash, root_id)
+        await self._memory.add_pending_return(
+            call_hash, f"{my_topic}/{parent_key}", schedule_job
         )
         should_schedule = await self._memory.add_pending_return(call_hash, ret)
         if should_schedule:
