@@ -193,13 +193,13 @@ class Server(Connection):
         Server._total_workers += 1
 
     async def _schedule_return_call(self, return_addr: str) -> None:
-        # These are all root_id/memo_key/topic triples which is great because
+        # These are all topic/root_id/memo_key triples which is great because
         # every return should be retried in its original root context.
-        root_id, parent_key, topic = return_addr.split("/", 2)
+        topic, root_id, parent_key = return_addr.split("/")
         await self._put_job(topic, parent_key, root_id)
 
     async def _schedule_call_nested(
-        self, my_topic: str, child: DeferredCall, root_id: str, parent_call_id: str
+        self, my_topic: str, child: DeferredCall, root_id: str, parent_key: str
     ) -> None:
         """Schedule this call on the brrr workforce.
 
@@ -228,13 +228,9 @@ class Server(Connection):
         # fine because the result does in fact exist.
         child_topic = child.topic or my_topic
         call_hash = child.call.call_hash
-        # Ad-hoc encoding: I happen to know that parent_call_id itself is
-        # root_id/parent_key, neither of which can contain a ‘/’.  The topic
-        # however is user-controlled and can contain any character, so it must
-        # come last for deterministic decoding.  Obviously a far better idea
-        # would be to just use bencode here.
-        should_schedule = await self._memory.add_pending_return(
-            call_hash, f"{parent_call_id}/{my_topic}"
+        schedule_job = functools.partial(self._put_job, child_topic, call_hash, root_id)
+        await self._memory.add_pending_return(
+            call_hash, f"{my_topic}/{parent_key}", schedule_job
         )
         if should_schedule:
             await self._put_job(child_topic, call_hash, root_id)
