@@ -1,15 +1,14 @@
 import type { Encoding } from "node:crypto";
-import { Call } from "./call.ts";
+import { Call, type CallInfo } from "./call.ts";
 import { bencoder } from "./bencode.ts";
 import { Buffer } from "node:buffer";
 
 export interface PendingReturnsPayload {
-  readonly scheduled_at: number;
+  readonly scheduled_at: number | undefined;
   readonly returns: Buffer[];
 }
 
 export class PendingReturns {
-  public static readonly EMPTY_SCHEDULED_AT = -1;
   private static readonly encoding = "ascii" satisfies Encoding;
 
   public readonly scheduledAt: number | undefined;
@@ -22,7 +21,7 @@ export class PendingReturns {
 
   public encode(): Uint8Array {
     return bencoder.encode({
-      scheduled_at: this.scheduledAt ?? PendingReturns.EMPTY_SCHEDULED_AT,
+      scheduled_at: this.scheduledAt,
       returns: [...this.returns]
         .map((it) => Buffer.from(it, PendingReturns.encoding))
         .sort(Buffer.compare),
@@ -35,9 +34,7 @@ export class PendingReturns {
       PendingReturns.encoding,
     ) as PendingReturnsPayload;
     return new PendingReturns(
-      scheduled_at === PendingReturns.EMPTY_SCHEDULED_AT
-        ? undefined
-        : scheduled_at,
+      scheduled_at,
       new Set(returns.map((it) => it.toString(PendingReturns.encoding))),
     );
   }
@@ -72,12 +69,7 @@ export interface Cache {
   incr(key: string): Promise<number>;
 }
 
-export interface MemoryPayload {
-  readonly task_name: string;
-  readonly payload: Uint8Array;
-}
-
-class Memory {
+export class Memory {
   private static readonly encoding = "ascii" satisfies Encoding;
   private readonly store: Store;
 
@@ -93,7 +85,7 @@ class Memory {
     const { task_name, payload } = bencoder.decode(
       encoded,
       Memory.encoding,
-    ) as MemoryPayload;
+    ) as CallInfo;
     return new Call(task_name, payload, callHash);
   }
 
@@ -101,7 +93,7 @@ class Memory {
     const encoded = bencoder.encode({
       task_name: call.taskName,
       payload: call.payload,
-    } satisfies MemoryPayload);
+    } satisfies CallInfo);
     await this.store.set(
       {
         type: "call",
