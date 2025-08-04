@@ -14,6 +14,24 @@ export class QueueIsEmptyError extends BrrrError {
   }
 }
 
+export class QueuePopTimeoutError extends BrrrError {
+  public constructor(timeout: number) {
+    super(`Queue pop timed out after ${timeout}s`);
+  }
+}
+
+export class BencodeError extends BrrrError {
+  public constructor(data: unknown) {
+    super(`Bencode error: ${JSON.stringify(data)}`);
+  }
+}
+
+export class InvalidMessageError extends BrrrError {
+  public constructor(value: unknown) {
+    super(`Invalid message: ${JSON.stringify(value)}`);
+  }
+}
+
 export class UnknownTopicError extends BrrrError {
   public constructor(topic: string) {
     super(`Unknown topic: ${topic}`);
