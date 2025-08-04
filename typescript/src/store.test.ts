@@ -49,9 +49,9 @@ await suite(import.meta.filename, async () => {
       pendingReturn: {
         key: {
           type: "pending_return",
-          callHash: 'test-pending-return-hash',
+          callHash: "test-pending-return-hash",
         } satisfies MemKey,
-      }
+      },
     } as const;
 
     beforeEach(async () => {
