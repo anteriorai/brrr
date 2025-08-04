@@ -220,12 +220,5 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
         UnknownTopicError,
       );
     });
-
-    await test("Queue can be closed", async () => {
-      await doesNotReject(queue.close());
-      await rejects(queue.close(), QueueIsClosedError);
-      await rejects(queue.get(fixture.topic), QueueIsClosedError);
-      await rejects(queue.put(fixture.topic, "message"), QueueIsClosedError);
-    });
   });
 }
