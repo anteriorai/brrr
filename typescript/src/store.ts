@@ -1,5 +1,5 @@
 import type { Encoding } from "node:crypto";
-import type { Call } from "./call.ts";
+import { Call, type CallInfo } from "./call.ts";
 import { bencoder } from "./bencode.ts";
 import { Buffer } from "node:buffer";
 import {
@@ -7,7 +7,6 @@ import {
   CompareMismatchError,
   NotFoundError,
 } from "./errors.ts";
-import { TextDecoder } from "node:util";
 
 export interface PendingReturnsPayload {
   readonly scheduled_at: number;
@@ -28,7 +27,16 @@ export class PendingReturn {
     this.encodedReturns = new Set([...returns].map(TaggedTuple.encodeToString));
   }
 
-  public static decode(encoded: Uint8Array): PendingReturns {
+  public encode(): Uint8Array {
+    return bencoder.encode({
+      scheduled_at: this.scheduledAt,
+      returns: [...this.returns]
+        .map((it) => Buffer.from(it, PendingReturn.encoding))
+        .sort(Buffer.compare),
+    } satisfies PendingReturnsPayload);
+  }
+
+  public static decode(encoded: Uint8Array): PendingReturn {
     const { scheduled_at, returns } = bencoder.decode(
       encoded,
       PendingReturn.encoding,
@@ -37,15 +45,6 @@ export class PendingReturn {
       scheduled_at,
       new Set(returns.map((it) => it.toString(PendingReturn.encoding))),
     );
-  }
-
-  public encode(): Uint8Array {
-    return bencoder.encode({
-      scheduled_at: this.scheduledAt,
-      returns: [...this.returns]
-        .map((it) => Buffer.from(it, PendingReturns.encoding))
-        .sort(Buffer.compare),
-    } satisfies PendingReturnsPayload);
   }
 }
 
@@ -85,8 +84,8 @@ export interface Cache {
 }
 
 export class Memory {
+  private static readonly encoding = "ascii" satisfies Encoding;
   private static readonly casRetryLimit = 100;
-  private static decoder = new TextDecoder("ascii");
   private readonly store: Store;
 
   public constructor(store: Store) {
@@ -98,22 +97,18 @@ export class Memory {
       type: "call",
       callHash,
     });
-    const { task_name, payload } = bencoder.decode(encoded) as {
-      task_name: Uint8Array;
-      payload: Uint8Array;
-    };
-    return {
-      taskName: Memory.decoder.decode(task_name),
-      payload,
-      callHash,
-    };
+    const { task_name, payload } = bencoder.decode(
+      encoded,
+      Memory.encoding,
+    ) as CallInfo;
+    return new Call(task_name, payload, callHash);
   }
 
   public async setCall(call: Call): Promise<void> {
     const encoded = bencoder.encode({
       task_name: call.taskName,
       payload: call.payload,
-    });
+    } satisfies CallInfo);
     await this.store.set(
       {
         type: "call",
@@ -148,7 +143,21 @@ export class Memory {
     );
   }
 
-  public async addPendingReturns(
+  private async withCas<T>(f: () => Promise<T>): Promise<T> {
+    for (let i = 0; i < Memory.casRetryLimit; i++) {
+      try {
+        return f();
+      } catch (e) {
+        if (e instanceof CompareMismatchError) {
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw new CasRetryLimitReachedError(Memory.casRetryLimit);
+  }
+
+  public async addPendingReturn(
     callHash: string,
     newReturn: string,
     scheduleJob: () => Promise<void>,
@@ -175,29 +184,23 @@ export class Memory {
         if (!(err instanceof NotFoundError)) {
           throw err;
         }
-        existing = new PendingReturns(undefined, new Set([newReturn]));
-        existingEncoded = existing.encode();
-        await this.store.setNewValue(memKey, existingEncoded);
+        existing = new PendingReturn(undefined, new Set([newReturn]));
+        const initialEncoded = existing.encode();
+        await this.store.setNewValue(memKey, initialEncoded);
+        existingEncoded = initialEncoded;
       }
       const alreadyPending = !!existing.scheduledAt;
-      let shouldSchedule = false;
       if (!alreadyPending) {
-        existing = new PendingReturns(
+        await scheduleJob();
+        existing = new PendingReturn(
           Math.floor(Date.now() / 1000),
           existing.returns,
         );
         shouldStoreAgain = true;
-        shouldSchedule = true;
       }
       if (shouldStoreAgain) {
-        await this.store.compareAndSet(
-          memKey,
-          existing.encode(),
-          existingEncoded,
-        );
-        if (shouldSchedule) {
-          await scheduleJob();
-        }
+        const updatedEncoded = existing.encode();
+        await this.store.compareAndSet(memKey, updatedEncoded, existingEncoded);
       }
       return alreadyPending;
     });
@@ -205,7 +208,7 @@ export class Memory {
 
   public async withPendingReturnRemove(
     callHash: string,
-    f: (returns: ReadonlySet<string>) => Promise<void>,
+    f: (returns: Iterable<string>) => Promise<void>,
   ) {
     const memKey: MemKey = {
       type: "pending_return",
@@ -218,29 +221,15 @@ export class Memory {
         pendingEncoded = await this.store.get(memKey);
       } catch (err) {
         if (err instanceof NotFoundError) {
-          return f(new Set());
+          return f([]);
         }
         throw err;
       }
       const toHandle =
         PendingReturn.decode(pendingEncoded).returns.difference(handled);
       await f(toHandle);
-      toHandle.forEach((it) => handled.add(it));
+      toHandle.forEach(handled.add);
       await this.store.compareAndDelete(memKey, pendingEncoded);
     });
-  }
-
-  private async withCas<T>(f: () => Promise<T>): Promise<T> {
-    for (let i = 0; i < Memory.casRetryLimit; i++) {
-      try {
-        return await f();
-      } catch (e) {
-        if (e instanceof CompareMismatchError) {
-          continue;
-        }
-        throw e;
-      }
-    }
-    throw new CasRetryLimitReachedError(Memory.casRetryLimit);
   }
 }
