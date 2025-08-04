@@ -228,7 +228,7 @@ export class Memory {
 
   public async withPendingReturnRemove(
     callHash: string,
-    f: (returns: Iterable<string>) => Promise<void>,
+    f: (returns: ReadonlySet<string>) => Promise<void>,
   ) {
     const memKey: MemKey = {
       type: "pending_return",
@@ -241,14 +241,14 @@ export class Memory {
         pendingEncoded = await this.store.get(memKey);
       } catch (err) {
         if (err instanceof NotFoundError) {
-          return f([]);
+          return f(new Set());
         }
         throw err;
       }
       const toHandle =
         PendingReturn.decode(pendingEncoded).returns.difference(handled);
       await f(toHandle);
-      toHandle.forEach(handled.add);
+      toHandle.forEach((it) => handled.add(it));
       await this.store.compareAndDelete(memKey, pendingEncoded);
     });
   }
