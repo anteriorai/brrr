@@ -31,3 +31,9 @@ export class CompareMismatchError extends BrrrError {
     super(`Compare mismatch for key ${JSON.stringify(key)}`);
   }
 }
+
+export class CasRetryLimitReachedError extends BrrrError {
+  public constructor(retryLimit: number) {
+    super(`CAS retry limit reached (${retryLimit})`);
+  }
+}

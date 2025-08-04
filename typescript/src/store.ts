@@ -2,19 +2,27 @@ import type { Encoding } from "node:crypto";
 import { Call, type CallInfo } from "./call.ts";
 import { bencoder } from "./bencode.ts";
 import { Buffer } from "node:buffer";
+import {
+  CasRetryLimitReachedError,
+  CompareMismatchError,
+  NotFoundError,
+} from "./errors.ts";
 
 export interface PendingReturnsPayload {
   readonly scheduled_at: number | undefined;
   readonly returns: Buffer[];
 }
 
-export class PendingReturns {
+export class PendingReturn {
   private static readonly encoding = "ascii" satisfies Encoding;
 
   public readonly scheduledAt: number | undefined;
-  public readonly returns: Set<string>;
+  public readonly returns: ReadonlySet<string>;
 
-  public constructor(scheduledAt: number | undefined, returns: Set<string>) {
+  public constructor(
+    scheduledAt: number | undefined,
+    returns: ReadonlySet<string>,
+  ) {
     this.scheduledAt = scheduledAt;
     this.returns = returns;
   }
@@ -23,25 +31,25 @@ export class PendingReturns {
     return bencoder.encode({
       scheduled_at: this.scheduledAt,
       returns: [...this.returns]
-        .map((it) => Buffer.from(it, PendingReturns.encoding))
+        .map((it) => Buffer.from(it, PendingReturn.encoding))
         .sort(Buffer.compare),
     } satisfies PendingReturnsPayload);
   }
 
-  public static decode(encoded: Uint8Array): PendingReturns {
+  public static decode(encoded: Uint8Array): PendingReturn {
     const { scheduled_at, returns } = bencoder.decode(
       encoded,
-      PendingReturns.encoding,
+      PendingReturn.encoding,
     ) as PendingReturnsPayload;
-    return new PendingReturns(
+    return new PendingReturn(
       scheduled_at,
-      new Set(returns.map((it) => it.toString(PendingReturns.encoding))),
+      new Set(returns.map((it) => it.toString(PendingReturn.encoding))),
     );
   }
 }
 
 export interface MemKey {
-  readonly type: "pending_returns" | "call" | "value";
+  readonly type: "pending_return" | "call" | "value";
   readonly callHash: string;
 }
 
@@ -71,6 +79,7 @@ export interface Cache {
 
 export class Memory {
   private static readonly encoding = "ascii" satisfies Encoding;
+  private static readonly casRetryLimit = 100;
   private readonly store: Store;
 
   public constructor(store: Store) {
@@ -125,5 +134,95 @@ export class Memory {
       },
       payload,
     );
+  }
+
+  private async withCas<T>(f: () => Promise<T>): Promise<T> {
+    for (let i = 0; i < Memory.casRetryLimit; i++) {
+      try {
+        return f();
+      } catch (e) {
+        if (e instanceof CompareMismatchError) {
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw new CasRetryLimitReachedError(Memory.casRetryLimit);
+  }
+
+  public async addPendingReturn(
+    callHash: string,
+    newReturn: string,
+    scheduleJob: () => Promise<void>,
+  ): Promise<boolean> {
+    return this.withCas(async () => {
+      const memKey: MemKey = {
+        type: "pending_return",
+        callHash,
+      };
+      let shouldStoreAgain = false;
+      let existingEncoded: Uint8Array | undefined;
+      let existing: PendingReturn;
+      try {
+        existingEncoded = await this.store.get(memKey);
+        existing = PendingReturn.decode(existingEncoded);
+        if (!existing.returns.has(newReturn)) {
+          existing = new PendingReturn(
+            existing.scheduledAt,
+            new Set([...existing.returns, newReturn]),
+          );
+          shouldStoreAgain = true;
+        }
+      } catch (err) {
+        if (!(err instanceof NotFoundError)) {
+          throw err;
+        }
+        existing = new PendingReturn(undefined, new Set([newReturn]));
+        const initialEncoded = existing.encode();
+        await this.store.setNewValue(memKey, initialEncoded);
+        existingEncoded = initialEncoded;
+      }
+      const alreadyPending = !!existing.scheduledAt;
+      if (!alreadyPending) {
+        await scheduleJob();
+        existing = new PendingReturn(
+          Math.floor(Date.now() / 1000),
+          existing.returns,
+        );
+        shouldStoreAgain = true;
+      }
+      if (shouldStoreAgain) {
+        const updatedEncoded = existing.encode();
+        await this.store.compareAndSet(memKey, updatedEncoded, existingEncoded);
+      }
+      return alreadyPending;
+    });
+  }
+
+  public async withPendingReturnRemove(
+    callHash: string,
+    f: (returns: Iterable<string>) => Promise<void>,
+  ) {
+    const memKey: MemKey = {
+      type: "pending_return",
+      callHash,
+    };
+    const handled = new Set<string>();
+    return this.withCas(async () => {
+      let pendingEncoded: Uint8Array;
+      try {
+        pendingEncoded = await this.store.get(memKey);
+      } catch (err) {
+        if (err instanceof NotFoundError) {
+          return f([]);
+        }
+        throw err;
+      }
+      const toHandle =
+        PendingReturn.decode(pendingEncoded).returns.difference(handled);
+      await f(toHandle);
+      toHandle.forEach(handled.add);
+      await this.store.compareAndDelete(memKey, pendingEncoded);
+    });
   }
 }
