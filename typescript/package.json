@@ -13,12 +13,11 @@
     "node": ">=24"
   },
   "dependencies": {
-    "bencode": "^4.0.0",
-    "superjson": "^2.2.2"
+    "bencode": "^4.0.0"
   },
   "devDependencies": {
     "@types/bencode": "^2.0.4",
-    "@types/node": "^24.2.1",
+    "@types/node": "^24.2.0",
     "typescript": "^5.9.2"
   }
 }
