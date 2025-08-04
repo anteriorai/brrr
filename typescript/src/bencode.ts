@@ -7,11 +7,11 @@ import { BencodeError } from "./errors.ts";
  * Bencode encoding and decoding utility.
  */
 export const bencoder = {
-  encode(data: unknown): Uint8Array {
+  encode(data: unknown) {
     try {
       return bencode.encode(data);
     } catch {
-      throw new BencodeError(data);
+      throw new BencodeError(data)
     }
   },
   decode(data: Uint8Array, encoding: Encoding): unknown {
