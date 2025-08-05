@@ -12,7 +12,6 @@ import { doesNotReject, rejects, strictEqual } from "node:assert";
 import {
   CompareMismatchError,
   NotFoundError,
-  QueueIsClosedError,
   UnknownTopicError,
 } from "./errors.ts";
 
@@ -147,24 +146,24 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
 
     beforeEach(() => {
       queue = factory([fixture.topic]);
-      queue.put(fixture.topic, fixture.message);
+      queue.push(fixture.topic, fixture.message);
     });
 
     await test("Basic get", async () => {
-      strictEqual(await queue.get(fixture.topic), fixture.message);
+      strictEqual(await queue.pop(fixture.topic), fixture.message);
     });
 
-    await test("Basic put", async () => {
+    await test("Basic push", async () => {
       const newMessage = "new-test-message";
-      await queue.put(fixture.topic, newMessage);
-      strictEqual(await queue.get(fixture.topic), fixture.message);
-      strictEqual(await queue.get(fixture.topic), newMessage);
+      await queue.push(fixture.topic, newMessage);
+      strictEqual(await queue.pop(fixture.topic), fixture.message);
+      strictEqual(await queue.pop(fixture.topic), newMessage);
     });
 
     await test("Non-existing topic operations should throw", async () => {
-      await rejects(queue.get("non-existing-topic"), UnknownTopicError);
+      await rejects(queue.pop("non-existing-topic"), UnknownTopicError);
       await rejects(
-        queue.put("non-existing-topic", "message"),
+        queue.push("non-existing-topic", "message"),
         UnknownTopicError,
       );
     });
