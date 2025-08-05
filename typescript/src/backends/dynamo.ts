@@ -15,7 +15,7 @@ import { CompareMismatchError, NotFoundError } from "../errors.ts";
 import type { NativeAttributeValue } from "@aws-sdk/util-dynamodb";
 
 export class Dynamo implements Store {
-  private readonly client: DynamoDBDocumentClient;
+  private client: DynamoDBDocumentClient;
   private readonly tableName: string;
 
   public constructor(dynamoDbClient: DynamoDBClient, tableName: string) {
@@ -23,85 +23,101 @@ export class Dynamo implements Store {
     this.tableName = tableName;
   }
 
-  public async has(key: MemKey): Promise<boolean> {
+  private key(memKey: MemKey): Record<string, NativeAttributeValue> {
+    return {
+      pk: memKey.callHash,
+      sk: memKey.type,
+    };
+  }
+
+  async has(memKey: MemKey): Promise<boolean> {
     const response = await this.client.send(
       new GetCommand({
         TableName: this.tableName,
-        Key: this.key(key),
+        Key: this.key(memKey),
         ProjectionExpression: "pk",
       }),
     );
-    return !!response.Item;
+    return Boolean(response.Item);
   }
 
-  public async get(key: MemKey): Promise<Uint8Array> {
+  async get(memKey: MemKey): Promise<Uint8Array> {
     const response = await this.client.send(
       new GetCommand({
         TableName: this.tableName,
-        Key: this.key(key),
+        Key: this.key(memKey),
       }),
     );
-    const value = response.Item?.value;
-    if (!value) {
-      throw new NotFoundError(key);
+
+    if (!response.Item || !response.Item.value) {
+      throw new NotFoundError(memKey);
+    }
+
+    const value = response.Item.value;
+    if (!(value instanceof Uint8Array)) {
+      throw new Error("Stored value is not a binary blob");
     }
     return value;
   }
 
-  public async set(key: MemKey, value: Uint8Array): Promise<void> {
+  async set(memKey: MemKey, value: Uint8Array): Promise<void> {
     await this.client.send(
       new PutCommand({
         TableName: this.tableName,
         Item: {
-          ...this.key(key),
+          ...this.key(memKey),
           value,
         },
       }),
     );
   }
 
-  public async delete(key: MemKey): Promise<void> {
+  async delete(memKey: MemKey): Promise<void> {
     await this.client.send(
       new DeleteCommand({
         TableName: this.tableName,
-        Key: this.key(key),
+        Key: this.key(memKey),
       }),
     );
   }
 
-  public async setNewValue(key: MemKey, value: Uint8Array): Promise<void> {
+  async setNewValue(memKey: MemKey, value: Uint8Array): Promise<void> {
     try {
       await this.client.send(
         new UpdateCommand({
           TableName: this.tableName,
-          Key: this.key(key),
+          Key: this.key(memKey),
           UpdateExpression: "SET #value = :value",
           ConditionExpression: "attribute_not_exists(#value)",
           ExpressionAttributeNames: { "#value": "value" },
           ExpressionAttributeValues: { ":value": value },
         }),
       );
-    } catch (err) {
+    } catch (err: unknown) {
       if (
         err instanceof Error &&
-        err?.name === "ConditionalCheckFailedException"
+        err.name === "ConditionalCheckFailedException"
       ) {
-        throw new CompareMismatchError(key);
+        throw new CompareMismatchError(memKey);
       }
       throw err;
     }
   }
 
-  public async compareAndSet(
-    key: MemKey,
+  async compareAndSet(
+    memKey: MemKey,
     value: Uint8Array,
-    expected: Uint8Array,
+    expected: Uint8Array | null,
   ): Promise<void> {
+    if (expected === null) {
+      throw new Error("dynamo cannot CAS a missing value");
+    }
+
     try {
       await this.client.send(
         new UpdateCommand({
           TableName: this.tableName,
-          Key: this.key(key),
+          Key: this.key(memKey),
           UpdateExpression: "SET #value = :value",
           ConditionExpression: "#value = :expected",
           ExpressionAttributeNames: { "#value": "value" },
@@ -116,21 +132,24 @@ export class Dynamo implements Store {
         err instanceof Error &&
         err.name === "ConditionalCheckFailedException"
       ) {
-        throw new CompareMismatchError(key);
+        throw new CompareMismatchError(memKey);
       }
       throw err;
     }
   }
 
-  public async compareAndDelete(
-    key: MemKey,
-    expected: Uint8Array,
+  async compareAndDelete(
+    memKey: MemKey,
+    expected: Uint8Array | null,
   ): Promise<void> {
+    if (expected === null) {
+      throw new Error("dynamo cannot CAS delete a missing value");
+    }
     try {
       await this.client.send(
         new DeleteCommand({
           TableName: this.tableName,
-          Key: this.key(key),
+          Key: this.key(memKey),
           ConditionExpression:
             "attribute_exists(#value) AND #value = :expected",
           ExpressionAttributeNames: { "#value": "value" },
@@ -142,13 +161,13 @@ export class Dynamo implements Store {
         err instanceof Error &&
         err.name === "ConditionalCheckFailedException"
       ) {
-        throw new CompareMismatchError(key);
+        throw new CompareMismatchError(memKey);
       }
       throw err;
     }
   }
 
-  public async createTable(): Promise<void> {
+  async createTable(): Promise<void> {
     await this.client.send(
       new CreateTableCommand({
         TableName: this.tableName,
@@ -168,18 +187,11 @@ export class Dynamo implements Store {
     );
   }
 
-  public async deleteTable(): Promise<void> {
+  async deleteTable(): Promise<void> {
     await this.client.send(
       new DeleteTableCommand({
         TableName: this.tableName,
       }),
     );
-  }
-
-  private key(key: MemKey): Record<string, NativeAttributeValue> {
-    return {
-      pk: key.callHash,
-      sk: key.type,
-    };
   }
 }
