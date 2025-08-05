@@ -13,7 +13,7 @@ import {
   type Cache,
   type MemKey,
   Memory,
-  PendingReturn,
+  PendingReturns,
   type Store,
 } from "./store.ts";
 import type { Queue } from "./queue.ts";
@@ -27,19 +27,19 @@ import { InMemoryByteStore } from "./backends/in-memory.ts";
 import { Call } from "./call.ts";
 
 await suite(import.meta.filename, async () => {
-  await suite(PendingReturn.name, async () => {
+  await suite(PendingReturns.name, async () => {
     await test("Encoded payload can be encoded & decoded", async () => {
-      const original = new PendingReturn(0, new Set(["a", "b", "c"]));
+      const original = new PendingReturns(0, new Set(["a", "b", "c"]));
       const encoded = original.encode();
-      const decoded = PendingReturn.decode(encoded);
+      const decoded = PendingReturns.decode(encoded);
       deepStrictEqual(original, decoded);
       deepStrictEqual(encoded, decoded.encode());
     });
 
     await test("Encoded payload with undefined timestamp can be encoded & decoded", async () => {
-      const original = new PendingReturn(undefined, new Set(["a", "b", "c"]));
+      const original = new PendingReturns(undefined, new Set(["a", "b", "c"]));
       const encoded = original.encode();
-      const decoded = PendingReturn.decode(encoded);
+      const decoded = PendingReturns.decode(encoded);
       deepStrictEqual(original, decoded);
       deepStrictEqual(encoded, decoded.encode());
     });
@@ -53,7 +53,7 @@ await suite(import.meta.filename, async () => {
       call: new Call("test-task", new Uint8Array([1, 2, 3]), "test-call-hash"),
       pendingReturn: {
         key: {
-          type: "pending_return",
+          type: "pending_returns",
           callHash: "test-pending-return-hash",
         } satisfies MemKey,
       },
@@ -123,10 +123,10 @@ await suite(import.meta.filename, async () => {
         );
         ok(!alreadyPending);
         const raw = await store.get({
-          type: "pending_return",
+          type: "pending_returns",
           callHash: fixture.call.callHash,
         });
-        const decoded = PendingReturn.decode(raw);
+        const decoded = PendingReturns.decode(raw);
         ok(decoded.returns.has("foo"));
         strictEqual(decoded.scheduledAt, mockTimersOptions.now / 1000);
         strictEqual(mockFn.mock.callCount(), 1);
@@ -142,10 +142,10 @@ await suite(import.meta.filename, async () => {
         ok(alreadyPending);
         strictEqual(mockFn.mock.callCount(), 1);
         const raw = await store.get({
-          type: "pending_return",
+          type: "pending_returns",
           callHash: fixture.call.callHash,
         });
-        const decoded = PendingReturn.decode(raw);
+        const decoded = PendingReturns.decode(raw);
         deepStrictEqual(decoded.returns, new Set(["foo"]));
       });
 
@@ -158,16 +158,16 @@ await suite(import.meta.filename, async () => {
         );
         ok(alreadyPending);
         const raw = await store.get({
-          type: "pending_return",
+          type: "pending_returns",
           callHash: fixture.call.callHash,
         });
-        const decoded = PendingReturn.decode(raw);
+        const decoded = PendingReturns.decode(raw);
         deepStrictEqual(decoded.returns, new Set(["foo", "bar"]));
       });
 
       await test("Handles NotFoundError case correctly", async () => {
         const key: MemKey = {
-          type: "pending_return",
+          type: "pending_returns",
           callHash: fixture.call.callHash,
         };
         await rejects(store.get(key), NotFoundError);
@@ -178,7 +178,7 @@ await suite(import.meta.filename, async () => {
         );
         ok(!alreadyPending);
         const raw = await store.get(key);
-        const decoded = PendingReturn.decode(raw);
+        const decoded = PendingReturns.decode(raw);
         deepStrictEqual(decoded.returns, new Set(["new-return"]));
         strictEqual(decoded.scheduledAt, mockTimersOptions.now / 1000);
       });
@@ -198,7 +198,10 @@ await suite(import.meta.filename, async () => {
       });
 
       await test("invokes f with pending returns and deletes the key", async () => {
-        const pendingReturn = new PendingReturn(undefined, new Set(["a", "b"]));
+        const pendingReturn = new PendingReturns(
+          undefined,
+          new Set(["a", "b"]),
+        );
         await store.set(fixture.pendingReturn.key, pendingReturn.encode());
         await memory.withPendingReturnRemove(
           fixture.pendingReturn.key.callHash,
