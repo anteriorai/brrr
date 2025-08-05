@@ -2,7 +2,6 @@ import type { Queue } from "../queue.ts";
 import {
   CompareMismatchError,
   NotFoundError,
-  QueueIsClosedError,
   QueueIsEmptyError,
   UnknownTopicError,
 } from "../errors.ts";
@@ -15,19 +14,15 @@ import { BrrrTaskDoneEventSymbol } from "../symbol.ts";
 export class InMemoryQueue implements Queue {
   private readonly queues: Map<string, string[]>;
 
-  private closing = false;
-  private closed = false;
-
   public constructor(topics: string[]) {
     this.queues = new Map(topics.map((topic) => [topic, []]));
   }
 
-  public async put(topic: string, message: string): Promise<void> {
+  public async push(topic: string, message: string): Promise<void> {
     this.getTopicQueue(topic).push(message);
   }
 
-  public async get(topic: string): Promise<string> {
-    this.ensureOpen();
+  public async pop(topic: string): Promise<string> {
     const front = this.getTopicQueue(topic).shift();
     if (!front) {
       throw new QueueIsEmptyError();
@@ -35,20 +30,7 @@ export class InMemoryQueue implements Queue {
     return front;
   }
 
-  public async close(): Promise<void> {
-    this.ensureOpen();
-    this.closing = true;
-    this.closed = true;
-  }
-
-  private ensureOpen(): void {
-    if (this.closing || this.closed) {
-      throw new QueueIsClosedError();
-    }
-  }
-
   private getTopicQueue(topic: string): string[] {
-    this.ensureOpen();
     const queue = this.queues.get(topic);
     if (!queue) {
       throw new UnknownTopicError(topic);
