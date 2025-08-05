@@ -115,16 +115,15 @@
       "locked": {
         "lastModified": 1754326342,
         "narHash": "sha256-cbYWwuORmGASjy1OUj4FFRSVYLk72963CbIlACln5E8=",
-        "ref": "refs/heads/master",
+        "owner": "anteriorai",
+        "repo": "package-lock2nix",
         "rev": "a4452682ae5c83a59b5f0fabc110842aa0c68a52",
-        "shallow": true,
-        "type": "git",
-        "url": "ssh://git@github.com/cohelm/package-lock2nix"
+        "type": "github"
       },
       "original": {
-        "shallow": true,
-        "type": "git",
-        "url": "ssh://git@github.com/cohelm/package-lock2nix"
+        "owner": "anteriorai",
+        "repo": "package-lock2nix",
+        "type": "github"
       }
     },
     "process-compose-flake": {
