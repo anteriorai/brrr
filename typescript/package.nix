@@ -4,11 +4,8 @@
   nodejs,
 }:
 
-{
-  brrr-ts =
-    (callPackage package-lock2nix.lib.package-lock2nix {
-      # Overriding the Node.js version to support running TS natively.
-      inherit nodejs;
-    }).mkNpmModule
-      { src = ./.; };
-}
+(callPackage package-lock2nix.lib.package-lock2nix {
+  # Overriding the Node.js version to support running TS natively.
+  inherit nodejs;
+}).mkNpmModule
+  { src = ./.; }
