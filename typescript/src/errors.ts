@@ -14,6 +14,12 @@ export class QueueIsEmptyError extends BrrrError {
   }
 }
 
+export class QueueIsClosedError extends BrrrError {
+  public constructor() {
+    super("Queue is closed");
+  }
+}
+
 export class QueuePopTimeoutError extends BrrrError {
   public constructor(timeout: number) {
     super(`Queue pop timed out after ${timeout}ms`);
