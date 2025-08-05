@@ -1,4 +1,4 @@
-import { beforeEach, describe, test } from "node:test";
+import { beforeEach, suite, test } from "node:test";
 import { deepStrictEqual, ok } from "node:assert/strict";
 import {
   type Cache,
@@ -17,8 +17,8 @@ import {
 import { InMemoryByteStore } from "./backends/in-memory.ts";
 import { Call } from "./call.ts";
 
-await describe(import.meta.filename, async () => {
-  await describe(PendingReturns.name, async () => {
+await suite(import.meta.filename, async () => {
+  await suite(PendingReturns.name, async () => {
     await test("Encoded payload can be encoded & decoded", async () => {
       const original = new PendingReturns(0, new Set(["a", "b", "c"]));
       const encoded = original.encode();
@@ -36,7 +36,7 @@ await describe(import.meta.filename, async () => {
     });
   });
 
-  await describe(Memory.name, async () => {
+  await suite(Memory.name, async () => {
     let store: Store;
     let memory: Memory;
 
@@ -88,7 +88,7 @@ await describe(import.meta.filename, async () => {
 });
 
 export async function storeContractTest(factory: () => Store) {
-  await describe("store-contract", async () => {
+  await suite("store-contract", async () => {
     let store: Store;
 
     const fixture = {
@@ -170,7 +170,7 @@ export async function storeContractTest(factory: () => Store) {
 }
 
 export async function cacheContractTest(factory: () => Cache) {
-  await describe("cache-contract", async () => {
+  await suite("cache-contract", async () => {
     let cache: Cache;
 
     beforeEach(() => {
@@ -188,7 +188,7 @@ export async function cacheContractTest(factory: () => Cache) {
 }
 
 export async function queueContractTest(factory: (topics: string[]) => Queue) {
-  await describe("queue-contract", async () => {
+  await suite("queue-contract", async () => {
     let queue: Queue;
 
     const fixture = {
