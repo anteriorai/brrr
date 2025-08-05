@@ -227,6 +227,7 @@
                     + ''
 
                       For Python-specific development, use: nix develop .#python
+                      For TypeScript-specific development, use: nix develop .#typescript
                     '';
                   env = [
                     {
@@ -318,6 +319,18 @@
                       help = "Start all dependent services without any brrr workers / server";
                       command = ''
                         nix run .#deps
+                      '';
+                    }
+                  ];
+                };
+                typescript = {
+                  commands = [
+                    {
+                      name = "brrr-test-unit";
+                      category = "test";
+                      help = "Tests which don't need dependencies";
+                      command = ''
+                        npm run test
                       '';
                     }
                   ];

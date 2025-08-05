@@ -1,5 +1,11 @@
 { package-lock2nix }:
-package-lock2nix.mkNpmWorkspace {
-  name = "brrr-ts";
-  root = "./.";
+
+let
+  brrr = package-lock2nix.mkNpmWorkspace {
+    name = "brrr-ts";
+    root = "./.";
+  };
+in
+{
+  inherit brrr;
 }
