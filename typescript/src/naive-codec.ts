@@ -11,7 +11,7 @@ export class NaiveCodec implements Codec {
   private static readonly encoder = new TextEncoder();
   private static readonly decoder = new TextDecoder();
 
-  private async hashCall(taskName: string, args: unknown[]): Promise<string> {
+  private async hashCall<A extends unknown>(taskName: string, args: A): Promise<string> {
     const data = JSON.stringify([taskName, args]);
     return createHash("sha256")
       .update(data)
@@ -33,12 +33,12 @@ export class NaiveCodec implements Codec {
     return new Call(taskName, payload, callHash);
   }
 
-  public async invokeTask(
+  public async invokeTask<A extends unknown[], R>(
     call: Call,
-    task: (...args: unknown[]) => Promise<unknown>,
+    task: (...args: A) => Promise<R>,
   ): Promise<Uint8Array> {
     const decoded = NaiveCodec.decoder.decode(call.payload);
-    const args = JSON.parse(decoded) as unknown[];
+    const args = JSON.parse(decoded) as A;
     const result = await task(...args);
     const resultJson = JSON.stringify(result);
     return NaiveCodec.encoder.encode(resultJson);
