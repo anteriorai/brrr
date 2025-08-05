@@ -129,7 +129,10 @@ export class Dynamo implements Store {
     }
   }
 
-  public async compareAndDelete(key: MemKey, expected: Uint8Array): Promise<void> {
+  public async compareAndDelete(
+    key: MemKey,
+    expected: Uint8Array,
+  ): Promise<void> {
     try {
       await this.client.send(
         new DeleteCommand({
