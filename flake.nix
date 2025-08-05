@@ -150,6 +150,7 @@
             };
             brrrts = pkgs.callPackage ./typescript/package.nix {
               inherit (inputs) package-lock2nix;
+              inherit (pkgs) callPackage;
               inherit nodejs;
             };
           in
@@ -183,6 +184,7 @@
                 inherit python;
                 inherit (pkgs) uv;
                 inherit (brrrpy) brrr brrr-venv-test;
+                inherit (brrrts) brrr-ts;
                 default = brrrpy.brrr-venv;
                 # Stand-alone brrr_demo.py script
                 brrr-demo = pkgs.stdenvNoCC.mkDerivation {
