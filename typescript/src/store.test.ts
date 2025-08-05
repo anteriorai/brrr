@@ -205,11 +205,11 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
       queue.push(fixture.topic, fixture.message);
     });
 
-    await test("Basic get", async () => {
+    await test("Basic pop", async () => {
       strictEqual(await queue.pop(fixture.topic), fixture.message);
     });
 
-    await test("Basic push", async () => {
+    await test("Basic push & pop", async () => {
       const newMessage = "new-test-message";
       await queue.push(fixture.topic, newMessage);
       strictEqual(await queue.pop(fixture.topic), fixture.message);
