@@ -1,10 +1,19 @@
-import { beforeEach, suite, test } from "node:test";
+import {
+  afterEach,
+  before,
+  beforeEach,
+  describe,
+  mock,
+  type MockTimersOptions,
+  suite,
+  test,
+} from "node:test";
 import { deepStrictEqual, ok } from "node:assert/strict";
 import {
   type Cache,
   type MemKey,
   Memory,
-  PendingReturns,
+  PendingReturn,
   type Store,
 } from "./store.ts";
 import type { Queue } from "./queue.ts";
@@ -18,23 +27,19 @@ import { InMemoryByteStore } from "./backends/in-memory.ts";
 import { Call } from "./call.ts";
 
 await suite(import.meta.filename, async () => {
-  await suite(PendingReturns.name, async () => {
+  await suite(PendingReturn.name, async () => {
     await test("Encoded payload can be encoded & decoded", async () => {
-      const original = new PendingReturns(0, [
-        new PendingReturn("a", "b", "c"),
-      ]);
+      const original = new PendingReturn(0, new Set(["a", "b", "c"]));
       const encoded = original.encode();
-      const decoded = PendingReturns.decode(encoded);
+      const decoded = PendingReturn.decode(encoded);
       deepStrictEqual(original, decoded);
       deepStrictEqual(encoded, decoded.encode());
     });
 
     await test("Encoded payload with undefined timestamp can be encoded & decoded", async () => {
-      const original = new PendingReturns(undefined, [
-        new PendingReturn("a", "b", "c"),
-      ]);
+      const original = new PendingReturn(undefined, new Set(["a", "b", "c"]));
       const encoded = original.encode();
-      const decoded = PendingReturns.decode(encoded);
+      const decoded = PendingReturn.decode(encoded);
       deepStrictEqual(original, decoded);
       deepStrictEqual(encoded, decoded.encode());
     });
