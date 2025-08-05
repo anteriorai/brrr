@@ -1,15 +1,13 @@
 import { describe, test } from "node:test";
-import {
-  cacheContractTest,
-  queueContractTest,
-} from "../store.test.ts";
+import { cacheContractTest, queueContractTest } from "../store.test.ts";
 import { Redis } from "./redis.ts";
 import { createClient } from "redis";
 
 await describe(import.meta.filename, async () => {
   async function createRedisQueue() {
     const client = createClient({
-      RESP: 3
+      url: process.env.BRRR_TEST_REDIS_URL as string,
+      RESP: 3,
     });
     await client.connect();
     return new Redis(client);
@@ -17,6 +15,6 @@ await describe(import.meta.filename, async () => {
 
   await test(Redis.name, async () => {
     await queueContractTest(createRedisQueue);
-    await cacheContractTest(createRedisQueue)
+    await cacheContractTest(createRedisQueue);
   });
 });
