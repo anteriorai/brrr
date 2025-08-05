@@ -37,6 +37,12 @@
       inputs.uv2nix.follows = "uv2nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    package-lock2nix = {
+      url = "git+ssh://git@github.com/cohelm/package-lock2nix?shallow=1";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-parts.follows = "flake-parts";
+      inputs.treefmt-nix.follows = "treefmt-nix";
+    };
     treefmt-nix.url = "github:numtide/treefmt-nix";
   };
 
@@ -141,6 +147,10 @@
             brrrpy = pkgs.callPackage ./python/package.nix {
               inherit (inputs) pyproject-build-systems pyproject-nix uv2nix;
               inherit python;
+            };
+            brrrts = pkgs.callPackage ./typescript/package.nix {
+              inherit (inputs) package-lock2nix;
+              inherit nodejs;
             };
           in
           {
