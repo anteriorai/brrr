@@ -11,7 +11,7 @@ export async function codecContractTest(codec: Codec) {
     await test("deterministic call hash", async () => {
       const a = await codec.encodeCall("foo", [1, 2]);
       const b = await codec.encodeCall("foo", [1, 2]);
-      ok(a.equals(b))
+      ok(a.equals(b));
     });
 
     await suite(
@@ -42,10 +42,10 @@ export async function codecContractTest(codec: Codec) {
     });
 
     await test("round trip: encodeCall -> invokeTask -> decodeReturn", async () => {
-      const args = [1, "2"]
+      const args = [1, "2"];
       const call = await codec.encodeCall(plus.name, args);
       const result = await codec.invokeTask(call, plus);
       await codec.decodeReturn(plus.name, result);
     });
-  })
+  });
 }
