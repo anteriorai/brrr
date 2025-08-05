@@ -30,7 +30,7 @@ export class Redis implements Queue, Cache {
     this.client = client;
   }
 
-  public async put(topic: string, message: string): Promise<void> {
+  public async push(topic: string, message: string): Promise<void> {
     if (!this.client.isOpen) {
       throw new QueueIsClosedError();
     }
@@ -44,7 +44,7 @@ export class Redis implements Queue, Cache {
     await this.client.rPush(topic, element);
   }
 
-  public async get(topic: string): Promise<string> {
+  public async pop(topic: string): Promise<string> {
     const response = await this.client.blPop(topic, this.timeout);
     if (!response) {
       throw new QueueIsEmptyError();
