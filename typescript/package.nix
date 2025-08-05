@@ -7,7 +7,7 @@
 {
   brrr-ts =
     (callPackage package-lock2nix.lib.package-lock2nix {
-      # Overriding the node.js version to support running TS natively.
+      # Overriding the Node.js version to support running TS natively.
       inherit nodejs;
     }).mkNpmModule
       { src = ./.; };
