@@ -1,6 +1,12 @@
-import { beforeEach, mock, suite, test } from "node:test";
-import { deepStrictEqual, doesNotReject, ok, rejects, strictEqual, } from "node:assert/strict";
-import { type Cache, type MemKey, Memory, PendingReturns, type Store, } from "./store.ts";
+import { beforeEach, suite, test } from "node:test";
+import { deepStrictEqual, ok } from "node:assert/strict";
+import {
+  type Cache,
+  type MemKey,
+  Memory,
+  PendingReturns,
+  type Store,
+} from "./store.ts";
 import type { Message, Queue } from "./queue.ts";
 import { NotFoundError } from "./errors.ts";
 import { InMemoryQueue, InMemoryStore } from "./backends/in-memory.ts";

@@ -1,10 +1,10 @@
-import { describe, test } from "node:test";
+import { suite, test } from "node:test";
 import { ok } from "node:assert/strict";
 import type { Codec } from "./codec.ts";
 import { notDeepStrictEqual } from "node:assert";
 
 export async function codecContractTest(codec: Codec) {
-  await describe("store-contract", async () => {
+  await suite("store-contract", async () => {
     async function plus(a: number, b: string): Promise<number> {
       return Number(a) + Number(b);
     }
