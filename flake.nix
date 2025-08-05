@@ -38,7 +38,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     package-lock2nix = {
-      url = "git+ssh://git@github.com/cohelm/package-lock2nix?shallow=1";
+      url = "github:anteriorai/package-lock2nix";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-parts.follows = "flake-parts";
       inputs.treefmt-nix.follows = "treefmt-nix";
