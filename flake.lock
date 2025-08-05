@@ -147,17 +147,18 @@
         ]
       },
       "locked": {
-        "lastModified": 1757555967,
-        "narHash": "sha256-HWmJJuggN3f/Kr1dMHFUBWwacfD1KpQDoQX0aFj1smw=",
-        "owner": "anteriorai",
-        "repo": "package-lock2nix",
-        "rev": "e7ccda13e0969f7ff498716d0269c438db8e8e4e",
-        "type": "github"
+        "lastModified": 1754326342,
+        "narHash": "sha256-cbYWwuORmGASjy1OUj4FFRSVYLk72963CbIlACln5E8=",
+        "ref": "refs/heads/master",
+        "rev": "a4452682ae5c83a59b5f0fabc110842aa0c68a52",
+        "shallow": true,
+        "type": "git",
+        "url": "ssh://git@github.com/cohelm/package-lock2nix"
       },
       "original": {
-        "owner": "anteriorai",
-        "repo": "package-lock2nix",
-        "type": "github"
+        "shallow": true,
+        "type": "git",
+        "url": "ssh://git@github.com/cohelm/package-lock2nix"
       }
     },
     "process-compose-flake": {
