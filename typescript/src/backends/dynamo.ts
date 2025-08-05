@@ -10,11 +10,11 @@ import {
   PutCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
-import type { MemKey } from "../store.ts";
+import type { MemKey, Store } from "../store.ts";
 import { CompareMismatchError, NotFoundError } from "../errors.ts";
 import type { NativeAttributeValue } from "@aws-sdk/util-dynamodb";
 
-export class DynamoStore {
+export class Dynamo implements Store {
   private client: DynamoDBDocumentClient;
   private readonly tableName: string;
 
