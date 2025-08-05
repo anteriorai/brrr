@@ -1,19 +1,5 @@
-import {
-  afterEach,
-  before,
-  beforeEach,
-  mock,
-  type MockTimersOptions,
-  suite,
-  test,
-} from "node:test";
-import {
-  deepStrictEqual,
-  doesNotReject,
-  ok,
-  rejects,
-  strictEqual,
-} from "node:assert/strict";
+import { beforeEach, suite, test } from "node:test";
+import { deepStrictEqual, ok } from "node:assert/strict";
 import {
   type Cache,
   type MemKey,
