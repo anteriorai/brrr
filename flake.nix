@@ -220,6 +220,7 @@
                     + ''
 
                       For Python-specific development, use: nix develop .#python
+                      For TypeScript-specific development, use: nix develop .#typescript
                     '';
                   env = [
                     {
@@ -432,6 +433,19 @@
                     ++ sharedCommands;
                   };
                 };
+                typescript = {
+                  commands = [
+                    {
+                      name = "brrr-test-unit";
+                      category = "test";
+                      help = "Tests which don't need dependencies";
+                      command = ''
+                        npm run test
+                      '';
+                    }
+                  ];
+                };
+              };
             };
           };
       };
