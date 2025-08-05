@@ -8,12 +8,6 @@ abstract class BrrrError extends Error {
   }
 }
 
-export class QueueIsClosedError extends BrrrError {
-  public constructor() {
-    super("Queue is already closed / closing");
-  }
-}
-
 export class QueueIsEmptyError extends BrrrError {
   public constructor() {
     super("Queue is empty");
