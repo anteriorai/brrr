@@ -8,11 +8,11 @@ import {
 
 await suite(import.meta.filename, async () => {
   await test(InMemoryByteStore.name, async () => {
-    await storeContractTest(() => new InMemoryByteStore());
-    await cacheContractTest(() => new InMemoryByteStore());
+    await storeContractTest(async () => new InMemoryByteStore());
+    await cacheContractTest(async () => new InMemoryByteStore());
   });
 
   await test(InMemoryQueue.name, async () => {
-    await queueContractTest((topics) => new InMemoryQueue(topics));
+    await queueContractTest(async (topics) => new InMemoryQueue(topics));
   });
 });
