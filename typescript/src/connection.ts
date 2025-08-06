@@ -1,9 +1,12 @@
-import type { Call } from "./call.ts";
+import { Call } from "./call.ts";
+import type { Queue } from "./queue.ts";
 import { type Cache, Memory, type Store } from "./store.ts";
-import { SpawnLimitError } from "./errors.ts";
+import {
+  QueueIsClosedError,
+  QueueIsEmptyError,
+  SpawnLimitError,
+} from "./errors.ts";
 import { randomUUID } from "node:crypto";
-import type { Publisher, Subscriber } from "./emitter.ts";
-import { BrrrShutdownSymbol, BrrrTaskDoneEventSymbol } from "./symbol.ts";
 
 export interface DeferredCall {
   readonly topic: string | undefined;
@@ -13,7 +16,7 @@ export interface DeferredCall {
 export class Defer {
   public readonly calls: DeferredCall[];
 
-  public constructor(...calls: DeferredCall[]) {
+  public constructor(calls: DeferredCall[]) {
     this.calls = calls;
   }
 }
@@ -26,21 +29,34 @@ export interface Response {
   readonly payload: Uint8Array;
 }
 
-type RequestHandler = (
+type Handler = (
   request: Request,
   connection: Connection,
 ) => Promise<Response | Defer>;
 
-export class Connection {
-  public readonly cache: Cache;
-  public readonly memory: Memory;
-  public readonly emitter: Publisher;
-  public readonly spawnLimit = 10_000;
+function parseCallId(callId: string): [string, string] {
+  return callId.split("/") as [string, string];
+}
 
-  public constructor(store: Store, cache: Cache, emitter: Publisher) {
+export async function connect(
+  queue: Queue,
+  store: Store,
+  cache: Cache,
+): Promise<Connection & AsyncDisposable> {
+  return new Connection(queue, store, cache);
+}
+
+export class Connection implements AsyncDisposable {
+  private readonly spawnLimit = 1000;
+
+  protected readonly cache: Cache;
+  protected readonly memory: Memory;
+  protected readonly queue: Queue;
+
+  public constructor(queue: Queue, store: Store, cache: Cache) {
     this.cache = cache;
     this.memory = new Memory(store);
-    this.emitter = emitter;
+    this.queue = queue;
   }
 
   public async putJob(
@@ -51,61 +67,83 @@ export class Connection {
     if ((await this.cache.incr(`brrr_count/${rootId}`)) > this.spawnLimit) {
       throw new SpawnLimitError(this.spawnLimit, rootId, callHash);
     }
-    await this.emitter.emit(topic, `${rootId}/${callHash}`);
+    await this.queue.push(topic, `${rootId}/${callHash}`);
   }
 
-  public async scheduleRaw(topic: string, call: Call): Promise<void> {
-    if (await this.memory.hasValue(call.callHash)) {
+  public async scheduleRaw(
+    topic: string,
+    idempotencyKey: string,
+    taskName: string,
+    payload: Uint8Array,
+  ): Promise<void> {
+    if (await this.memory.hasValue(idempotencyKey)) {
       return;
     }
+    const call = new Call(taskName, payload, idempotencyKey);
     await this.memory.setCall(call);
     const rootId = randomUUID().replaceAll("-", "");
-    await this.putJob(topic, call.callHash, rootId);
+    await this.putJob(topic, idempotencyKey, rootId);
   }
 
   public async readRaw(callHash: string): Promise<Uint8Array | undefined> {
-    return this.memory.getValue(callHash);
+    return this.memory.getValue(callHash).catch(() => undefined);
   }
+
+  public async [Symbol.asyncDispose](): Promise<void> {}
 }
 
 export class Server extends Connection {
-  public constructor(store: Store, cache: Cache, emitter: Publisher) {
-    super(store, cache, emitter);
+  private static totalWorkers = 0;
+
+  private readonly n: number;
+
+  public constructor(queue: Queue, store: Store, cache: Cache) {
+    super(queue, store, cache);
+    this.n = Server.totalWorkers;
+    Server.totalWorkers++;
   }
 
-  public async loop(
-    topic: string,
-    handler: RequestHandler,
-    getMessage: () => Promise<string | typeof BrrrShutdownSymbol | undefined>,
-  ) {
-    while (true) {
-      const message = await getMessage();
-      if (!message) {
-        continue;
-      }
-      if (message === BrrrShutdownSymbol) {
-        break;
-      }
-      const call = await this.handleMessage(handler, topic, message);
-      if (call) {
-        await this.emitter.emitEventSymbol?.(BrrrTaskDoneEventSymbol, call);
-      }
-    }
+  private async scheduleReturnCall(returnAddr: string): Promise<void> {
+    const [topic, rootId, parentKey] = returnAddr.split("/") as [
+      string,
+      string,
+      string,
+    ];
+    await this.putJob(topic, parentKey, rootId);
   }
 
-  protected async handleMessage(
-    requestHandler: RequestHandler,
+  private async scheduleCallNested(
+    myTopic: string,
+    child: DeferredCall,
+    rootId: string,
+    parentKey: string,
+  ): Promise<void> {
+    await this.memory.setCall(child.call);
+    const childTopic = child.topic || myTopic;
+    const callHash = child.call.callHash;
+    await this.putJob(childTopic, callHash, rootId);
+    await this.memory.addPendingReturns(
+      callHash,
+      `${myTopic}/${parentKey}`,
+      () => {
+        return this.putJob(childTopic, callHash, rootId);
+      },
+    );
+  }
+
+  private async handleMessage(
+    handler: Handler,
     topic: string,
     callId: string,
-  ): Promise<Call | undefined> {
-    const [rootId, callHash] = callId.split("/") as [string, string];
+  ): Promise<void> {
+    const [rootId, callHash] = parseCallId(callId);
     const call = await this.memory.getCall(callHash);
-    const handled = await requestHandler({ call }, this);
+    const handled = await handler({ call }, this);
     if (handled instanceof Defer) {
       await Promise.all(
-        handled.calls.map((child) => {
-          return this.scheduleCallNested(topic, child, rootId, callId);
-        }),
+        handled.calls.map((child) =>
+          this.scheduleCallNested(topic, child, rootId, callId),
+        ),
       );
       return;
     }
@@ -118,7 +156,6 @@ export class Server extends Connection {
         } catch (err) {
           if (err instanceof SpawnLimitError) {
             spawnLimitError = err;
-            continue;
           }
           throw err;
         }
@@ -127,54 +164,22 @@ export class Server extends Connection {
         throw spawnLimitError;
       }
     });
-    return call;
   }
 
-  private async scheduleReturnCall(addr: string): Promise<void> {
-    const [rootId, parentKey, topic] = addr.split("/") as [
-      string,
-      string,
-      string,
-    ];
-    await this.putJob(topic, parentKey, rootId);
-  }
-
-  private async scheduleCallNested(
-    topic: string,
-    child: DeferredCall,
-    rootId: string,
-    parentKey: string,
-  ): Promise<void> {
-    await this.memory.setCall(child.call);
-    const callHash = child.call.callHash;
-    const shouldSchedule = await this.memory.addPendingReturns(
-      callHash,
-      `${parentKey}/${topic}`,
-    );
-    if (shouldSchedule) {
-      await this.putJob(child.topic || topic, callHash, rootId);
-    }
-  }
-}
-
-export class SubscriberServer extends Server {
-  public override readonly emitter: Publisher & Subscriber;
-
-  public constructor(
-    store: Store,
-    cache: Cache,
-    emitter: Publisher & Subscriber,
-  ) {
-    super(store, cache, emitter);
-    this.emitter = emitter;
-  }
-
-  public listen(topic: string, handler: RequestHandler) {
-    this.emitter.on(topic, async (callId: string): Promise<void> => {
-      const result = await this.handleMessage(handler, topic, callId);
-      if (result) {
-        await this.emitter.emitEventSymbol?.(BrrrTaskDoneEventSymbol, result);
+  public async loop(topic: string, handler: Handler): Promise<void> {
+    while (true) {
+      try {
+        const message = await this.queue.pop(topic);
+        await this.handleMessage(handler, topic, message);
+      } catch (err) {
+        if (err instanceof QueueIsEmptyError) {
+          continue;
+        }
+        if (err instanceof QueueIsClosedError) {
+          return;
+        }
+        throw err;
       }
-    });
+    }
   }
 }
