@@ -150,7 +150,7 @@ export class Memory {
     throw new CasRetryLimitReachedError(Memory.casRetryLimit);
   }
 
-  public async addPendingReturn(
+  public async addPendingReturns(
     callHash: string,
     newReturn: string,
     scheduleJob: () => Promise<void>,
@@ -199,7 +199,7 @@ export class Memory {
     });
   }
 
-  public async withPendingReturnRemove(
+  public async withPendingReturnsRemove(
     callHash: string,
     f: (returns: ReadonlySet<string>) => Promise<void>,
   ) {
