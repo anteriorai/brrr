@@ -14,7 +14,7 @@ export const bencoder = {
       throw new BencodeError(data);
     }
   },
-  decode(data: Uint8Array, encoding: Encoding): unknown {
+  decode(data: Uint8Array, encoding?: Encoding): unknown {
     try {
       const buffer = Buffer.from(data);
       return bencode.decode(buffer, encoding);
