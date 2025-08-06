@@ -1,7 +1,7 @@
 import type { Queue } from "../queue.ts";
 import {
   CompareMismatchError,
-  NotFoundError,
+  NotFoundError, QueueIsClosedError,
   QueueIsEmptyError,
   UnknownTopicError,
 } from "../errors.ts";
@@ -10,20 +10,32 @@ import type { Cache, MemKey, Store } from "../store.ts";
 export class InMemoryQueue implements Queue {
   private readonly queues: Map<string, string[]>;
 
+  private closed = false
+
   public constructor(topics: string[]) {
     this.queues = new Map(topics.map((topic) => [topic, []]));
   }
 
   public async push(topic: string, message: string): Promise<void> {
+    if (this.closed) {
+      throw new QueueIsClosedError()
+    }
     this.getTopicQueue(topic).push(message);
   }
 
   public async pop(topic: string): Promise<string> {
+    if (this.closed) {
+      throw new QueueIsClosedError()
+    }
     const front = this.getTopicQueue(topic).shift();
     if (!front) {
       throw new QueueIsEmptyError();
     }
     return front;
+  }
+
+  public close() {
+    this.closed = true
   }
 
   private getTopicQueue(topic: string): string[] {

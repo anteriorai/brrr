@@ -69,3 +69,9 @@ export class SpawnLimitError extends BrrrError {
     );
   }
 }
+
+export class TaskNotFoundError extends BrrrError {
+  public constructor(taskName: string) {
+    super(`Task not found: ${taskName}`);
+  }
+}

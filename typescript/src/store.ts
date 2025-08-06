@@ -1,5 +1,5 @@
 import type { Encoding } from "node:crypto";
-import { Call, type CallInfo } from "./call.ts";
+import { Call } from "./call.ts";
 import { bencoder } from "./bencode.ts";
 import { Buffer } from "node:buffer";
 import {
@@ -7,6 +7,7 @@ import {
   CompareMismatchError,
   NotFoundError,
 } from "./errors.ts";
+import { TextDecoder } from "node:util";
 
 export interface PendingReturnsPayload {
   readonly scheduled_at: number | undefined;
@@ -78,8 +79,8 @@ export interface Cache {
 }
 
 export class Memory {
-  private static readonly encoding = "ascii" satisfies Encoding;
   private static readonly casRetryLimit = 100;
+  private static decoder = new TextDecoder("ascii");
   private readonly store: Store;
 
   public constructor(store: Store) {
@@ -91,18 +92,22 @@ export class Memory {
       type: "call",
       callHash,
     });
-    const { task_name, payload } = bencoder.decode(
-      encoded,
-      Memory.encoding,
-    ) as CallInfo;
-    return new Call(task_name, payload, callHash);
+    const { task_name, payload } = bencoder.decode(encoded) as {
+      task_name: Uint8Array;
+      payload: Uint8Array;
+    };
+    return new Call(
+      Memory.decoder.decode(task_name),
+      payload,
+      callHash,
+    );
   }
 
   public async setCall(call: Call): Promise<void> {
     const encoded = bencoder.encode({
       task_name: call.taskName,
       payload: call.payload,
-    } satisfies CallInfo);
+    });
     await this.store.set(
       {
         type: "call",

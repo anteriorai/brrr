@@ -21,10 +21,7 @@ export class NaiveCodec implements Codec {
       .digest(NaiveCodec.binaryToTextEncoding);
   }
 
-  public async decodeReturn(
-    taskName: string,
-    payload: Uint8Array,
-  ): Promise<unknown> {
+  public async decodeReturn(_: string, payload: Uint8Array): Promise<unknown> {
     const decoded = NaiveCodec.decoder.decode(payload);
     return JSON.parse(decoded);
   }
