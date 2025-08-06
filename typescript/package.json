@@ -21,7 +21,6 @@
   "devDependencies": {
     "@types/bencode": "^2.0.4",
     "@types/node": "^24.2.0",
-    "redis": "^5.7.0",
     "typescript": "^5.9.2"
   }
 }
