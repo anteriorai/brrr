@@ -29,7 +29,7 @@ export interface Response {
   readonly payload: Uint8Array;
 }
 
-type Handler = (
+type RequestHandler = (
   request: Request,
   connection: Connection,
 ) => Promise<Response | Defer>;
@@ -42,16 +42,16 @@ export async function connect(
   queue: Queue,
   store: Store,
   cache: Cache,
-): Promise<Connection & AsyncDisposable> {
-  return new Connection(queue, store, cache);
+): Promise<Server & AsyncDisposable> {
+  return new Server(queue, store, cache);
 }
 
 export class Connection implements AsyncDisposable {
   private readonly spawnLimit = 1000;
 
-  protected readonly cache: Cache;
-  protected readonly memory: Memory;
-  protected readonly queue: Queue;
+  public readonly cache: Cache;
+  public readonly memory: Memory;
+  public readonly queue: Queue;
 
   public constructor(queue: Queue, store: Store, cache: Cache) {
     this.cache = cache;
@@ -103,8 +103,8 @@ export class Server extends Connection {
     Server.totalWorkers++;
   }
 
-  private async scheduleReturnCall(returnAddr: string): Promise<void> {
-    const [topic, rootId, parentKey] = returnAddr.split("/") as [
+  private async scheduleReturnCall(addr: string): Promise<void> {
+    const [topic, rootId, parentKey] = addr.split("/") as [
       string,
       string,
       string,
@@ -113,32 +113,28 @@ export class Server extends Connection {
   }
 
   private async scheduleCallNested(
-    myTopic: string,
+    topic: string,
     child: DeferredCall,
     rootId: string,
     parentKey: string,
   ): Promise<void> {
     await this.memory.setCall(child.call);
-    const childTopic = child.topic || myTopic;
+    const childTopic = child.topic || topic;
     const callHash = child.call.callHash;
     await this.putJob(childTopic, callHash, rootId);
-    await this.memory.addPendingReturns(
-      callHash,
-      `${myTopic}/${parentKey}`,
-      () => {
-        return this.putJob(childTopic, callHash, rootId);
-      },
+    await this.memory.addPendingReturns(callHash, `${topic}/${parentKey}`, () =>
+      this.putJob(childTopic, callHash, rootId),
     );
   }
 
   private async handleMessage(
-    handler: Handler,
+    requestHandler: RequestHandler,
     topic: string,
     callId: string,
   ): Promise<void> {
     const [rootId, callHash] = parseCallId(callId);
     const call = await this.memory.getCall(callHash);
-    const handled = await handler({ call }, this);
+    const handled = await requestHandler({ call }, this);
     if (handled instanceof Defer) {
       await Promise.all(
         handled.calls.map((child) =>
@@ -166,11 +162,14 @@ export class Server extends Connection {
     });
   }
 
-  public async loop(topic: string, handler: Handler): Promise<void> {
+  public loop(
+    topic: string,
+    requestHandler: RequestHandler,
+  ): Promise<void> {
     while (true) {
       try {
         const message = await this.queue.pop(topic);
-        await this.handleMessage(handler, topic, message);
+        await this.handleMessage(requestHandler, topic, message);
       } catch (err) {
         if (err instanceof QueueIsEmptyError) {
           continue;

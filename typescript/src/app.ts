@@ -1,47 +1,119 @@
-export class ActiveWorker {
-  call<A extends unknown[], R>(
-    callableTask: CallableTask<A, R>,
-  ): (...args: A) => R;
-  call<A extends unknown[], R>(
-    name: string,
-    options?: {
-      topic: string;
-    },
-  ): (...args: A) => R;
-  call<A extends unknown[], R>(
-    name: string | CallableTask<A, R>,
-    options?: {
-      topic: string;
-    },
-  ): (args: A) => R {
-    return <R>(...args: unknown[]): R => {
-      return null as any;
+import {
+  type Connection,
+  Defer,
+  type Request,
+  type Response,
+} from "./connection.ts";
+import type { Codec } from "./codec.ts";
+import { NotFoundError, TaskNotFoundError } from "./errors.ts";
+
+type Handler<A extends unknown[] = any[], R = any> = (
+  ...args: [ActiveWorker, ...A]
+) => R;
+
+type NoAppArgs<A extends unknown[]> = A extends [ActiveWorker, ...infer Rest]
+  ? Rest
+  : A;
+
+type HandlerFn<A extends unknown[], R> = (...args: NoAppArgs<A>) => R;
+
+type Handlers = Readonly<Record<string, Handler>>;
+
+export function handlerify<A extends unknown[], R>(
+  f: (...args: A) => R,
+): Handler<A, R> {
+  return (_: ActiveWorker, ...args: A) => f(...args);
+}
+
+export class AppConsumer {
+  protected readonly codec: Codec;
+  protected readonly connection: Connection;
+  protected readonly handlers: Handlers;
+
+  public constructor(codec: Codec, connection: Connection, handlers: Handlers) {
+    this.codec = codec;
+    this.connection = connection;
+    this.handlers = handlers;
+  }
+
+  public schedule<A extends unknown[], R>(
+    handler: (...args: A) => R,
+    topic: string,
+  ): HandlerFn<A, Promise<void>> {
+    return async (...args: NoAppArgs<A>) => {
+      const call = await this.codec.encodeCall(handler.name, args);
+      await this.connection.scheduleRaw(
+        topic,
+        call.callHash,
+        handler.name,
+        call.payload,
+      );
     };
   }
-
-  gather<T1>(a1: Promise<T1>): Promise<[T1]>;
-  gather<T1, T2>(a1: Promise<T1>, a2: Promise<T2>): Promise<[T1, T2]>;
-  gather(...args: any[]) {
-    return Promise.all(args);
-  }
 }
 
-export class CallableTask<A extends unknown[], R> {
-  public readonly name: string;
-  public readonly fn: (app: ActiveWorker, ...args: A) => R;
-
-  constructor(name: string, fn: (app: ActiveWorker, ...args: A) => R) {
-    this.name = name;
-    this.fn = fn;
-  }
+export class AppWorker extends AppConsumer {
+  public readonly handle = async (
+    request: Request,
+    connection: Connection,
+  ): Promise<Response | Defer> => {
+    try {
+      const payload = await this.codec.invokeTask(
+        request.call,
+        async (...args) => {
+          const handler = this.handlers[request.call.taskName];
+          if (!handler) {
+            throw new TaskNotFoundError(request.call.taskName);
+          }
+          const worker = new ActiveWorker(
+            connection,
+            this.codec,
+            this.handlers,
+          );
+          return handler(worker, ...args);
+        },
+      );
+      return { payload };
+    } catch (err) {
+      if (err instanceof Defer) {
+        return err;
+      }
+      throw err;
+    }
+  };
 }
 
-export class CallableTaskNoArg<A extends unknown[], R> {
-  public readonly name: string;
-  public readonly fn: (...args: A) => R;
+export class ActiveWorker {
+  private readonly connection: Connection;
+  private readonly codec: Codec;
+  private readonly handlers: Handlers;
 
-  constructor(name: string, fn: (...args: A) => R) {
-    this.name = name;
-    this.fn = fn;
+  public constructor(connection: Connection, codec: Codec, handlers: Handlers) {
+    this.connection = connection;
+    this.codec = codec;
+    this.handlers = handlers;
+  }
+
+  public call<A extends unknown[], R>(
+    handler: (...args: A) => R,
+    topic?: string | undefined,
+  ): HandlerFn<A, Promise<R>> {
+    return async (...args: NoAppArgs<A>) => {
+      const call = await this.codec.encodeCall(handler.name, args);
+      try {
+        const payload = await this.connection.memory.getValue(call.callHash);
+        return this.codec.decodeReturn(handler.name, payload) as R;
+      } catch (err) {
+        if (err instanceof NotFoundError) {
+          throw new Defer([
+            {
+              topic,
+              call,
+            },
+          ]);
+        }
+        throw err;
+      }
+    };
   }
 }
