@@ -51,7 +51,7 @@ await suite(import.meta.filename, async () => {
 
     const fixture = {
       call: new Call("test-task", new Uint8Array([1, 2, 3]), "test-call-hash"),
-      pendingReturn: {
+      pendingReturns: {
         key: {
           type: "pending_returns",
           callHash: "test-pending-return-hash",
@@ -116,7 +116,7 @@ await suite(import.meta.filename, async () => {
       });
 
       await test("First-time call triggers schedule and stores return", async () => {
-        const alreadyPending = await memory.addPendingReturn(
+        const alreadyPending = await memory.addPendingReturns(
           fixture.call.callHash,
           "foo",
           mockFn,
@@ -133,8 +133,8 @@ await suite(import.meta.filename, async () => {
       });
 
       await test("Repeated call with same return does not call schedule again", async () => {
-        await memory.addPendingReturn(fixture.call.callHash, "foo", mockFn);
-        const alreadyPending = await memory.addPendingReturn(
+        await memory.addPendingReturns(fixture.call.callHash, "foo", mockFn);
+        const alreadyPending = await memory.addPendingReturns(
           fixture.call.callHash,
           "foo",
           mockFn,
@@ -150,8 +150,8 @@ await suite(import.meta.filename, async () => {
       });
 
       await test("Handles different returns properly", async () => {
-        await memory.addPendingReturn(fixture.call.callHash, "foo", mockFn);
-        const alreadyPending = await memory.addPendingReturn(
+        await memory.addPendingReturns(fixture.call.callHash, "foo", mockFn);
+        const alreadyPending = await memory.addPendingReturns(
           fixture.call.callHash,
           "bar",
           mockFn,
@@ -171,7 +171,7 @@ await suite(import.meta.filename, async () => {
           callHash: fixture.call.callHash,
         };
         await rejects(store.get(key), NotFoundError);
-        const alreadyPending = await memory.addPendingReturn(
+        const alreadyPending = await memory.addPendingReturns(
           fixture.call.callHash,
           "new-return",
           mockFn,
@@ -192,26 +192,26 @@ await suite(import.meta.filename, async () => {
       });
 
       await test("calls f([]) if no pending return is found", async () => {
-        await memory.withPendingReturnRemove(fixture.call.callHash, mockFn);
+        await memory.withPendingReturnsRemove(fixture.call.callHash, mockFn);
         strictEqual(mockFn.mock.callCount(), 1);
         deepStrictEqual(mockFn.mock.calls?.at(0)?.arguments, [new Set()]);
       });
 
       await test("invokes f with pending returns and deletes the key", async () => {
-        const pendingReturn = new PendingReturns(
+        const pendingReturns = new PendingReturns(
           undefined,
           new Set(["a", "b"]),
         );
-        await store.set(fixture.pendingReturn.key, pendingReturn.encode());
-        await memory.withPendingReturnRemove(
-          fixture.pendingReturn.key.callHash,
+        await store.set(fixture.pendingReturns.key, pendingReturns.encode());
+        await memory.withPendingReturnsRemove(
+          fixture.pendingReturns.key.callHash,
           mockFn,
         );
         strictEqual(mockFn.mock.callCount(), 1);
         deepStrictEqual(mockFn.mock.calls?.at(0)?.arguments, [
-          pendingReturn.returns,
+          pendingReturns.returns,
         ]);
-        await rejects(store.get(fixture.pendingReturn.key), NotFoundError);
+        await rejects(store.get(fixture.pendingReturns.key), NotFoundError);
       });
     });
   });
