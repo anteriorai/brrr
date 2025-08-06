@@ -13,7 +13,7 @@ export interface PendingReturnsPayload {
   readonly returns: Buffer[];
 }
 
-export class PendingReturn {
+export class PendingReturns {
   private static readonly encoding = "ascii" satisfies Encoding;
 
   public readonly scheduledAt: number | undefined;
@@ -31,25 +31,25 @@ export class PendingReturn {
     return bencoder.encode({
       scheduled_at: this.scheduledAt,
       returns: [...this.returns]
-        .map((it) => Buffer.from(it, PendingReturn.encoding))
+        .map((it) => Buffer.from(it, PendingReturns.encoding))
         .sort(Buffer.compare),
     } satisfies PendingReturnsPayload);
   }
 
-  public static decode(encoded: Uint8Array): PendingReturn {
+  public static decode(encoded: Uint8Array): PendingReturns {
     const { scheduled_at, returns } = bencoder.decode(
       encoded,
-      PendingReturn.encoding,
+      PendingReturns.encoding,
     ) as PendingReturnsPayload;
-    return new PendingReturn(
+    return new PendingReturns(
       scheduled_at,
-      new Set(returns.map((it) => it.toString(PendingReturn.encoding))),
+      new Set(returns.map((it) => it.toString(PendingReturns.encoding))),
     );
   }
 }
 
 export interface MemKey {
-  readonly type: "pending_return" | "call" | "value";
+  readonly type: "pending_returns" | "call" | "value";
   readonly callHash: string;
 }
 
@@ -164,17 +164,17 @@ export class Memory {
   ): Promise<boolean> {
     return this.withCas(async () => {
       const memKey: MemKey = {
-        type: "pending_return",
+        type: "pending_returns",
         callHash,
       };
       let shouldStoreAgain = false;
       let existingEncoded: Uint8Array | undefined;
-      let existing: PendingReturn;
+      let existing: PendingReturns;
       try {
         existingEncoded = await this.store.get(memKey);
-        existing = PendingReturn.decode(existingEncoded);
+        existing = PendingReturns.decode(existingEncoded);
         if (!existing.returns.has(newReturn)) {
-          existing = new PendingReturn(
+          existing = new PendingReturns(
             existing.scheduledAt,
             new Set([...existing.returns, newReturn]),
           );
@@ -184,7 +184,7 @@ export class Memory {
         if (!(err instanceof NotFoundError)) {
           throw err;
         }
-        existing = new PendingReturn(undefined, new Set([newReturn]));
+        existing = new PendingReturns(undefined, new Set([newReturn]));
         const initialEncoded = existing.encode();
         await this.store.setNewValue(memKey, initialEncoded);
         existingEncoded = initialEncoded;
@@ -192,7 +192,7 @@ export class Memory {
       const alreadyPending = !!existing.scheduledAt;
       if (!alreadyPending) {
         await scheduleJob();
-        existing = new PendingReturn(
+        existing = new PendingReturns(
           Math.floor(Date.now() / 1000),
           existing.returns,
         );
@@ -211,7 +211,7 @@ export class Memory {
     f: (returns: ReadonlySet<string>) => Promise<void>,
   ) {
     const memKey: MemKey = {
-      type: "pending_return",
+      type: "pending_returns",
       callHash,
     };
     const handled = new Set<string>();
@@ -226,7 +226,7 @@ export class Memory {
         throw err;
       }
       const toHandle =
-        PendingReturn.decode(pendingEncoded).returns.difference(handled);
+        PendingReturns.decode(pendingEncoded).returns.difference(handled);
       await f(toHandle);
       toHandle.forEach((it) => handled.add(it));
       await this.store.compareAndDelete(memKey, pendingEncoded);
