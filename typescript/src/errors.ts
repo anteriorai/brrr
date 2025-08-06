@@ -61,3 +61,11 @@ export class CasRetryLimitReachedError extends BrrrError {
     super(`CAS retry limit reached (${retryLimit})`);
   }
 }
+
+export class SpawnLimitError extends BrrrError {
+  public constructor(limit: number, rootId: string, callHash: string) {
+    super(
+      `Spawn limit of ${limit} reached for rootId ${rootId} and callHash ${callHash}`,
+    );
+  }
+}
