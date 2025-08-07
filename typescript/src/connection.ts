@@ -157,7 +157,7 @@ export class Server extends Connection {
     });
   }
 
-  public loop(
+  public async loop(
     topic: string,
     requestHandler: RequestHandler,
   ): Promise<void> {

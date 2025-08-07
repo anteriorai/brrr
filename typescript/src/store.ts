@@ -102,11 +102,7 @@ export class Memory {
       task_name: Uint8Array;
       payload: Uint8Array;
     };
-    return new Call(
-      Memory.decoder.decode(task_name),
-      payload,
-      callHash,
-    );
+    return new Call(Memory.decoder.decode(task_name), payload, callHash);
   }
 
   public async setCall(call: Call): Promise<void> {
