@@ -1,44 +1,84 @@
 import type { Queue } from "../queue.ts";
 import {
   CompareMismatchError,
-  NotFoundError, QueueIsClosedError,
+  NotFoundError,
+  QueueIsClosedError,
   QueueIsEmptyError,
+  QueuePopTimeoutError,
   UnknownTopicError,
 } from "../errors.ts";
 import type { Cache, MemKey, Store } from "../store.ts";
+import { AsyncQueue } from "../lib/async-queue.ts";
+import { setTimeout } from "node:timers/promises";
 
 export class InMemoryQueue implements Queue {
-  private readonly queues: Map<string, string[]>;
+  public readonly timeout = 10;
 
-  private closed = false
+  private readonly queues: Map<string, AsyncQueue<string>>;
+
+  private closing = false;
+  private flushing = false;
 
   public constructor(topics: string[]) {
-    this.queues = new Map(topics.map((topic) => [topic, []]));
+    this.queues = new Map(topics.map((topic) => [topic, new AsyncQueue()]));
   }
 
-  public async push(topic: string, message: string): Promise<void> {
-    if (this.closed) {
-      throw new QueueIsClosedError()
+  public async close() {
+    if (this.closing) {
+      throw new QueueIsClosedError();
     }
-    this.getTopicQueue(topic).push(message);
+    this.closing = true;
+    for (const [_, queue] of this.queues) {
+      queue.shutdown();
+    }
+  }
+
+  public async join() {
+    await Promise.all(this.queues.values().map((queue) => queue.join()));
   }
 
   public async pop(topic: string): Promise<string> {
-    if (this.closed) {
-      throw new QueueIsClosedError()
+    const queue = this.getTopicQueue(topic);
+    let payload: string;
+    if (this.flushing) {
+      try {
+        payload = await Promise.race([
+          queue.pop(),
+          new Promise<never>(async (_, reject) => {
+            await setTimeout(this.timeout);
+            reject(new QueuePopTimeoutError(this.timeout));
+          }),
+        ]);
+      } catch (err) {
+        if (err instanceof QueueIsEmptyError) {
+          queue.shutdown();
+          throw new QueueIsClosedError();
+        }
+        throw err;
+      }
+    } else {
+      try {
+        payload = await queue.pop();
+      } catch (err) {
+        if (err instanceof QueuePopTimeoutError) {
+          throw new QueueIsEmptyError();
+        }
+        throw err;
+      }
     }
-    const front = this.getTopicQueue(topic).shift();
-    if (!front) {
-      throw new QueueIsEmptyError();
-    }
-    return front;
+    queue.done();
+    return payload;
   }
 
-  public close() {
-    this.closed = true
+  public async push(topic: string, message: string): Promise<void> {
+    await this.getTopicQueue(topic).push(message);
   }
 
-  private getTopicQueue(topic: string): string[] {
+  public async flush() {
+    this.flushing = true;
+  }
+
+  private getTopicQueue(topic: string): AsyncQueue<string> {
     const queue = this.queues.get(topic);
     if (!queue) {
       throw new UnknownTopicError(topic);

@@ -59,8 +59,10 @@ await suite(import.meta.filename, async () => {
       foo,
     });
     await app.schedule(foo, topic)(122);
-    connection.loop(topic, app.handle);
-    queue.close()
+    await queue.flush();
+    const loop = connection.loop(topic, app.handle);
+    await queue.close();
+    await loop
   });
 
   // await test("App consumer", async () => {

@@ -22,7 +22,7 @@ export class QueueIsClosedError extends BrrrError {
 
 export class QueuePopTimeoutError extends BrrrError {
   public constructor(timeout: number) {
-    super(`Queue pop timed out after ${timeout}s`);
+    super(`Queue pop timed out after ${timeout}ms`);
   }
 }
 
