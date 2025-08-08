@@ -38,15 +38,7 @@ function parseCallId(callId: string): [string, string] {
   return callId.split("/") as [string, string];
 }
 
-export async function connect(
-  queue: Queue,
-  store: Store,
-  cache: Cache,
-): Promise<Server & AsyncDisposable> {
-  return new Server(queue, store, cache);
-}
-
-export class Connection implements AsyncDisposable {
+export class Connection {
   private readonly spawnLimit = 1000;
 
   public readonly cache: Cache;
@@ -84,19 +76,11 @@ export class Connection implements AsyncDisposable {
   public async readRaw(callHash: string): Promise<Uint8Array | undefined> {
     return this.memory.getValue(callHash).catch(() => undefined);
   }
-
-  public async [Symbol.asyncDispose](): Promise<void> {}
 }
 
 export class Server extends Connection {
-  private static totalWorkers = 0;
-
-  private readonly n: number;
-
   public constructor(queue: Queue, store: Store, cache: Cache) {
     super(queue, store, cache);
-    this.n = Server.totalWorkers;
-    Server.totalWorkers++;
   }
 
   private async scheduleReturnCall(addr: string): Promise<void> {

@@ -17,7 +17,7 @@ type NoAppArgs<A extends unknown[]> = A extends [ActiveWorker, ...infer Rest]
 
 type HandlerFn<A extends unknown[], R> = (...args: NoAppArgs<A>) => R;
 
-type Handlers = Readonly<Record<string, Handler>>;
+export type Handlers = Readonly<Record<string, Handler>>;
 
 export function handlerify<A extends unknown[], R>(
   f: (...args: A) => R,
@@ -30,7 +30,11 @@ export class AppConsumer {
   protected readonly connection: Connection;
   protected readonly handlers: Handlers;
 
-  public constructor(codec: Codec, connection: Connection, handlers: Handlers) {
+  public constructor(
+    codec: Codec,
+    connection: Connection,
+    handlers: Handlers = {},
+  ) {
     this.codec = codec;
     this.connection = connection;
     this.handlers = handlers;
@@ -48,6 +52,14 @@ export class AppConsumer {
         handler.name,
         call.payload,
       );
+    };
+  }
+
+  public read(taskName: string) {
+    return async (...args: unknown[]) => {
+      const call = await this.codec.encodeCall(taskName, args);
+      const payload = await this.connection.memory.getValue(call.callHash);
+      return this.codec.decodeReturn(taskName, payload);
     };
   }
 }
