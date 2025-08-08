@@ -28,7 +28,7 @@ export type TaskIdentifier<A extends unknown[], R> =
   | ((...args: A) => R)
   | string;
 
-function taskIdentifierToName<A extends unknown[], R>(
+export function taskIdentifierToName<A extends unknown[], R>(
   spec: TaskIdentifier<A, R>,
 ): string {
   return typeof spec === "string" ? spec : spec.name;
@@ -88,23 +88,16 @@ export class AppWorker extends AppConsumer {
     request: Request,
     connection: Connection,
   ): Promise<Response | Defer> => {
+    const handler = this.handlers[request.call.taskName];
+    if (!handler) {
+      throw new TaskNotFoundError(request.call.taskName);
+    }
     try {
-      const payload = await this.codec.invokeTask(
-        request.call,
-        async (...args) => {
-          const handler = this.handlers[request.call.taskName];
-          if (!handler) {
-            throw new TaskNotFoundError(request.call.taskName);
-          }
-          const worker = new ActiveWorker(
-            connection,
-            this.codec,
-            this.handlers,
-          );
-          return handler(worker, ...args);
-        },
-      );
-      return { payload };
+      const activeWorker = new ActiveWorker(connection, this.codec, this.handlers)
+      const payload = await this.codec.invokeTask(request.call, (...args) => {
+        return handler(activeWorker, ...args)
+      })
+      return { payload }
     } catch (err) {
       if (err instanceof Defer) {
         return err;

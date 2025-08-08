@@ -105,9 +105,9 @@ export class Server extends Connection {
     const childTopic = child.topic || topic;
     const callHash = child.call.callHash;
     await this.putJob(childTopic, callHash, rootId);
-    await this.memory.addPendingReturns(callHash, `${topic}/${parentKey}`, () =>
-      this.putJob(childTopic, callHash, rootId),
-    );
+    await this.memory.addPendingReturns(callHash, `${topic}/${parentKey}`, () => {
+      return this.putJob(childTopic, callHash, rootId)
+    });
   }
 
   private async handleMessage(
@@ -120,9 +120,9 @@ export class Server extends Connection {
     const handled = await requestHandler({ call }, this);
     if (handled instanceof Defer) {
       await Promise.all(
-        handled.calls.map((child) =>
-          this.scheduleCallNested(topic, child, rootId, callId),
-        ),
+        handled.calls.map((child) => {
+          return this.scheduleCallNested(topic, child, rootId, callId)
+        }),
       );
       return;
     }
