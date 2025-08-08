@@ -4,7 +4,7 @@ import {
   AppWorker,
   type Handlers,
   type StripLeadingActiveWorker,
-  type Task,
+  type Task, type TaskIdentifier, taskIdentifierToName,
 } from "./app.ts";
 import type { Codec } from "./codec.ts";
 
@@ -57,17 +57,18 @@ export class LocalBrrr {
     this.codec = codec;
   }
 
-  public run<A extends unknown[], R>(task: Task<A, R>) {
+  public run<A extends unknown[], R>(taskIdentifier: TaskIdentifier<A, R>) {
     const store = new InMemoryByteStore();
     const queue = new InMemoryQueue([this.topic]);
     const server = new Server(queue, store, store);
     const worker = new AppWorker(this.codec, server, this.handlers);
     const app = new LocalApp(this.topic, server, queue, worker);
 
+    const taskName = taskIdentifierToName(taskIdentifier)
     return async (...args: StripLeadingActiveWorker<A>): Promise<R> => {
-      await app.schedule(task.name)(...args);
+      await app.schedule(taskName)(...args);
       await app.run();
-      return (await app.read(task.name)(...args)) as R;
+      return (await app.read(taskName)(...args)) as R;
     };
   }
 }

@@ -2,7 +2,6 @@ import {
   afterEach,
   before,
   beforeEach,
-  describe,
   mock,
   type MockTimersOptions,
   suite,
@@ -109,7 +108,7 @@ await suite(import.meta.filename, async () => {
       deepStrictEqual(retrieved, newPayload);
     });
 
-    await describe("addPendingReturn", async () => {
+    await suite("addPendingReturn", async () => {
       const mockFn = mock.fn<() => Promise<void>>();
       const mockTimersOptions = {
         apis: ["Date"],
@@ -193,7 +192,7 @@ await suite(import.meta.filename, async () => {
       });
     });
 
-    await describe("withPendingReturnRemove", async () => {
+    await suite("withPendingReturnRemove", async () => {
       const mockFn = mock.fn<(returns: Iterable<string>) => Promise<void>>();
 
       afterEach(() => {
