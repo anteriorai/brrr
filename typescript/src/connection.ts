@@ -1,4 +1,4 @@
-import { Call } from "./call.ts";
+import type { Call } from "./call.ts";
 import type { Queue } from "./queue.ts";
 import { type Cache, Memory, type Store } from "./store.ts";
 import {
@@ -60,17 +60,16 @@ export class Connection {
 
   public async scheduleRaw(
     topic: string,
-    idempotencyKey: string,
+    callHash: string,
     taskName: string,
     payload: Uint8Array,
   ): Promise<void> {
-    if (await this.memory.hasValue(idempotencyKey)) {
+    if (await this.memory.hasValue(callHash)) {
       return;
     }
-    const call = new Call(taskName, payload, idempotencyKey);
-    await this.memory.setCall(call);
+    await this.memory.setCall({ taskName, payload, callHash });
     const rootId = randomUUID().replaceAll("-", "");
-    await this.putJob(topic, idempotencyKey, rootId);
+    await this.putJob(topic, callHash, rootId);
   }
 
   public async readRaw(callHash: string): Promise<Uint8Array | undefined> {

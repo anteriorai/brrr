@@ -7,7 +7,6 @@ import {
   type Task,
 } from "./app.ts";
 import type { Codec } from "./codec.ts";
-import type { Queue } from "./queue.ts";
 
 export class LocalApp {
   private readonly topic: string;
