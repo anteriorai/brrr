@@ -1,6 +1,11 @@
 import { Server } from "./connection.ts";
-import { InMemoryQueue } from "./backends/in-memory.ts";
-import { AppWorker, type Handlers } from "./app.ts";
+import { InMemoryByteStore, InMemoryQueue } from "./backends/in-memory.ts";
+import {
+  AppWorker,
+  type Handlers,
+  type StripLeadingActiveWorker,
+  type Task,
+} from "./app.ts";
 import type { Codec } from "./codec.ts";
 import type { Queue } from "./queue.ts";
 
@@ -22,7 +27,6 @@ export class LocalApp {
     this.server = server;
     this.queue = queue;
     this.app = app;
-    this.hasRun = true;
   }
 
   public schedule(handler: Parameters<typeof this.app.schedule>[0]) {
@@ -40,5 +44,31 @@ export class LocalApp {
     this.hasRun = true;
     this.queue.flush();
     await this.server.loop(this.topic, this.app.handle);
+  }
+}
+
+export class LocalBrrr {
+  private readonly topic: string;
+  private readonly handlers: Handlers;
+  private readonly codec: Codec;
+
+  public constructor(topic: string, handlers: Handlers, codec: Codec) {
+    this.topic = topic;
+    this.handlers = handlers;
+    this.codec = codec;
+  }
+
+  public run<A extends unknown[], R>(task: Task<A, R>) {
+    const store = new InMemoryByteStore();
+    const queue = new InMemoryQueue([this.topic]);
+    const server = new Server(queue, store, store);
+    const worker = new AppWorker(this.codec, server, this.handlers);
+    const app = new LocalApp(this.topic, server, queue, worker);
+
+    return async (...args: StripLeadingActiveWorker<A>): Promise<R> => {
+      await app.schedule(task.name)(...args);
+      await app.run();
+      return (await app.read(task.name)(...args)) as R;
+    };
   }
 }
