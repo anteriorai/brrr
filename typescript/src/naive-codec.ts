@@ -1,6 +1,6 @@
 import { type BinaryToTextEncoding, createHash } from "node:crypto";
 import { TextEncoder, TextDecoder } from "node:util";
-import { Call } from "./call.ts";
+import type { Call } from "./call.ts";
 import type { Codec } from "./codec.ts";
 
 export class NaiveCodec implements Codec {
@@ -33,7 +33,7 @@ export class NaiveCodec implements Codec {
     const data = JSON.stringify(args);
     const payload = NaiveCodec.encoder.encode(data);
     const callHash = await this.hashCall(taskName, args);
-    return new Call(taskName, payload, callHash);
+    return { taskName, payload, callHash };
   }
 
   public async invokeTask<A extends unknown[], R>(
