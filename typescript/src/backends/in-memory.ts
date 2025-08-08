@@ -9,7 +9,7 @@ import {
 } from "../errors.ts";
 import type { Cache, MemKey, Store } from "../store.ts";
 import { AsyncQueue } from "../lib/async-queue.ts";
-import { setTimeout } from "node:timers/promises";
+import { clearTimeout, setTimeout } from "node:timers";
 
 export class InMemoryQueue implements Queue {
   public readonly timeout = 10;
@@ -42,13 +42,7 @@ export class InMemoryQueue implements Queue {
     let payload: string;
     if (this.flushing) {
       try {
-        payload = await Promise.race([
-          queue.pop(),
-          new Promise<never>(async (_, reject) => {
-            await setTimeout(this.timeout);
-            reject(new QueuePopTimeoutError(this.timeout));
-          }),
-        ]);
+        payload = queue.popSync();
       } catch (err) {
         if (err instanceof QueueIsEmptyError) {
           queue.shutdown();
@@ -57,13 +51,13 @@ export class InMemoryQueue implements Queue {
         throw err;
       }
     } else {
+      const timeout = setTimeout(() => {
+        throw new QueueIsEmptyError();
+      }, this.timeout);
       try {
         payload = await queue.pop();
-      } catch (err) {
-        if (err instanceof QueuePopTimeoutError) {
-          throw new QueueIsEmptyError();
-        }
-        throw err;
+      } finally {
+        clearTimeout(timeout);
       }
     }
     queue.done();
@@ -74,7 +68,7 @@ export class InMemoryQueue implements Queue {
     await this.getTopicQueue(topic).push(message);
   }
 
-  public async flush() {
+  public flush() {
     this.flushing = true;
   }
 

@@ -1,7 +1,4 @@
-import {
-  QueueIsClosedError,
-  QueueIsEmptyError,
-} from "../errors.ts";
+import { QueueIsClosedError, QueueIsEmptyError } from "../errors.ts";
 
 interface Deferred<T> {
   resolve: (value: T) => void;
