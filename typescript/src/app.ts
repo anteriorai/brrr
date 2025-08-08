@@ -1,6 +1,6 @@
 import {
   type Connection,
-  Defer,
+  Defer, type DeferredCall,
   type Request,
   type Response,
 } from "./connection.ts";
@@ -12,17 +12,27 @@ export type Task<A extends unknown[] = any[], R = any> = (
 ) => R;
 
 export type StripLeadingActiveWorker<A extends unknown[]> = A extends [
-  ActiveWorker,
-  ...infer Rest,
-]
+    ActiveWorker,
+    ...infer Rest,
+  ]
   ? Rest
   : A;
 
-export type TaskFn<A extends unknown[], R> = (
+export type NoAppTask<A extends unknown[], R> = (
   ...args: StripLeadingActiveWorker<A>
-) => R;
+) => Promise<R>;
 
 export type Handlers = Readonly<Record<string, Task>>;
+
+export type TaskIdentifier<A extends unknown[], R> =
+  | ((...args: A) => R)
+  | string;
+
+function taskIdentifierToName<A extends unknown[], R>(
+  spec: TaskIdentifier<A, R>,
+): string {
+  return typeof spec === "string" ? spec : spec.name;
+}
 
 export function taskify<A extends unknown[], R>(
   f: (...args: A) => R,
@@ -46,25 +56,29 @@ export class AppConsumer {
   }
 
   public schedule<A extends unknown[], R>(
-    taskname: string,
+    taskIdentifier: TaskIdentifier<A, R>,
     topic: string,
-  ): TaskFn<A, Promise<void>> {
+  ): NoAppTask<A, void> {
+    const taskName = taskIdentifierToName(taskIdentifier);
     return async (...args: StripLeadingActiveWorker<A>) => {
-      const call = await this.codec.encodeCall(taskname, args);
+      const call = await this.codec.encodeCall(taskName, args);
       await this.connection.scheduleRaw(
         topic,
         call.callHash,
-        taskname,
+        taskName,
         call.payload,
       );
     };
   }
 
-  public read(taskName: string) {
-    return async (...args: unknown[]) => {
+  public read<A extends unknown[], R>(
+    taskIdentifier: TaskIdentifier<A, R>,
+  ): NoAppTask<A, R> {
+    return async (...args: StripLeadingActiveWorker<A>) => {
+      const taskName = taskIdentifierToName(taskIdentifier);
       const call = await this.codec.encodeCall(taskName, args);
       const payload = await this.connection.memory.getValue(call.callHash);
-      return this.codec.decodeReturn(taskName, payload);
+      return this.codec.decodeReturn(taskName, payload) as R;
     };
   }
 }
@@ -112,14 +126,15 @@ export class ActiveWorker {
   }
 
   public call<A extends unknown[], R>(
-    handler: (...args: A) => R,
+    taskIdentifier: TaskIdentifier<A, R>,
     topic?: string | undefined,
-  ): TaskFn<A, Promise<R>> {
+  ): NoAppTask<A, R> {
+    const taskName = taskIdentifierToName(taskIdentifier);
     return async (...args: StripLeadingActiveWorker<A>) => {
-      const call = await this.codec.encodeCall(handler.name, args);
+      const call = await this.codec.encodeCall(taskName, args);
       try {
         const payload = await this.connection.memory.getValue(call.callHash);
-        return this.codec.decodeReturn(handler.name, payload) as R;
+        return this.codec.decodeReturn(taskName, payload) as R;
       } catch (err) {
         if (err instanceof NotFoundError) {
           throw new Defer([
@@ -132,5 +147,24 @@ export class ActiveWorker {
         throw err;
       }
     };
+  }
+
+  public async gather(...promises: Promise<unknown>[]): Promise<unknown[]> {
+    const defers: DeferredCall[] = []
+    const values = []
+    for (const promise of promises) {
+      try {
+        values.push(await promise)
+      } catch (err) {
+        if (!(err instanceof Defer)) {
+          throw err
+        }
+        defers.push(...err.calls);
+      }
+    }
+    if (defers.length) {
+      throw new Defer(defers)
+    }
+    return values
   }
 }

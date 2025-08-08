@@ -1,5 +1,5 @@
 import type { Encoding } from "node:crypto";
-import { Call } from "./call.ts";
+import type { Call } from "./call.ts";
 import { bencoder } from "./bencode.ts";
 import { Buffer } from "node:buffer";
 import {
@@ -102,7 +102,11 @@ export class Memory {
       task_name: Uint8Array;
       payload: Uint8Array;
     };
-    return new Call(Memory.decoder.decode(task_name), payload, callHash);
+    return {
+      taskName: Memory.decoder.decode(task_name),
+      payload,
+      callHash,
+    };
   }
 
   public async setCall(call: Call): Promise<void> {

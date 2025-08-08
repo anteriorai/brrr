@@ -8,7 +8,13 @@ import {
   suite,
   test,
 } from "node:test";
-import { deepStrictEqual, doesNotReject, ok, rejects, strictEqual } from "node:assert/strict";
+import {
+  deepStrictEqual,
+  doesNotReject,
+  ok,
+  rejects,
+  strictEqual,
+} from "node:assert/strict";
 import {
   type Cache,
   type MemKey,
@@ -24,7 +30,7 @@ import {
   UnknownTopicError,
 } from "./errors.ts";
 import { InMemoryByteStore } from "./backends/in-memory.ts";
-import { Call } from "./call.ts";
+import type { Call } from "./call.ts";
 
 await suite(import.meta.filename, async () => {
   await suite(PendingReturns.name, async () => {
@@ -50,7 +56,11 @@ await suite(import.meta.filename, async () => {
     let memory: Memory;
 
     const fixture = {
-      call: new Call("test-task", new Uint8Array([1, 2, 3]), "test-call-hash"),
+      call: {
+        taskName: "test-task",
+        payload: new Uint8Array([1, 2, 3]),
+        callHash: "test-call-hash",
+      } satisfies Call,
       pendingReturns: {
         key: {
           type: "pending_returns",
@@ -68,18 +78,18 @@ await suite(import.meta.filename, async () => {
 
     await test("getCall", async () => {
       const retrieved = await memory.getCall(fixture.call.callHash);
-      ok(retrieved.equals(fixture.call));
+      deepStrictEqual(retrieved, fixture.call);
     });
 
     await test("setCall", async () => {
-      const newCall = new Call(
-        "new-task",
-        new Uint8Array([4, 5, 6]),
-        "new-call-hash",
-      );
+      const newCall: Call = {
+        taskName: "new-task",
+        payload: new Uint8Array([4, 5, 6]),
+        callHash: "new-call-hash",
+      };
       await memory.setCall(newCall);
       const retrieved = await memory.getCall(newCall.callHash);
-      ok(retrieved.equals(newCall));
+      deepStrictEqual(retrieved, newCall);
     });
 
     await test("hasValue", async () => {
