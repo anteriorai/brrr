@@ -18,7 +18,9 @@ type RedisQueuePayload = [number, number, string];
 
 export class Redis implements Queue, Cache {
   public static readonly encoding = "utf-8" satisfies Encoding;
-  private readonly timeout = 20;
+
+  public readonly timeout: number = 10 * 1000; // 10 seconds
+
   private readonly client: RedisClientType<
     RedisModules,
     RedisFunctions,

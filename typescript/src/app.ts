@@ -7,21 +7,26 @@ import {
 import type { Codec } from "./codec.ts";
 import { NotFoundError, TaskNotFoundError } from "./errors.ts";
 
-type Handler<A extends unknown[] = any[], R = any> = (
+export type Task<A extends unknown[] = any[], R = any> = (
   ...args: [ActiveWorker, ...A]
 ) => R;
 
-type NoAppArgs<A extends unknown[]> = A extends [ActiveWorker, ...infer Rest]
+export type StripLeadingActiveWorker<A extends unknown[]> = A extends [
+  ActiveWorker,
+  ...infer Rest,
+]
   ? Rest
   : A;
 
-type HandlerFn<A extends unknown[], R> = (...args: NoAppArgs<A>) => R;
+export type TaskFn<A extends unknown[], R> = (
+  ...args: StripLeadingActiveWorker<A>
+) => R;
 
-export type Handlers = Readonly<Record<string, Handler>>;
+export type Handlers = Readonly<Record<string, Task>>;
 
-export function handlerify<A extends unknown[], R>(
+export function taskify<A extends unknown[], R>(
   f: (...args: A) => R,
-): Handler<A, R> {
+): Task<A, R> {
   return (_: ActiveWorker, ...args: A) => f(...args);
 }
 
@@ -41,15 +46,15 @@ export class AppConsumer {
   }
 
   public schedule<A extends unknown[], R>(
-    handler: (...args: A) => R,
+    taskname: string,
     topic: string,
-  ): HandlerFn<A, Promise<void>> {
-    return async (...args: NoAppArgs<A>) => {
-      const call = await this.codec.encodeCall(handler.name, args);
+  ): TaskFn<A, Promise<void>> {
+    return async (...args: StripLeadingActiveWorker<A>) => {
+      const call = await this.codec.encodeCall(taskname, args);
       await this.connection.scheduleRaw(
         topic,
         call.callHash,
-        handler.name,
+        taskname,
         call.payload,
       );
     };
@@ -109,8 +114,8 @@ export class ActiveWorker {
   public call<A extends unknown[], R>(
     handler: (...args: A) => R,
     topic?: string | undefined,
-  ): HandlerFn<A, Promise<R>> {
-    return async (...args: NoAppArgs<A>) => {
+  ): TaskFn<A, Promise<R>> {
+    return async (...args: StripLeadingActiveWorker<A>) => {
       const call = await this.codec.encodeCall(handler.name, args);
       try {
         const payload = await this.connection.memory.getValue(call.callHash);
