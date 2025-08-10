@@ -4,7 +4,6 @@ import {
   NotFoundError,
   QueueIsClosedError,
   QueueIsEmptyError,
-  QueuePopTimeoutError,
   UnknownTopicError,
 } from "../errors.ts";
 import type { Cache, MemKey, Store } from "../store.ts";
@@ -85,10 +84,6 @@ export class InMemoryByteStore implements Store, Cache {
   private innerStore = new Map<string, Uint8Array>();
   private innerCache = new Map<string, number>();
 
-  private key2str(key: MemKey): string {
-    return `${key.type}/${key.callHash}`;
-  }
-
   public async compareAndDelete(
     key: MemKey,
     expected: Uint8Array,
@@ -154,6 +149,10 @@ export class InMemoryByteStore implements Store, Cache {
       throw new CompareMismatchError(key);
     }
     this.innerStore.set(keyStr, value);
+  }
+
+  private key2str(key: MemKey): string {
+    return `${key.type}/${key.callHash}`;
   }
 
   private isEqualBytes(a: Uint8Array, b: Uint8Array): boolean {

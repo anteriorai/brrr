@@ -1,13 +1,12 @@
-import { afterEach, beforeEach, mock, suite, test } from "node:test";
-import { QueueIsClosedError } from "../errors.ts";
-import { QueueIsEmptyError } from "../errors.ts";
+import { beforeEach, mock, suite, test } from "node:test";
+import { QueueIsClosedError, QueueIsEmptyError } from "../errors.ts";
 import { AsyncQueue } from "./async-queue.ts";
 import {
+  deepStrictEqual,
+  doesNotThrow,
   rejects,
   strictEqual,
   throws,
-  deepStrictEqual,
-  doesNotThrow,
 } from "node:assert";
 import { setTimeout } from "node:timers/promises";
 
