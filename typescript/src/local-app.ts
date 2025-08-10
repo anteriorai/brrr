@@ -4,7 +4,8 @@ import {
   AppWorker,
   type Handlers,
   type StripLeadingActiveWorker,
-  type Task, type TaskIdentifier, taskIdentifierToName,
+  type TaskIdentifier,
+  taskIdentifierToName,
 } from "./app.ts";
 import type { Codec } from "./codec.ts";
 
@@ -63,7 +64,6 @@ export class LocalBrrr {
     const server = new Server(queue, store, store);
     const worker = new AppWorker(this.codec, server, this.handlers);
     const app = new LocalApp(this.topic, server, queue, worker);
-
     const taskName = taskIdentifierToName(taskIdentifier)
     return async (...args: StripLeadingActiveWorker<A>): Promise<R> => {
       await app.schedule(taskName)(...args);

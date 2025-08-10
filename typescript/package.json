@@ -16,7 +16,8 @@
     "@aws-sdk/client-dynamodb": "^3.859.0",
     "@aws-sdk/lib-dynamodb": "^3.859.0",
     "bencode": "^4.0.0",
-    "redis": "^5.7.0"
+    "redis": "^5.7.0",
+    "superjson": "^2.2.2"
   },
   "devDependencies": {
     "@types/bencode": "^2.0.4",

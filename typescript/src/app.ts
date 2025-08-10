@@ -1,11 +1,13 @@
 import {
   type Connection,
-  Defer, type DeferredCall,
+  Defer,
+  type DeferredCall,
   type Request,
   type Response,
 } from "./connection.ts";
 import type { Codec } from "./codec.ts";
 import { NotFoundError, TaskNotFoundError } from "./errors.ts";
+import { TextDecoder } from "node:util";
 
 export type Task<A extends unknown[] = any[], R = any> = (
   ...args: [ActiveWorker, ...A]
@@ -25,7 +27,7 @@ export type NoAppTask<A extends unknown[], R> = (
 export type Handlers = Readonly<Record<string, Task>>;
 
 export type TaskIdentifier<A extends unknown[], R> =
-  | ((...args: A) => R)
+  | ((...args: A) => R | Promise<R>)
   | string;
 
 export function taskIdentifierToName<A extends unknown[], R>(
@@ -93,11 +95,15 @@ export class AppWorker extends AppConsumer {
       throw new TaskNotFoundError(request.call.taskName);
     }
     try {
-      const activeWorker = new ActiveWorker(connection, this.codec, this.handlers)
+      const activeWorker = new ActiveWorker(
+        connection,
+        this.codec,
+        this.handlers,
+      );
       const payload = await this.codec.invokeTask(request.call, (...args) => {
-        return handler(activeWorker, ...args)
-      })
-      return { payload }
+        return handler(activeWorker, ...args);
+      });
+      return { payload };
     } catch (err) {
       if (err instanceof Defer) {
         return err;
@@ -123,41 +129,60 @@ export class ActiveWorker {
     topic?: string | undefined,
   ): NoAppTask<A, R> {
     const taskName = taskIdentifierToName(taskIdentifier);
-    return async (...args: StripLeadingActiveWorker<A>) => {
+    return async (...args: StripLeadingActiveWorker<A>): Promise<R> => {
       const call = await this.codec.encodeCall(taskName, args);
       try {
         const payload = await this.connection.memory.getValue(call.callHash);
         return this.codec.decodeReturn(taskName, payload) as R;
       } catch (err) {
         if (err instanceof NotFoundError) {
-          throw new Defer([
-            {
-              topic,
-              call,
-            },
-          ]);
+          throw new Defer({ topic, call });
         }
         throw err;
       }
     };
   }
 
-  public async gather(...promises: Promise<unknown>[]): Promise<unknown[]> {
-    const defers: DeferredCall[] = []
-    const values = []
+  public async gather<T1>(t1: T1): Promise<[Awaited<T1>]>;
+  public async gather<T1, T2>(
+    t1: T1,
+    t2: T2,
+  ): Promise<[Awaited<T1>, Awaited<T2>]>;
+  public async gather<T1, T2, T3>(
+    t1: T1,
+    t2: T2,
+    t3: T3,
+  ): Promise<[Awaited<T1>, Awaited<T2>, Awaited<T3>]>;
+  public async gather<T1, T2, T3, T4>(
+    t1: T1,
+    t2: T2,
+    t3: T3,
+    t4: T4,
+  ): Promise<[Awaited<T1>, Awaited<T2>, Awaited<T3>, Awaited<T4>]>;
+  public async gather<T1, T2, T3, T4, T5>(
+    t1: T1,
+    t2: T2,
+    t3: T3,
+    t4: T4,
+    t5: T5,
+  ): Promise<[Awaited<T1>, Awaited<T2>, Awaited<T3>, Awaited<T4>, Awaited<T5>]>;
+  public async gather<T>(...promises: Promise<T>[]): Promise<Awaited<T>[]>;
+  public async gather<T>(...promises: Promise<T>[]): Promise<Awaited<T>[]> {
+    const deferredCalls: DeferredCall[] = [];
+    const values: Awaited<T>[] = [];
     for (const promise of promises) {
       try {
-        values.push(await promise)
+        values.push(await promise);
       } catch (err) {
         if (!(err instanceof Defer)) {
-          throw err
+          throw err;
         }
-        defers.push(...err.calls);
+        deferredCalls.push(...err.calls);
       }
     }
-    if (defers.length) {
-      throw new Defer(defers)
+    if (deferredCalls.length) {
+      throw new Defer(...deferredCalls);
     }
-    return values
+    return values;
   }
 }
