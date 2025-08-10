@@ -264,7 +264,9 @@ await suite(import.meta.filename, async () => {
     });
     await app.schedule(top, topic)();
     await Promise.all(
-      new Array(parallel).fill(server.loop(topic, app.handle)),
+      new Array(parallel)
+        .keys()
+        .map(() => server.loop(topic, app.handle)),
     );
     await queue.join();
   });
@@ -292,7 +294,10 @@ await suite(import.meta.filename, async () => {
     const app = new AppWorker(codec, server, { fib, top });
     await app.schedule(top, topic)();
 
-    await Promise.all(new Array(10).fill(server.loop(topic, app.handle)));
+    await Promise.all(new Array(10)
+      .keys()
+      .map(() => server.loop(topic, app.handle))
+    );
     await queue.join();
   });
 
