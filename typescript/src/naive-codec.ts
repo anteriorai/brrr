@@ -2,6 +2,7 @@ import { type BinaryToTextEncoding, createHash } from "node:crypto";
 import { TextEncoder, TextDecoder } from "node:util";
 import type { Call } from "./call.ts";
 import type { Codec } from "./codec.ts";
+import { stringify, parse } from "superjson";
 
 export class NaiveCodec implements Codec {
   public static readonly algorithm = "sha256";
@@ -15,7 +16,7 @@ export class NaiveCodec implements Codec {
     taskName: string,
     args: A,
   ): Promise<string> {
-    const data = JSON.stringify([taskName, args]);
+    const data = stringify([taskName, args]);
     return createHash("sha256")
       .update(data)
       .digest(NaiveCodec.binaryToTextEncoding);
@@ -23,14 +24,14 @@ export class NaiveCodec implements Codec {
 
   public async decodeReturn(_: string, payload: Uint8Array): Promise<unknown> {
     const decoded = NaiveCodec.decoder.decode(payload);
-    return JSON.parse(decoded);
+    return parse(decoded);
   }
 
   public async encodeCall<A extends unknown[]>(
     taskName: string,
     args: A,
   ): Promise<Call> {
-    const data = JSON.stringify(args);
+    const data = stringify(args);
     const payload = NaiveCodec.encoder.encode(data);
     const callHash = await this.hashCall(taskName, args);
     return { taskName, payload, callHash };
@@ -41,9 +42,9 @@ export class NaiveCodec implements Codec {
     task: (...args: A) => Promise<R>,
   ): Promise<Uint8Array> {
     const decoded = NaiveCodec.decoder.decode(call.payload);
-    const args = JSON.parse(decoded) as A;
+    const args = parse<A>(decoded);
     const result = await task(...args);
-    const resultJson = JSON.stringify(result);
+    const resultJson = stringify(result);
     return NaiveCodec.encoder.encode(resultJson);
   }
 }

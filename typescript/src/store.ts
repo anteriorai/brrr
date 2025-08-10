@@ -144,7 +144,7 @@ export class Memory {
   private async withCas<T>(f: () => Promise<T>): Promise<T> {
     for (let i = 0; i < Memory.casRetryLimit; i++) {
       try {
-        return f();
+        return await f();
       } catch (e) {
         if (e instanceof CompareMismatchError) {
           continue;
@@ -183,9 +183,8 @@ export class Memory {
           throw err;
         }
         existing = new PendingReturns(undefined, new Set([newReturn]));
-        const initialEncoded = existing.encode();
-        await this.store.setNewValue(memKey, initialEncoded);
-        existingEncoded = initialEncoded;
+        existingEncoded = existing.encode()
+        await this.store.setNewValue(memKey, existingEncoded)
       }
       const alreadyPending = !!existing.scheduledAt;
       if (!alreadyPending) {
@@ -197,8 +196,7 @@ export class Memory {
         shouldStoreAgain = true;
       }
       if (shouldStoreAgain) {
-        const updatedEncoded = existing.encode();
-        await this.store.compareAndSet(memKey, updatedEncoded, existingEncoded);
+        await this.store.compareAndSet(memKey, existing.encode(), existingEncoded);
       }
       return alreadyPending;
     });
