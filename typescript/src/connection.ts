@@ -16,7 +16,7 @@ export interface DeferredCall {
 export class Defer {
   public readonly calls: DeferredCall[];
 
-  public constructor(calls: DeferredCall[]) {
+  public constructor(...calls: DeferredCall[]) {
     this.calls = calls;
   }
 }
@@ -39,7 +39,7 @@ function parseCallId(callId: string): [string, string] {
 }
 
 export class Connection {
-  private readonly spawnLimit = 1000;
+  private readonly spawnLimit = 10_000;
 
   public readonly cache: Cache;
   public readonly memory: Memory;
@@ -100,10 +100,13 @@ export class Server extends Connection {
     await this.memory.setCall(child.call);
     const childTopic = child.topic || topic;
     const callHash = child.call.callHash;
-    await this.putJob(childTopic, callHash, rootId);
-    await this.memory.addPendingReturns(callHash, `${topic}/${parentKey}`, () => {
-      return this.putJob(childTopic, callHash, rootId)
-    });
+    await this.memory.addPendingReturns(
+      callHash,
+      `${topic}/${parentKey}`,
+      () => {
+        return this.putJob(childTopic, callHash, rootId);
+      },
+    );
   }
 
   private async handleMessage(
@@ -117,7 +120,7 @@ export class Server extends Connection {
     if (handled instanceof Defer) {
       await Promise.all(
         handled.calls.map((child) => {
-          return this.scheduleCallNested(topic, child, rootId, callId)
+          return this.scheduleCallNested(topic, child, rootId, callId);
         }),
       );
       return;
