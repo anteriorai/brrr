@@ -23,13 +23,6 @@ export class Dynamo implements Store {
     this.tableName = tableName;
   }
 
-  private key(key: MemKey): Record<string, NativeAttributeValue> {
-    return {
-      pk: key.callHash,
-      sk: key.type,
-    };
-  }
-
   public async has(key: MemKey): Promise<boolean> {
     const response = await this.client.send(
       new GetCommand({
@@ -181,5 +174,12 @@ export class Dynamo implements Store {
         TableName: this.tableName,
       }),
     );
+  }
+
+  private key(key: MemKey): Record<string, NativeAttributeValue> {
+    return {
+      pk: key.callHash,
+      sk: key.type,
+    };
   }
 }
