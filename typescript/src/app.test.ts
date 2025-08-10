@@ -212,7 +212,7 @@ await suite(import.meta.filename, async () => {
     await server.loop(topic, app.handle);
   });
 
-  await test("test stop when empty", async () => {
+  await test("stop when empty", async () => {
     const pre = new Map<number, number>();
     const post = new Map<number, number>();
 
@@ -235,7 +235,7 @@ await suite(import.meta.filename, async () => {
     deepStrictEqual(Object.fromEntries(post), { 1: 1, 2: 1, 3: 1 });
   });
 
-  await test("test parallel", async () => {
+  await test("parallel", async () => {
     const parallel = 5;
     let barrier: Promise<void> | undefined = Promise.resolve();
     let tops = 0;
@@ -298,7 +298,7 @@ await suite(import.meta.filename, async () => {
     await queue.join();
   });
 
-  await test("test debounce child", { only: true }, async () => {
+  await test("debounce child", async () => {
     const calls = new Map<number, number>();
 
     async function foo(app: ActiveWorker, a: number): Promise<number> {
@@ -320,7 +320,7 @@ await suite(import.meta.filename, async () => {
     deepStrictEqual(Object.fromEntries(calls), { 0: 1, 1: 2, 2: 2, 3: 2 });
   });
 
-  await test("test no debounce parent", async () => {
+  await test("no debounce parent", async () => {
     const calls = new Map<string, number>();
 
     function one(_: number): number {
@@ -349,7 +349,7 @@ await suite(import.meta.filename, async () => {
     deepStrictEqual(Object.fromEntries(calls), { one: 50, foo: 51 });
   });
 
-  await test("test app loop resumable", async () => {
+  await test("app loop resumable", async () => {
     let errors = 5;
 
     class MyError extends Error {}
@@ -382,7 +382,7 @@ await suite(import.meta.filename, async () => {
     strictEqual(errors, 0);
   });
 
-  await test("test app handler names", async () => {
+  await test("app handler names", async () => {
     function foo(a: number): number {
       return a * a;
     }
