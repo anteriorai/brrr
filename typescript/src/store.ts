@@ -183,20 +183,28 @@ export class Memory {
           throw err;
         }
         existing = new PendingReturns(undefined, new Set([newReturn]));
-        existingEncoded = existing.encode()
-        await this.store.setNewValue(memKey, existingEncoded)
+        existingEncoded = existing.encode();
+        await this.store.setNewValue(memKey, existingEncoded);
       }
       const alreadyPending = !!existing.scheduledAt;
+      let shouldSchedule = false;
       if (!alreadyPending) {
-        await scheduleJob();
         existing = new PendingReturns(
           Math.floor(Date.now() / 1000),
           existing.returns,
         );
         shouldStoreAgain = true;
+        shouldSchedule = true;
       }
       if (shouldStoreAgain) {
-        await this.store.compareAndSet(memKey, existing.encode(), existingEncoded);
+        await this.store.compareAndSet(
+          memKey,
+          existing.encode(),
+          existingEncoded,
+        );
+        if (shouldSchedule) {
+          await scheduleJob();
+        }
       }
       return alreadyPending;
     });

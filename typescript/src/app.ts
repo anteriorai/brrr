@@ -14,9 +14,9 @@ export type Task<A extends unknown[] = any[], R = any> = (
 ) => R;
 
 export type StripLeadingActiveWorker<A extends unknown[]> = A extends [
-    ActiveWorker,
-    ...infer Rest,
-  ]
+  ActiveWorker,
+  ...infer Rest,
+]
   ? Rest
   : A;
 

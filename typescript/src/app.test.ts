@@ -8,10 +8,16 @@ import {
   type Handlers,
   taskify,
 } from "./app.ts";
-import { Server } from "./connection.ts";
+import {
+  type Connection,
+  Defer,
+  type Request,
+  type Response,
+  Server,
+} from "./connection.ts";
 import { NaiveCodec } from "./naive-codec.ts";
-import { NotFoundError } from "./errors.ts";
-import { LocalBrrr } from "./local-app.ts";
+import { NotFoundError, TaskNotFoundError } from "./errors.ts";
+import { LocalApp, LocalBrrr } from "./local-app.ts";
 import { deepStrictEqual, ok } from "node:assert/strict";
 
 const codec = new NaiveCodec();
@@ -264,9 +270,7 @@ await suite(import.meta.filename, async () => {
     });
     await app.schedule(top, topic)();
     await Promise.all(
-      new Array(parallel)
-        .keys()
-        .map(() => server.loop(topic, app.handle)),
+      new Array(parallel).keys().map(() => server.loop(topic, app.handle)),
     );
     await queue.join();
   });
@@ -294,9 +298,8 @@ await suite(import.meta.filename, async () => {
     const app = new AppWorker(codec, server, { fib, top });
     await app.schedule(top, topic)();
 
-    await Promise.all(new Array(10)
-      .keys()
-      .map(() => server.loop(topic, app.handle))
+    await Promise.all(
+      new Array(10).keys().map(() => server.loop(topic, app.handle)),
     );
     await queue.join();
   });
@@ -312,124 +315,99 @@ await suite(import.meta.filename, async () => {
       const results = await app.gather(
         ...Array(50)
           .keys()
-          .map(() => app.call(foo)(a - 1))
+          .map(() => app.call(foo)(a - 1)),
       );
-      return results.reduce((sum, val) => sum + val, 0);
+      return results.reduce((sum, val) => sum + val);
     }
 
     const brrr = new LocalBrrr(topic, { foo }, codec);
     await brrr.run(foo)(3);
 
-    deepStrictEqual(Object.fromEntries(calls), { 0: 1, 1: 2, 2: 2, 3: 2 })
+    deepStrictEqual(Object.fromEntries(calls), { 0: 1, 1: 2, 2: 2, 3: 2 });
   });
 
-  // await test("test no debounce parent", async () => {
-  //   const calls = new Map<string, number>();
-  //
-  //   function one(_: number): number {
-  //     calls.set("one", (calls.get("one") || 0) + 1);
-  //     return 1;
-  //   }
-  //
-  //   async function foo(app: ActiveWorker, a: number): Promise<number> {
-  //     calls.set("foo", (calls.get("foo") || 0) + 1);
-  //     const results = await app.gather(
-  //       ...Array.from({ length: a }, (_, i) => app.call(one)(i))
-  //     );
-  //     return results.reduce((sum: number, val) => sum + (val as number), 0);
-  //   }
-  //
-  //   const brrr = new LocalBrrr(topic, {
-  //     one: taskify(one),
-  //     foo,
-  //   }, codec);
-  //   await brrr.run(foo as any)(50);
-  //
-  //   strictEqual(calls.get("one")!, 50);
-  //   strictEqual(calls.get("foo")!, 51);
-  // })
-  //
-  // await test("test app loop resumable", async () => {
-  //   let errors = 5;
-  //
-  //   class MyError extends Error {
-  //     constructor(message: string) {
-  //       super(message);
-  //       this.name = "MyError";
-  //     }
-  //   }
-  //
-  //   async function foo(a: number): Promise<number> {
-  //     if (errors > 0) {
-  //       errors -= 1;
-  //       throw new MyError("retry");
-  //     }
-  //     await queue.close();
-  //     return a;
-  //   }
-  //
-  //   const app = new AppWorker(codec, server, { foo: taskify(foo) });
-  //
-  //   while (true) {
-  //     try {
-  //       await app.schedule(foo, topic)(3);
-  //       await server.loop(topic, app.handle);
-  //       break;
-  //     } catch (err) {
-  //       if (err instanceof MyError) {
-  //         continue;
-  //       }
-  //       throw err;
-  //     }
-  //   }
-  //
-  //   await queue.join();
-  //   strictEqual(errors, 0);
-  // })
-  //
-  // await test("test app handler names", async () => {
-  //   function foo(a: number): number {
-  //     return a * a;
-  //   }
-  //
-  //   async function bar(app: ActiveWorker, a: number): Promise<number> {
-  //     return await app.call(foo)(a) * (await app.call("quux/zim")(a) as number);
-  //   }
-  //
-  //   const handlers = {
-  //     "quux/zim": taskify(foo),
-  //     "quux/bar": bar,
-  //   };
-  //
-  //   const worker = new AppWorker(codec, server, handlers)
-  //   const localApp = new LocalApp(topic, server, queue, worker)
-  //   await localApp.schedule("quux/bar")(4);
-  //   await localApp.run()
-  //   strictEqual(await localApp.read("quux/zim")(4), 16);
-  //   // strictEqual(await localApp.read(foo)(4), 16);
-  // })
-  //
-  // await test("test app subclass", async () => {
-  //   function bar(a: number): number {
-  //     return a + 1;
-  //   }
-  //
-  //   function baz(a: number): number {
-  //     return a + 10;
-  //   }
-  //
-  //   async function foo(app: ActiveWorker, a: number): Promise<number> {
-  //     return app.call(bar)(a);
-  //   }
-  //
-  //   const app = new AppWorker(codec, server, {
-  //     foo,
-  //     bar: taskify(bar),
-  //     baz: taskify(baz),
-  //   });
-  //
-  //   await app.schedule(foo, topic)(4);
-  //   await server.loop(topic, app.handle);
-  //   strictEqual(await app.read(foo)(4), 5);
-  // });
+  await test("test no debounce parent", async () => {
+    const calls = new Map<string, number>();
+
+    function one(_: number): number {
+      calls.set("one", (calls.get("one") || 0) + 1);
+      return 1;
+    }
+
+    async function foo(app: ActiveWorker, a: number): Promise<number> {
+      calls.set("foo", (calls.get("foo") || 0) + 1);
+      const results = await app.gather(
+        ...new Array(a).keys().map((i) => app.call(one)(i)),
+      );
+      return results.reduce((sum, val) => sum + val);
+    }
+
+    const brrr = new LocalBrrr(
+      topic,
+      {
+        one: taskify(one),
+        foo,
+      },
+      codec,
+    );
+    await brrr.run(foo)(50);
+
+    deepStrictEqual(Object.fromEntries(calls), { one: 50, foo: 51 });
+  });
+
+  await test("test app loop resumable", async () => {
+    let errors = 5;
+
+    class MyError extends Error {}
+
+    async function foo(a: number): Promise<number> {
+      if (errors) {
+        errors--;
+        throw new MyError("retry");
+      }
+      await queue.close();
+      return a;
+    }
+
+    const app = new AppWorker(codec, server, { foo: taskify(foo) });
+
+    while (true) {
+      try {
+        await app.schedule(foo, topic)(3);
+        await server.loop(topic, app.handle);
+        break;
+      } catch (err) {
+        if (err instanceof MyError) {
+          continue;
+        }
+        throw err;
+      }
+    }
+
+    await queue.join();
+    strictEqual(errors, 0);
+  });
+
+  await test("test app handler names", async () => {
+    function foo(a: number): number {
+      return a * a;
+    }
+
+    async function bar(app: ActiveWorker, a: number): Promise<number> {
+      return (
+        (await app.call(foo)(a)) * ((await app.call("quux/zim")(a)) as number)
+      );
+    }
+
+    const worker = new AppWorker(codec, server, {
+      foo: taskify(foo),
+      "quux/zim": taskify(foo),
+      "quux/bar": bar,
+    });
+    const localApp = new LocalApp(topic, server, queue, worker);
+    await localApp.schedule("quux/bar")(4);
+    await localApp.run();
+    strictEqual(await localApp.read("quux/zim")(4), 16);
+    strictEqual(await localApp.read(foo)(4), 16);
+  });
 });
