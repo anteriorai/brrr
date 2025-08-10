@@ -7,7 +7,6 @@ import {
 } from "./connection.ts";
 import type { Codec } from "./codec.ts";
 import { NotFoundError, TaskNotFoundError } from "./errors.ts";
-import { TextDecoder } from "node:util";
 
 export type Task<A extends unknown[] = any[], R = any> = (
   ...args: [ActiveWorker, ...A]

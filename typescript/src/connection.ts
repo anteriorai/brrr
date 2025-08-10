@@ -39,11 +39,10 @@ function parseCallId(callId: string): [string, string] {
 }
 
 export class Connection {
-  private readonly spawnLimit = 10_000;
-
   public readonly cache: Cache;
   public readonly memory: Memory;
   public readonly queue: Queue;
+  private readonly spawnLimit = 10_000;
 
   public constructor(queue: Queue, store: Store, cache: Cache) {
     this.cache = cache;
@@ -80,6 +79,26 @@ export class Connection {
 export class Server extends Connection {
   public constructor(queue: Queue, store: Store, cache: Cache) {
     super(queue, store, cache);
+  }
+
+  public async loop(
+    topic: string,
+    requestHandler: RequestHandler,
+  ): Promise<void> {
+    while (true) {
+      try {
+        const message = await this.queue.pop(topic);
+        await this.handleMessage(requestHandler, topic, message);
+      } catch (err) {
+        if (err instanceof QueueIsEmptyError) {
+          continue;
+        }
+        if (err instanceof QueueIsClosedError) {
+          return;
+        }
+        throw err;
+      }
+    }
   }
 
   private async scheduleReturnCall(addr: string): Promise<void> {
@@ -141,25 +160,5 @@ export class Server extends Connection {
         throw spawnLimitError;
       }
     });
-  }
-
-  public async loop(
-    topic: string,
-    requestHandler: RequestHandler,
-  ): Promise<void> {
-    while (true) {
-      try {
-        const message = await this.queue.pop(topic);
-        await this.handleMessage(requestHandler, topic, message);
-      } catch (err) {
-        if (err instanceof QueueIsEmptyError) {
-          continue;
-        }
-        if (err instanceof QueueIsClosedError) {
-          return;
-        }
-        throw err;
-      }
-    }
   }
 }

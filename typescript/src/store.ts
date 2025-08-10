@@ -28,15 +28,6 @@ export class PendingReturns {
     this.encodedReturns = new Set([...returns].map(TaggedTuple.encodeToString));
   }
 
-  public encode(): Uint8Array {
-    return bencoder.encode({
-      scheduled_at: this.scheduledAt,
-      returns: [...this.returns]
-        .map((it) => Buffer.from(it, PendingReturns.encoding))
-        .sort(Buffer.compare),
-    } satisfies PendingReturnsPayload);
-  }
-
   public static decode(encoded: Uint8Array): PendingReturns {
     const { scheduled_at, returns } = bencoder.decode(
       encoded,
@@ -46,6 +37,15 @@ export class PendingReturns {
       scheduled_at,
       new Set(returns.map((it) => it.toString(PendingReturns.encoding))),
     );
+  }
+
+  public encode(): Uint8Array {
+    return bencoder.encode({
+      scheduled_at: this.scheduledAt,
+      returns: [...this.returns]
+        .map((it) => Buffer.from(it, PendingReturns.encoding))
+        .sort(Buffer.compare),
+    } satisfies PendingReturnsPayload);
   }
 }
 
@@ -148,21 +148,7 @@ export class Memory {
     );
   }
 
-  private async withCas<T>(f: () => Promise<T>): Promise<T> {
-    for (let i = 0; i < Memory.casRetryLimit; i++) {
-      try {
-        return await f();
-      } catch (e) {
-        if (e instanceof CompareMismatchError) {
-          continue;
-        }
-        throw e;
-      }
-    }
-    throw new CasRetryLimitReachedError(Memory.casRetryLimit);
-  }
-
-  public async addPendingReturn(
+  public async addPendingReturns(
     callHash: string,
     newReturn: string,
     scheduleJob: () => Promise<void>,
@@ -217,7 +203,7 @@ export class Memory {
     });
   }
 
-  public async withPendingReturnRemove(
+  public async withPendingReturnsRemove(
     callHash: string,
     f: (returns: ReadonlySet<string>) => Promise<void>,
   ) {
@@ -242,5 +228,19 @@ export class Memory {
       toHandle.forEach((it) => handled.add(it));
       await this.store.compareAndDelete(memKey, pendingEncoded);
     });
+  }
+
+  private async withCas<T>(f: () => Promise<T>): Promise<T> {
+    for (let i = 0; i < Memory.casRetryLimit; i++) {
+      try {
+        return await f();
+      } catch (e) {
+        if (e instanceof CompareMismatchError) {
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw new CasRetryLimitReachedError(Memory.casRetryLimit);
   }
 }

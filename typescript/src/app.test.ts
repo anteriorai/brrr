@@ -8,15 +8,9 @@ import {
   type Handlers,
   taskify,
 } from "./app.ts";
-import {
-  type Connection,
-  Defer,
-  type Request,
-  type Response,
-  Server,
-} from "./connection.ts";
+import { Server } from "./connection.ts";
 import { NaiveCodec } from "./naive-codec.ts";
-import { NotFoundError, TaskNotFoundError } from "./errors.ts";
+import { NotFoundError } from "./errors.ts";
 import { LocalApp, LocalBrrr } from "./local-app.ts";
 import { deepStrictEqual, ok } from "node:assert/strict";
 
