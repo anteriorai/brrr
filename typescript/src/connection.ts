@@ -34,10 +34,6 @@ type RequestHandler = (
   connection: Connection,
 ) => Promise<Response | Defer>;
 
-function parseCallId(callId: string): [string, string] {
-  return callId.split("/") as [string, string];
-}
-
 export class Connection {
   public readonly cache: Cache;
   public readonly memory: Memory;
@@ -137,7 +133,7 @@ export class Server extends Connection {
     topic: string,
     callId: string,
   ): Promise<void> {
-    const [rootId, callHash] = parseCallId(callId);
+    const [rootId, callHash] = callId.split("/") as [string, string];
     const call = await this.memory.getCall(callHash);
     const handled = await requestHandler({ call }, this);
     if (handled instanceof Defer) {
