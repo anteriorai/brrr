@@ -35,7 +35,7 @@ export function taskIdentifierToName<A extends unknown[], R>(
   return typeof spec === "string" ? spec : spec.name;
 }
 
-export function taskify<A extends unknown[], R>(
+export function taskFn<A extends unknown[], R>(
   f: (...args: A) => R,
 ): Task<A, R> {
   return (_: ActiveWorker, ...args: A) => f(...args);
