@@ -37,6 +37,12 @@
       inputs.uv2nix.follows = "uv2nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    package-lock2nix = {
+      url = "github:anteriorai/package-lock2nix";
+      inputs.nixpkgs.follows = "nixpkgs";
+      inputs.flake-parts.follows = "flake-parts";
+      inputs.treefmt-nix.follows = "treefmt-nix";
+    };
     treefmt-nix.url = "github:numtide/treefmt-nix";
   };
 
@@ -142,6 +148,11 @@
               inherit (inputs) pyproject-build-systems pyproject-nix uv2nix;
               inherit python;
             };
+            brrrts = pkgs.callPackage ./typescript/package.nix {
+              inherit (inputs) package-lock2nix;
+              inherit (pkgs) callPackage;
+              inherit nodejs;
+            };
           in
           {
             config = {
@@ -173,6 +184,7 @@
                 inherit python;
                 inherit (pkgs) uv;
                 inherit (brrrpy) brrr brrr-venv-test;
+                inherit (brrrts) brrr-ts;
                 default = brrrpy.brrr-venv;
                 # Stand-alone brrr_demo.py script
                 brrr-demo = pkgs.stdenvNoCC.mkDerivation {
@@ -217,6 +229,7 @@
                     + ''
 
                       For Python-specific development, use: nix develop .#python
+                      For TypeScript-specific development, use: nix develop .#typescript
                     '';
                   env = [
                     {
@@ -300,6 +313,19 @@
                       help = "Launch a full demo locally";
                       command = ''
                         nix run .#demo
+                      '';
+                    }
+                  ];
+                };
+                typescript = {
+                  packages = devPackages;
+                  commands = [
+                    {
+                      name = "brrr-test-unit";
+                      category = "test";
+                      help = "Tests which don't need dependencies";
+                      command = ''
+                        npm run test
                       '';
                     }
                     {

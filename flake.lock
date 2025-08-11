@@ -99,6 +99,33 @@
         "type": "github"
       }
     },
+    "package-lock2nix": {
+      "inputs": {
+        "flake-parts": [
+          "flake-parts"
+        ],
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "systems": "systems",
+        "treefmt-nix": [
+          "treefmt-nix"
+        ]
+      },
+      "locked": {
+        "lastModified": 1754944180,
+        "narHash": "sha256-QLaY84ZD4JVlPQQHC2I/q2jgaJndPYDO1G++rNpjp8o=",
+        "owner": "anteriorai",
+        "repo": "package-lock2nix",
+        "rev": "5fca6dbe2a2d56f52b8598f936273ade8dd97343",
+        "type": "github"
+      },
+      "original": {
+        "owner": "anteriorai",
+        "repo": "package-lock2nix",
+        "type": "github"
+      }
+    },
     "process-compose-flake": {
       "locked": {
         "lastModified": 1749418557,
@@ -165,11 +192,12 @@
         "devshell": "devshell",
         "flake-parts": "flake-parts",
         "nixpkgs": "nixpkgs_2",
+        "package-lock2nix": "package-lock2nix",
         "process-compose-flake": "process-compose-flake",
         "pyproject-build-systems": "pyproject-build-systems",
         "pyproject-nix": "pyproject-nix",
         "services-flake": "services-flake",
-        "systems": "systems",
+        "systems": "systems_2",
         "treefmt-nix": "treefmt-nix",
         "uv2nix": "uv2nix"
       }
@@ -190,6 +218,20 @@
       }
     },
     "systems": {
+      "locked": {
+        "lastModified": 1681028828,
+        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
+        "owner": "nix-systems",
+        "repo": "default",
+        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
+        "type": "github"
+      },
+      "original": {
+        "id": "systems",
+        "type": "indirect"
+      }
+    },
+    "systems_2": {
       "locked": {
         "lastModified": 1681028828,
         "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
