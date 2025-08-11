@@ -116,6 +116,16 @@
                       args = [ "web_server" ];
                       environment = demoEnv;
                     };
+                    brrr-demo.ts-worker = {
+                      package = self.packages.${pkgs.system}.brrr-ts-demo;
+                      args = [ "brrr_worker" ];
+                      environment = demoEnv;
+                    };
+                    brrr-demo.ts-server = {
+                      package = self.packages.${pkgs.system}.brrr-ts-demo;
+                      args = [ "web_server" ];
+                      environment = demoEnv;
+                    };
                   };
               };
           };
@@ -179,6 +189,15 @@
                 services.brrr-demo.server.enable = false;
                 services.brrr-demo.worker.enable = false;
               };
+              process-compose.demo-ts = {
+                imports = [
+                  inputs.services-flake.processComposeModules.default
+                  self.processComposeModules.default
+                ];
+                cli.options.no-server = true;
+                services.brrr-demo.ts-server.enable = true;
+                services.brrr-demo.ts-worker.enable = true;
+              };
               treefmt = import ./nix/treefmt.nix;
               packages = {
                 inherit docsync;
@@ -198,6 +217,15 @@
                   # The patch phase will automatically use the python from the venv as
                   # the interpreter for the demo script.
                   meta.mainProgram = "brrr_demo.py";
+                };
+                brrr-ts-demo = pkgs.stdenvNoCC.mkDerivation {
+                  name = "brrr-ts-demo";
+                  dontUnpack = true;
+                  installPhase = ''
+                    mkdir -p $out/bin
+                    ln -s ${lib.getExe' brrrts.brrr-ts "brrr-ts-demo"} $out/bin/brrr-ts-demo
+                  '';
+                  meta.mainProgram = "brrr-ts-demo";
                 };
                 # Best-effort package for convenience, zero guarantees, could
                 # disappear at any time.
@@ -436,6 +464,7 @@
                   };
                 };
                 typescript = {
+                  packages = devPackages;
                   commands = [
                     {
                       name = "brrr-test-unit";
@@ -443,6 +472,22 @@
                       help = "Tests which don't need dependencies";
                       command = ''
                         npm run test
+                      '';
+                    }
+                    {
+                      name = "brrr-demo-full";
+                      category = "demo";
+                      help = "Launch a full demo locally";
+                      command = ''
+                        nix run .#demo-ts
+                      '';
+                    }
+                    {
+                      name = "brrr-demo-deps";
+                      category = "demo";
+                      help = "Start all dependent services without any brrr workers / server";
+                      command = ''
+                        nix run .#deps
                       '';
                     }
                   ];
