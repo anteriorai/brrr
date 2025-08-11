@@ -60,8 +60,9 @@ await suite(import.meta.filename, async () => {
 
   await test(AppWorker.name, async () => {
     const app = new AppWorker(codec, server, handlers);
-    await app.schedule("foo", topic)(122);
+    await app.schedule(foo, topic)(122);
     await server.loop(topic, app.handle);
+
     strictEqual(await app.read("foo")(122), 457);
     strictEqual(await app.read(foo)(122), 457);
     strictEqual(await app.read("bar")(123), 456);
