@@ -7,8 +7,7 @@ import {
   rejects,
   strictEqual,
   throws,
-} from "node:assert/strict";
-import { setTimeout } from "node:timers/promises";
+} from "node:assert";
 
 await suite(import.meta.filename, async () => {
   let queue: AsyncQueue<number>;
