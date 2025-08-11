@@ -1,11 +1,19 @@
 #!/usr/bin/env node
-import { type ActiveWorker, AppWorker, Dynamo, JsonCodec, Redis, Server, taskFn } from "brrr";
+import {
+  type ActiveWorker,
+  AppWorker,
+  Dynamo,
+  JsonCodec,
+  Redis,
+  Server,
+  taskFn,
+} from "brrr";
 import {
   createClient,
   type RedisClientOptions,
   type RedisFunctions,
   type RedisModules,
-  type RedisScripts
+  type RedisScripts,
 } from "redis";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 
@@ -51,68 +59,77 @@ function hello(greetee: string): string {
 
 // resources
 async function createRedis(): Promise<Redis> {
-  const options: RedisClientOptions<RedisModules, RedisFunctions, RedisScripts, 3> = env.redisUrl ? {
-    url: env.redisUrl,
-    socket: {
-      keepAlive: true,
-    }
-  } : {}
-  const redisClient = createClient(options)
-  await redisClient.ping()
+  const options: RedisClientOptions<
+    RedisModules,
+    RedisFunctions,
+    RedisScripts,
+    3
+  > = env.redisUrl
+    ? {
+        url: env.redisUrl,
+        socket: {
+          keepAlive: true,
+        },
+      }
+    : {};
+  const redisClient = createClient(options);
+  await redisClient.ping();
   return new Redis(redisClient);
 }
 
 async function createDynamo(): Promise<Dynamo> {
-  const dynamoClient = new DynamoDBClient()
-  return new Dynamo(dynamoClient, env.dynamoTableName)
+  const dynamoClient = new DynamoDBClient();
+  return new Dynamo(dynamoClient, env.dynamoTableName);
 }
 
 async function createBrrr(reset: boolean): Promise<{
-  server: Server,
-  app: AppWorker
+  server: Server;
+  app: AppWorker;
 }> {
-  const redis = await createRedis()
+  const redis = await createRedis();
   const dynamo = await createDynamo();
   if (reset) {
-    await redis.client.reset()
-    await dynamo.createTable()
+    await redis.client.reset();
+    await dynamo.createTable();
   }
-  const codec = new JsonCodec()
-  const server = new Server(redis, dynamo, redis)
+  const codec = new JsonCodec();
+  const server = new Server(redis, dynamo, redis);
   const app = new AppWorker(codec, server, {
     fibAndPrint,
     hello: taskFn(hello),
-    fib
-  })
-  return { server, app }
+    fib,
+  });
+  return { server, app };
 }
 
 switch (process.env.argv?.at(2)) {
-  case 'brrr_worker': {
-    const { server, app } = await createBrrr(false)
+  case "brrr_worker": {
+    const { server, app } = await createBrrr(false);
     await Promise.all([
       server.loop(topic.main, app.handle),
       server.loop(topic.side, app.handle),
-    ])
+    ]);
     break;
   }
-  case 'web_server': {
-    const { server, app } = await createBrrr(true)
+  case "web_server": {
+    const { server, app } = await createBrrr(true);
     break;
   }
-  case 'schedule': {
+  case "schedule": {
     const [topic, job, ...args] = process.argv.slice(2) as [
-      string, string, ...string[]
+      string,
+      string,
+      ...string[],
     ];
-    const { app } = await createBrrr(false)
-    await app.schedule(job, topic)(...args)
+    const { app } = await createBrrr(false);
+    await app.schedule(job, topic)(...args);
     break;
   }
-  case 'reset': {
-    const redis = await createRedis()
-    await redis.client.flushAll()
+  case "reset": {
+    const redis = await createRedis();
+    await redis.client.flushAll();
     const dynamo = await createDynamo();
-    await dynamo.deleteTable()
+    await dynamo.deleteTable();
     break;
   }
 }

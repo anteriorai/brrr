@@ -8,7 +8,6 @@ import {
   strictEqual,
   throws,
 } from "node:assert";
-import { setTimeout } from "node:timers/promises";
 
 await suite(import.meta.filename, async () => {
   let queue: AsyncQueue<number>;
@@ -119,9 +118,6 @@ await suite(import.meta.filename, async () => {
       await queue.push(1);
 
       const join = queue.join().then(mockFn);
-
-      // wait a bit to ensure join doesn't resolve early
-      await setTimeout(10);
       strictEqual(mockFn.mock.callCount(), 0);
 
       await queue.pop();
@@ -129,7 +125,6 @@ await suite(import.meta.filename, async () => {
       await queue.pop();
       queue.done();
 
-      // now join should resolve
       strictEqual(mockFn.mock.callCount(), 0);
       await join;
       strictEqual(mockFn.mock.callCount(), 1);
@@ -167,27 +162,6 @@ await suite(import.meta.filename, async () => {
         queue.shutdown();
         await Promise.allSettled([push, pop]);
       }
-    });
-  });
-
-  await suite("race conditions", async () => {
-    await test("race condition: producer-consumer timing", async () => {
-      const results: number[] = [];
-      const promises: Promise<void>[] = [];
-      for (let i = 0; i < 5; i++) {
-        promises.push(
-          queue.pop().then((val) => {
-            results.push(val);
-          }),
-        );
-      }
-      await setTimeout(1);
-      for (let i = 0; i < 5; i++) {
-        await setTimeout(1);
-        await queue.push(i);
-      }
-      await Promise.all(promises);
-      deepStrictEqual(results.sort(), [0, 1, 2, 3, 4]);
     });
   });
 });

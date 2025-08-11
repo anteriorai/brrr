@@ -29,16 +29,38 @@ export type TaskIdentifier<A extends unknown[], R> =
   | ((...args: A) => R | Promise<R>)
   | string;
 
+const taskIdentifierSymbol = Symbol("brrr.taskIdentifier");
+
 export function taskIdentifierToName<A extends unknown[], R>(
-  spec: TaskIdentifier<A, R>,
+  identifier: TaskIdentifier<A, R>,
+  handlers: Handlers,
 ): string {
-  return typeof spec === "string" ? spec : spec.name;
+  if (typeof identifier === "string") {
+    return identifier;
+  }
+  for (const [name, handler] of Object.entries(handlers)) {
+    if (
+      taskIdentifierSymbol in handler &&
+      handler[taskIdentifierSymbol] === identifier
+    ) {
+      return name;
+    }
+    if (handler === (identifier as unknown as Task)) {
+      return name;
+    }
+  }
+  throw new TaskNotFoundError(`Task not found: ${identifier.name}`);
 }
 
 export function taskFn<A extends unknown[], R>(
-  f: (...args: A) => R,
+  fn: (...args: A) => R,
 ): Task<A, R> {
-  return (_: ActiveWorker, ...args: A) => f(...args);
+  const task: Task<A, R> = (_: ActiveWorker, ...args: A): R => fn(...args);
+  return Object.defineProperty(task, taskIdentifierSymbol, {
+    value: fn,
+    writable: false,
+    configurable: false,
+  });
 }
 
 export class AppConsumer {
@@ -60,7 +82,7 @@ export class AppConsumer {
     taskIdentifier: TaskIdentifier<A, R>,
     topic: string,
   ): NoAppTask<A, void> {
-    const taskName = taskIdentifierToName(taskIdentifier);
+    const taskName = taskIdentifierToName(taskIdentifier, this.handlers);
     return async (...args: StripLeadingActiveWorker<A>) => {
       const call = await this.codec.encodeCall(taskName, args);
       await this.connection.scheduleRaw(
@@ -76,7 +98,7 @@ export class AppConsumer {
     taskIdentifier: TaskIdentifier<A, R>,
   ): NoAppTask<A, R> {
     return async (...args: StripLeadingActiveWorker<A>) => {
-      const taskName = taskIdentifierToName(taskIdentifier);
+      const taskName = taskIdentifierToName(taskIdentifier, this.handlers);
       const call = await this.codec.encodeCall(taskName, args);
       const payload = await this.connection.memory.getValue(call.callHash);
       return this.codec.decodeReturn(taskName, payload) as R;
@@ -127,7 +149,7 @@ export class ActiveWorker {
     taskIdentifier: TaskIdentifier<A, R>,
     topic?: string | undefined,
   ): NoAppTask<A, R> {
-    const taskName = taskIdentifierToName(taskIdentifier);
+    const taskName = taskIdentifierToName(taskIdentifier, this.handlers);
     return async (...args: StripLeadingActiveWorker<A>): Promise<R> => {
       const call = await this.codec.encodeCall(taskName, args);
       try {
