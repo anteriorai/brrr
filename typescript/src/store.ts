@@ -1,7 +1,7 @@
-import type { Encoding } from "node:crypto";
-import { Call, type CallInfo } from "./call.ts";
+import type { Call } from "./call.ts";
 import { bencoder } from "./bencode.ts";
-import { Buffer } from "node:buffer";
+import { TextDecoder } from "node:util";
+import type { Encoding } from "node:crypto";
 
 export interface PendingReturnsPayload {
   readonly scheduled_at: number | undefined;
@@ -12,20 +12,14 @@ export class PendingReturns {
   private static readonly encoding = "ascii" satisfies Encoding;
 
   public readonly scheduledAt: number | undefined;
-  public readonly returns: Set<string>;
+  public readonly returns: ReadonlySet<string>;
 
-  public constructor(scheduledAt: number | undefined, returns: Set<string>) {
+  public constructor(
+    scheduledAt: number | undefined,
+    returns: ReadonlySet<string>,
+  ) {
     this.scheduledAt = scheduledAt;
     this.encodedReturns = new Set([...returns].map(TaggedTuple.encodeToString));
-  }
-
-  public encode(): Uint8Array {
-    return bencoder.encode({
-      scheduled_at: this.scheduledAt,
-      returns: [...this.returns]
-        .map((it) => Buffer.from(it, PendingReturns.encoding))
-        .sort(Buffer.compare),
-    } satisfies PendingReturnsPayload);
   }
 
   public static decode(encoded: Uint8Array): PendingReturns {
@@ -37,6 +31,15 @@ export class PendingReturns {
       scheduled_at,
       new Set(returns.map((it) => it.toString(PendingReturns.encoding))),
     );
+  }
+
+  public encode(): Uint8Array {
+    return bencoder.encode({
+      scheduled_at: this.scheduledAt,
+      returns: [...this.returns]
+        .map((it) => Buffer.from(it, PendingReturns.encoding))
+        .sort(Buffer.compare),
+    } satisfies PendingReturnsPayload);
   }
 }
 
@@ -70,7 +73,8 @@ export interface Cache {
 }
 
 export class Memory {
-  private static readonly encoding = "ascii" satisfies Encoding;
+  private static readonly casRetryLimit = 100;
+  private static decoder = new TextDecoder("ascii");
   private readonly store: Store;
 
   public constructor(store: Store) {
@@ -82,18 +86,22 @@ export class Memory {
       type: "call",
       callHash,
     });
-    const { task_name, payload } = bencoder.decode(
-      encoded,
-      Memory.encoding,
-    ) as CallInfo;
-    return new Call(task_name, payload, callHash);
+    const { task_name, payload } = bencoder.decode(encoded) as {
+      task_name: Uint8Array;
+      payload: Uint8Array;
+    };
+    return {
+      taskName: Memory.decoder.decode(task_name),
+      payload,
+      callHash,
+    };
   }
 
   public async setCall(call: Call): Promise<void> {
     const encoded = bencoder.encode({
       task_name: call.taskName,
       payload: call.payload,
-    } satisfies CallInfo);
+    });
     await this.store.set(
       {
         type: "call",
