@@ -1,8 +1,10 @@
-import type {
-  RedisClientType,
-  RedisFunctions,
-  RedisModules,
-  RedisScripts,
+import {
+  type RedisClientType,
+  type RedisFunctions,
+  type RedisModules,
+  type RedisScripts,
+  createClient,
+  type RedisClientOptions,
 } from "redis";
 import type { Queue } from "../queue.ts";
 import type { Cache } from "../store.ts";
@@ -16,12 +18,11 @@ import type { Encoding } from "node:crypto";
 
 type RedisQueuePayload = [number, number, string];
 
-export class Redis implements Queue, Cache {
+export class Redis implements Queue, Cache, AsyncDisposable {
   public static readonly encoding = "utf-8" satisfies Encoding;
 
   public readonly timeout: number = 10 * 1000; // 10 seconds
-
-  private readonly client: RedisClientType<
+  public readonly client: RedisClientType<
     RedisModules,
     RedisFunctions,
     RedisScripts,
@@ -69,5 +70,9 @@ export class Redis implements Queue, Cache {
 
   public async close(): Promise<void> {
     await this.client.quit();
+  }
+
+  public async [Symbol.asyncDispose](): Promise<void> {
+    await this.close();
   }
 }
