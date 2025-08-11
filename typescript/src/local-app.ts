@@ -3,6 +3,7 @@ import { InMemoryByteStore, InMemoryQueue } from "./backends/in-memory.ts";
 import {
   AppWorker,
   type Handlers,
+  type NoAppTask,
   type StripLeadingActiveWorker,
   type TaskIdentifier,
   taskIdentifierToName,
@@ -31,13 +32,13 @@ export class LocalApp {
 
   public schedule<A extends unknown[], R>(
     handler: Parameters<typeof this.app.schedule<A, R>>[0],
-  ) {
+  ): NoAppTask<A, void> {
     return this.app.schedule(handler, this.topic);
   }
 
   public read<A extends unknown[], R>(
     ...args: Parameters<typeof this.app.read<A, R>>
-  ) {
+  ): NoAppTask<A, R> {
     return this.app.read(...args);
   }
 
@@ -68,7 +69,7 @@ export class LocalBrrr {
     const server = new Server(queue, store, store);
     const worker = new AppWorker(this.codec, server, this.handlers);
     const app = new LocalApp(this.topic, server, queue, worker);
-    const taskName = taskIdentifierToName(taskIdentifier);
+    const taskName = taskIdentifierToName(taskIdentifier, this.handlers);
     return async (...args: StripLeadingActiveWorker<A>): Promise<R> => {
       await app.schedule(taskName)(...args);
       await app.run();
