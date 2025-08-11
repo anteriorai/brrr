@@ -6,15 +6,15 @@ import {
   AppConsumer,
   AppWorker,
   type Handlers,
-  taskify,
+  taskFn,
 } from "./app.ts";
 import { Server } from "./connection.ts";
-import { NaiveCodec } from "./naive-codec.ts";
+import { JsonCodec } from "./json-codec.ts";
 import { NotFoundError } from "./errors.ts";
 import { LocalApp, LocalBrrr } from "./local-app.ts";
 import { deepStrictEqual, ok } from "node:assert/strict";
 
-const codec = new NaiveCodec();
+const codec = new JsonCodec();
 const topic = "brrr-test";
 const subtopics = {
   t1: "t1",
@@ -46,7 +46,7 @@ async function two(app: ActiveWorker, a: number): Promise<void> {
 }
 
 const handlers: Handlers = {
-  bar: taskify(bar),
+  bar: taskFn(bar),
   foo,
 };
 
@@ -75,7 +75,7 @@ await suite(import.meta.filename, async () => {
 
     const workerServer = new Server(queue, store, store);
     const appWorker = new AppWorker(codec, workerServer, {
-      foo: taskify(foo),
+      foo: taskFn(foo),
     });
     await appWorker.schedule("foo", topic)(5);
     await workerServer.loop(topic, appWorker.handle);
@@ -128,8 +128,8 @@ await suite(import.meta.filename, async () => {
       const localBrrr = new LocalBrrr(
         topic,
         {
-          foo: taskify(foo),
-          bar: taskify(bar),
+          foo: taskFn(foo),
+          bar: taskFn(bar),
           top,
         },
         codec,
@@ -165,7 +165,7 @@ await suite(import.meta.filename, async () => {
 
   await test("topics separate app same connection", async () => {
     const app1 = new AppWorker(codec, server, {
-      one: taskify(one),
+      one: taskFn(one),
     });
     const app2 = new AppWorker(codec, server, { two });
     await app2.schedule(two, "t2")(7);
@@ -180,7 +180,7 @@ await suite(import.meta.filename, async () => {
     const server1 = new Server(queue, store, store);
     const server2 = new Server(queue, store, store);
     const app1 = new AppWorker(codec, server1, {
-      one: taskify(one),
+      one: taskFn(one),
     });
     const app2 = new AppWorker(codec, server2, { two });
     await app2.schedule(two, subtopics.t2)(7);
@@ -193,7 +193,7 @@ await suite(import.meta.filename, async () => {
 
   await test("topics same app", async () => {
     const app = new AppWorker(codec, server, {
-      one: taskify(one),
+      one: taskFn(one),
       two,
     });
     await app.schedule(two, subtopics.t2)(7);
@@ -259,7 +259,7 @@ await suite(import.meta.filename, async () => {
     }
 
     const app = new AppWorker(codec, server, {
-      block: taskify(block),
+      block: taskFn(block),
       top,
     });
     await app.schedule(top, topic)();
@@ -339,7 +339,7 @@ await suite(import.meta.filename, async () => {
     const brrr = new LocalBrrr(
       topic,
       {
-        one: taskify(one),
+        one: taskFn(one),
         foo,
       },
       codec,
@@ -363,7 +363,7 @@ await suite(import.meta.filename, async () => {
       return a;
     }
 
-    const app = new AppWorker(codec, server, { foo: taskify(foo) });
+    const app = new AppWorker(codec, server, { foo: taskFn(foo) });
 
     while (true) {
       try {
@@ -394,8 +394,8 @@ await suite(import.meta.filename, async () => {
     }
 
     const worker = new AppWorker(codec, server, {
-      foo: taskify(foo),
-      "quux/zim": taskify(foo),
+      foo: taskFn(foo),
+      "quux/zim": taskFn(foo),
       "quux/bar": bar,
     });
     const localApp = new LocalApp(topic, server, queue, worker);
