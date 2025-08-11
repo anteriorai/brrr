@@ -1,5 +1,19 @@
-import { beforeEach, suite, test } from "node:test";
-import { deepStrictEqual, ok } from "node:assert/strict";
+import {
+  afterEach,
+  before,
+  beforeEach,
+  mock,
+  type MockTimersOptions,
+  suite,
+  test,
+} from "node:test";
+import {
+  deepStrictEqual,
+  doesNotReject,
+  ok,
+  rejects,
+  strictEqual,
+} from "node:assert/strict";
 import {
   type Cache,
   type MemKey,
@@ -7,9 +21,13 @@ import {
   PendingReturns,
   type Store,
 } from "./store.ts";
-import type { Message, Queue } from "./queue.ts";
-import { NotFoundError } from "./errors.ts";
-import { InMemoryQueue, InMemoryStore } from "./backends/in-memory.ts";
+import type { Queue } from "./queue.ts";
+import {
+  CompareMismatchError,
+  NotFoundError,
+  UnknownTopicError,
+} from "./errors.ts";
+import { InMemoryByteStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
 
 await describe(import.meta.filename, async () => {
@@ -200,7 +218,6 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
     beforeEach(() => {
       queue = factory([fixture.topic]);
       await queue.push(fixture.topic, fixture.message);
-      mockFn.mock.resetCalls();
     });
 
     await test("Basic pop", async () => {

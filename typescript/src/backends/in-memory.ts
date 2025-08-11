@@ -7,47 +7,74 @@ import {
   UnknownTopicError,
 } from "../errors.ts";
 import type { Cache, MemKey, Store } from "../store.ts";
+import { AsyncQueue } from "../lib/async-queue.ts";
+import { clearTimeout, setTimeout } from "node:timers";
 
 export class InMemoryQueue implements Queue {
-  private readonly queues: Map<string, string[]>;
+  public readonly timeout = 10;
+
+  private readonly queues: Map<string, AsyncQueue<string>>;
 
   private closing = false;
-  private closed = false;
+  private flushing = false;
 
   public constructor(topics: string[]) {
-    this.queues = new Map(topics.map((topic) => [topic, []]));
+    this.queues = new Map(topics.map((topic) => [topic, new AsyncQueue()]));
   }
 
-  public async put(topic: string, message: string): Promise<void> {
-    this.getTopicQueue(topic).push(message);
-  }
-
-  public async get(topic: string): Promise<string> {
-    this.ensureOpen();
-    const front = this.getTopicQueue(topic).shift();
-    if (!front) {
-      throw new QueueIsEmptyError();
-    }
-    return front;
-  }
-
-  public async close(): Promise<void> {
-    this.ensureOpen();
-    this.closing = true;
-    this.closed = true;
-  }
-
-  private ensureOpen(): void {
-    if (this.closing || this.closed) {
+  public async close() {
+    if (this.closing) {
       throw new QueueIsClosedError();
     }
+    this.closing = true;
+    for (const [_, queue] of this.queues) {
+      queue.shutdown();
+    }
   }
 
-  private getTopicQueue(topic: string): string[] {
-    this.ensureOpen();
+  public async join() {
+    await Promise.all(this.queues.values().map((queue) => queue.join()));
+  }
+
+  public async pop(topic: string): Promise<string> {
+    const queue = this.getTopicQueue(topic);
+    let payload: string;
+    if (this.flushing) {
+      try {
+        payload = queue.popSync();
+      } catch (err) {
+        if (err instanceof QueueIsEmptyError) {
+          queue.shutdown();
+          throw new QueueIsClosedError();
+        }
+        throw err;
+      }
+    } else {
+      const timeout = setTimeout(() => {
+        throw new QueueIsEmptyError();
+      }, this.timeout);
+      try {
+        payload = await queue.pop();
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+    queue.done();
+    return payload;
+  }
+
+  public async push(topic: string, message: string): Promise<void> {
+    await this.getTopicQueue(topic).push(message);
+  }
+
+  public flush() {
+    this.flushing = true;
+  }
+
+  private getTopicQueue(topic: string): AsyncQueue<string> {
     const queue = this.queues.get(topic);
     if (!queue) {
-      throw new UnknownTopicError(topic);
+      throw new Error(`Could not find topic: ${topic}`);
     }
     return queue;
   }
@@ -56,10 +83,6 @@ export class InMemoryQueue implements Queue {
 export class InMemoryByteStore implements Store, Cache {
   private innerStore = new Map<string, Uint8Array>();
   private innerCache = new Map<string, number>();
-
-  private key2str(key: MemKey): string {
-    return `${key.type}/${key.callHash}`;
-  }
 
   public async compareAndDelete(
     key: MemKey,
@@ -126,6 +149,10 @@ export class InMemoryByteStore implements Store, Cache {
       throw new CompareMismatchError(key);
     }
     this.innerStore.set(keyStr, value);
+  }
+
+  private key2str(key: MemKey): string {
+    return `${key.type}/${key.callHash}`;
   }
 
   private isEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
