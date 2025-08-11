@@ -1,9 +1,9 @@
 import { suite, test } from "node:test";
-import { NaiveCodec } from "./naive-codec.ts";
+import { JsonCodec } from "./json-codec.ts";
 import { codecContractTest } from "./codec.test.ts";
 
 await suite(import.meta.filename, async () => {
-  await test(NaiveCodec.name, async () => {
-    await codecContractTest(new NaiveCodec());
+  await test(JsonCodec.name, async () => {
+    await codecContractTest(new JsonCodec());
   });
 });
