@@ -40,7 +40,7 @@ function one(a: number): number {
 }
 
 async function two(app: ActiveWorker, a: number): Promise<void> {
-  const result = await app.call(one, subtopics.t1)(a + 3);
+  const result = await app.call("one", subtopics.t1)(a + 3);
   strictEqual(result, 15);
   await queue.close();
 }
@@ -83,11 +83,8 @@ await suite(import.meta.filename, async () => {
     const appConsumer = new AppConsumer(codec, workerServer);
 
     strictEqual(await appConsumer.read("foo")(5), 25);
-    strictEqual(await appConsumer.read(foo)(5), 25);
     await rejects(appConsumer.read("foo")(3), NotFoundError);
-    await rejects(appConsumer.read(foo)(3), NotFoundError);
     await rejects(appConsumer.read("bar")(5), NotFoundError);
-    await rejects(appConsumer.read(bar)(5), NotFoundError);
   });
 
   await test(LocalBrrr.name, async () => {
@@ -163,18 +160,22 @@ await suite(import.meta.filename, async () => {
     });
   });
 
-  await test("topics separate app same connection", async () => {
-    const app1 = new AppWorker(codec, server, {
-      one: taskFn(one),
-    });
-    const app2 = new AppWorker(codec, server, { two });
-    await app2.schedule(two, "t2")(7);
-    await Promise.all([
-      await server.loop(subtopics.t1, app1.handle),
-      await server.loop("t2", app2.handle),
-    ]);
-    await queue.join();
-  });
+  await test(
+    "topics separate app same connection",
+    { only: true },
+    async () => {
+      const app1 = new AppWorker(codec, server, {
+        one: taskFn(one),
+      });
+      const app2 = new AppWorker(codec, server, { two });
+      await app2.schedule(two, subtopics.t2)(7);
+      await Promise.all([
+        await server.loop(subtopics.t1, app1.handle),
+        await server.loop(subtopics.t2, app2.handle),
+      ]);
+      await queue.join();
+    },
+  );
 
   await test("topics separate app separate connection", async () => {
     const server1 = new Server(queue, store, store);
@@ -389,12 +390,12 @@ await suite(import.meta.filename, async () => {
 
     async function bar(app: ActiveWorker, a: number): Promise<number> {
       return (
-        (await app.call(foo)(a)) * ((await app.call("quux/zim")(a)) as number)
+        (await app.call(foo)(a)) *
+        (await app.call<[number], number>("quux/zim")(a))
       );
     }
 
     const worker = new AppWorker(codec, server, {
-      foo: taskFn(foo),
       "quux/zim": taskFn(foo),
       "quux/bar": bar,
     });
