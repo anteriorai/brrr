@@ -8,5 +8,5 @@ export interface Codec {
     task: (...args: A) => Promise<R>,
   ): Promise<Uint8Array>;
 
-  decodeReturn(taskName: string, payload: Uint8Array): Promise<unknown>;
+  decodeReturn(taskName: string, payload: Uint8Array): unknown;
 }
