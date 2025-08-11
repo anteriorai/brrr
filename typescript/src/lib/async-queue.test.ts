@@ -1,14 +1,13 @@
 import { beforeEach, mock, suite, test } from "node:test";
+import { QueueIsClosedError, QueueIsEmptyError } from "../errors.ts";
 import { AsyncQueue } from "./async-queue.ts";
 import {
   deepStrictEqual,
   doesNotThrow,
-  ok,
   rejects,
   strictEqual,
   throws,
-} from "node:assert/strict";
-import { setTimeout } from "node:timers/promises";
+} from "node:assert";
 
 await suite(import.meta.filename, async () => {
   let queue: AsyncQueue<number>;
@@ -23,17 +22,11 @@ await suite(import.meta.filename, async () => {
     await test("basic push & pop", async () => {
       await queue.push(0);
       await queue.push(1);
-      deepStrictEqual(await queue.pop(), {
-        kind: "Ok",
-        value: 0,
-      });
-      deepStrictEqual(await queue.pop(), {
-        kind: "Ok",
-        value: 1,
-      });
+      strictEqual(await queue.pop(), 0);
+      strictEqual(await queue.pop(), 1);
     });
 
-    await test("pop blocks until item is pushed", async () => {
+    await test("pop blocks until item is pushed", async (t) => {
       const pop = queue.pop().then(mockFn);
       strictEqual(mockFn.mock.callCount(), 0);
       await queue.push(0);
@@ -44,36 +37,18 @@ await suite(import.meta.filename, async () => {
     await test("popSync works when queue has items", async () => {
       await queue.push(0);
       const val = queue.popSync();
-      deepStrictEqual(val, {
-        kind: "Ok",
-        value: 0,
-      });
+      strictEqual(val, 0);
     });
 
     await test("popSync throws on empty queue", () => {
-      strictEqual(queue.popSync().kind, "QueueIsEmpty");
-    });
-
-    await test("timeout is enforced on pop", async () => {
-      const timeout = 50;
-      const pop = queue.pop(timeout);
-      await setTimeout(timeout * 2);
-      await queue.push(0);
-      strictEqual((await pop).kind, "QueueIsEmpty");
-    });
-
-    await test("timeout sanity check", async () => {
-      const timeout = 50;
-      const pop = queue.pop(timeout);
-      await queue.push(0);
-      strictEqual((await pop).kind, "Ok");
+      throws(() => queue.popSync(), QueueIsEmptyError);
     });
   });
 
   await suite("shutdown", async () => {
     await test("pop throws if queue is shutdown and empty", async () => {
       queue.shutdown();
-      strictEqual((await queue.pop()).kind, "QueueIsClosed");
+      await rejects(queue.pop(), QueueIsClosedError);
     });
 
     await test("push throws if queue is shutdown", async () => {
@@ -101,8 +76,8 @@ await suite(import.meta.filename, async () => {
       queue.shutdown();
       doesNotThrow(() => queue.shutdown());
       doesNotThrow(() => queue.shutdown());
-      ok(!(await queue.push(0)));
-      deepStrictEqual(await queue.pop(), { kind: "QueueIsClosed" });
+      await rejects(() => queue.push(0), QueueIsClosedError);
+      await rejects(() => queue.pop(), QueueIsClosedError);
     });
   });
 
@@ -113,9 +88,12 @@ await suite(import.meta.filename, async () => {
         await queue.push(value);
       }
       strictEqual(queue.size(), values.length);
-      for (const _ of values) {
-        await queue.pop();
-      }
+      await queue.pop();
+      doesNotThrow(() => queue.done());
+      await queue.pop();
+      doesNotThrow(() => queue.done());
+      await queue.pop();
+      doesNotThrow(() => queue.done());
       await queue.join();
       throws(() => queue.done());
     });
@@ -124,14 +102,10 @@ await suite(import.meta.filename, async () => {
       await queue.push(0);
       await queue.push(1);
       queue.shutdown();
-      deepStrictEqual(await queue.pop(), {
-        kind: "Ok",
-        value: 0,
-      });
-      deepStrictEqual(await queue.pop(), {
-        kind: "Ok",
-        value: 1,
-      });
+      strictEqual(await queue.pop(), 0);
+      queue.done();
+      strictEqual(await queue.pop(), 1);
+      queue.done();
       await queue.join();
     });
 
@@ -147,8 +121,11 @@ await suite(import.meta.filename, async () => {
       strictEqual(mockFn.mock.callCount(), 0);
 
       await queue.pop();
+      queue.done();
       await queue.pop();
+      queue.done();
 
+      strictEqual(mockFn.mock.callCount(), 0);
       await join;
       strictEqual(mockFn.mock.callCount(), 1);
     });
@@ -173,10 +150,7 @@ await suite(import.meta.filename, async () => {
       await Promise.allSettled(promises);
       deepStrictEqual(
         mockFn.mock.calls.flatMap((call) => call.arguments),
-        values.map((value) => ({
-          kind: "Ok",
-          value,
-        })),
+        values,
       );
     });
 
@@ -188,13 +162,6 @@ await suite(import.meta.filename, async () => {
         queue.shutdown();
         await Promise.allSettled([push, pop]);
       }
-    });
-
-    await test("deferred cleanup on shutdown", async () => {
-      const pops = new Array(10).keys().map(() => queue.pop());
-      queue.shutdown();
-      const results = await Promise.all(pops);
-      ok(results.every((result) => result.kind === "QueueIsClosed"));
     });
   });
 });
