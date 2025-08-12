@@ -13,7 +13,11 @@
     "node": ">=24"
   },
   "dependencies": {
-    "bencode": "^4.0.0"
+    "@aws-sdk/client-dynamodb": "^3.864.0",
+    "@aws-sdk/lib-dynamodb": "^3.864.0",
+    "redis": "^5.8.0",
+    "bencode": "^4.0.0",
+    "superjson": "^2.2.2"
   },
   "devDependencies": {
     "@types/bencode": "^2.0.4",
