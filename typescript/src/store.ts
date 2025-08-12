@@ -254,11 +254,11 @@ export class Memory {
     for (let i = 0; i < Memory.casRetryLimit; i++) {
       try {
         return await f();
-      } catch (e) {
-        if (e instanceof CompareMismatchError) {
+      } catch (err) {
+        if (err instanceof CompareMismatchError) {
           continue;
         }
-        throw e;
+        throw err;
       }
     }
     throw new CasRetryLimitReachedError(Memory.casRetryLimit);
