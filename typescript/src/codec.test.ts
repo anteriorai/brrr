@@ -28,8 +28,8 @@ export async function codecContractTest(codec: Codec) {
       const args = [1, "2"];
       const call = await codec.encodeCall(plus.name, args);
       const result = await codec.invokeTask(call, plus);
-      await codec.decodeReturn(plus.name, result);
-      strictEqual(await codec.decodeReturn(plus.name, result), 3);
+      const decoded = await codec.decodeReturn(plus.name, result);
+      strictEqual(decoded, 3);
     });
   });
 }
