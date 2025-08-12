@@ -5,7 +5,7 @@ from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 import logging
 import time
-from typing import Literal
+from typing import Literal, Any
 
 import bencodepy
 
@@ -52,23 +52,20 @@ class PendingReturns:
     returns: set[str]
 
     def encode(self) -> bytes:
-        return bencodepy.encode(
-            {
-                # This is a smell.
-                b"scheduled_at": self.scheduled_at or -1,
-                b"returns": list(
-                    sorted(map(lambda x: x.encode("us-ascii"), self.returns))
-                ),
-            }
-        )
+        data: dict[bytes, Any] = {
+            b"returns": list(sorted(map(lambda x: x.encode("us-ascii"), self.returns))),
+        }
+        if self.scheduled_at is not None:
+            data[b"scheduled_at"] = self.scheduled_at
+        return bencodepy.encode(data)
 
     @classmethod
     def decode(cls, enc: bytes) -> PendingReturns:
         decoded = bencodepy.decode(enc)
-        scheduled_at = decoded[b"scheduled_at"]
+        scheduled_at = decoded.get(b"scheduled_at", None)
         returns = decoded[b"returns"]
         return PendingReturns(
-            None if scheduled_at == -1 else scheduled_at,
+            scheduled_at,
             set(map(lambda x: x.decode("us-ascii"), returns)),
         )
 

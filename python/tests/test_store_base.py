@@ -1,10 +1,13 @@
 import functools
 
+import pytest
+
 from brrr.backends.in_memory import InMemoryByteStore
 from brrr.store import (
     CompareMismatch,
     Memory,
     MemKey,
+    PendingReturns,
 )
 
 
@@ -49,3 +52,19 @@ async def test_memory_cas():
         functools.partial(store.compare_and_set, key, b"999", b"123")
     )
     assert b"999" == await store.get(key)
+
+@pytest.mark.parametrize(
+    "pending_returns",
+    [
+        PendingReturns(scheduled_at=1000, returns={"a", "b", "c"}),
+        PendingReturns(scheduled_at=None, returns={"x", "y"}),
+        PendingReturns(scheduled_at=2000, returns={"single"}),
+        PendingReturns(scheduled_at=None, returns=set()),
+    ],
+)
+async def test_encode_decode_mixed_cases(pending_returns) -> None:
+    encoded = pending_returns.encode()
+    decoded = PendingReturns.decode(encoded)
+    assert decoded == pending_returns
+    assert decoded.scheduled_at == pending_returns.scheduled_at
+    assert decoded.returns == pending_returns.returns
