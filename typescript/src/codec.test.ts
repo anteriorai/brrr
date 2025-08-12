@@ -1,7 +1,10 @@
 import { suite, test } from "node:test";
-import { deepStrictEqual, strictEqual } from "node:assert/strict";
+import {
+  deepStrictEqual,
+  strictEqual,
+  notDeepStrictEqual,
+} from "node:assert/strict";
 import type { Codec } from "./codec.ts";
-import { notDeepStrictEqual } from "node:assert";
 
 export async function codecContractTest(codec: Codec) {
   await suite("store-contract", async () => {
