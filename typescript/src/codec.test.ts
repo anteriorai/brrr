@@ -1,5 +1,5 @@
 import { suite, test } from "node:test";
-import { deepStrictEqual } from "node:assert/strict";
+import { deepStrictEqual, strictEqual } from "node:assert/strict";
 import type { Codec } from "./codec.ts";
 import { notDeepStrictEqual } from "node:assert";
 
@@ -28,7 +28,7 @@ export async function codecContractTest(codec: Codec) {
       const args = [1, "2"];
       const call = await codec.encodeCall(plus.name, args);
       const result = await codec.invokeTask(call, plus);
-      await codec.decodeReturn(plus.name, result);
+      strictEqual(await codec.decodeReturn(plus.name, result), 3);
     });
   });
 }
