@@ -10,16 +10,16 @@ export const bencoder = {
   encode(data: unknown): Uint8Array {
     try {
       return bencode.encode(data);
-    } catch {
-      throw new BencodeError(data);
+    } catch (e: unknown) {
+      throw new BencodeError(e, data);
     }
   },
   decode(data: Uint8Array, encoding?: Encoding): unknown {
     try {
       const buffer = Buffer.from(data);
       return bencode.decode(buffer, encoding);
-    } catch {
-      throw new BencodeError(data);
+    } catch (e: unknown) {
+      throw new BencodeError(e, data);
     }
   },
 } as const;
