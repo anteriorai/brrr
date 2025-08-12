@@ -27,8 +27,8 @@ export class QueuePopTimeoutError extends BrrrError {
 }
 
 export class BencodeError extends BrrrError {
-  public constructor(data: unknown) {
-    super(`Bencode error: ${JSON.stringify(data)}`);
+  public constructor(err: unknown, data: unknown) {
+    super(`Bencode error: ${err}, while processing data: ${data}`);
   }
 }
 
