@@ -53,6 +53,7 @@ async def test_memory_cas():
     )
     assert b"999" == await store.get(key)
 
+
 @pytest.mark.parametrize(
     "pending_returns",
     [
