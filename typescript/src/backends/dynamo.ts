@@ -1,7 +1,17 @@
-import { CreateTableCommand, DeleteTableCommand, type DynamoDBClient, } from "@aws-sdk/client-dynamodb";
-import { DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, } from "@aws-sdk/lib-dynamodb";
+import {
+  CreateTableCommand,
+  DeleteTableCommand,
+  type DynamoDBClient,
+} from "@aws-sdk/client-dynamodb";
+import {
+  DeleteCommand,
+  DynamoDBDocumentClient,
+  GetCommand,
+  PutCommand,
+  UpdateCommand,
+} from "@aws-sdk/lib-dynamodb";
 import type { MemKey, Store } from "../store.ts";
-import { NotFoundError } from "../errors.ts";
+import { CompareMismatchError, NotFoundError } from "../errors.ts";
 import type { NativeAttributeValue } from "@aws-sdk/util-dynamodb";
 
 export class Dynamo implements Store {
@@ -50,7 +60,7 @@ export class Dynamo implements Store {
     );
   }
 
-  public async delete(key: MemKey): Promise<boolean> {
+  public async delete(key: MemKey): Promise<void> {
     await this.client.send(
       new DeleteCommand({
         TableName: this.tableName,
@@ -59,7 +69,7 @@ export class Dynamo implements Store {
     );
   }
 
-  public async setNewValue(key: MemKey, value: Uint8Array): Promise<boolean> {
+  public async setNewValue(key: MemKey, value: Uint8Array): Promise<void> {
     try {
       await this.client.send(
         new UpdateCommand({
@@ -71,13 +81,12 @@ export class Dynamo implements Store {
           ExpressionAttributeValues: { ":value": value },
         }),
       );
-      return true
     } catch (err) {
       if (
         err instanceof Error &&
         err?.name === "ConditionalCheckFailedException"
       ) {
-        return false
+        throw new CompareMismatchError(key);
       }
       throw err;
     }
@@ -87,7 +96,7 @@ export class Dynamo implements Store {
     key: MemKey,
     value: Uint8Array,
     expected: Uint8Array,
-  ): Promise<boolean> {
+  ): Promise<void> {
     try {
       await this.client.send(
         new UpdateCommand({
@@ -102,13 +111,12 @@ export class Dynamo implements Store {
           },
         }),
       );
-      return true
     } catch (err: unknown) {
       if (
         err instanceof Error &&
         err.name === "ConditionalCheckFailedException"
       ) {
-        return false
+        throw new CompareMismatchError(key);
       }
       throw err;
     }
@@ -117,7 +125,7 @@ export class Dynamo implements Store {
   public async compareAndDelete(
     key: MemKey,
     expected: Uint8Array,
-  ): Promise<boolean> {
+  ): Promise<void> {
     try {
       await this.client.send(
         new DeleteCommand({
@@ -129,13 +137,12 @@ export class Dynamo implements Store {
           ExpressionAttributeValues: { ":expected": expected },
         }),
       );
-      return true
     } catch (err: unknown) {
       if (
         err instanceof Error &&
         err.name === "ConditionalCheckFailedException"
       ) {
-        return false
+        throw new CompareMismatchError(key);
       }
       throw err;
     }
