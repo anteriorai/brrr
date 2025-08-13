@@ -221,7 +221,6 @@
                       name = "brrr-demo-deps";
                       category = "demo";
                       help = "Start all dependent services without any brrr workers / server";
-
                       command = ''
                         nix run .#deps
                       '';
