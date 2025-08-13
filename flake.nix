@@ -220,9 +220,10 @@
                     {
                       name = "brrr-demo-deps";
                       category = "demo";
-                      help = "Run the brrr-demo-deps process-compose environment";
+                      help = "Start all dependent services without any brrr workers / server";
+
                       command = ''
-                        nix run .#process-compose.deps
+                        nix run .#deps
                       '';
                     }
                   ];
