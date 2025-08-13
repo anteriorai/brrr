@@ -1,10 +1,5 @@
 import type { Message, Queue } from "../queue.ts";
-import {
-  CompareMismatchError,
-  NotFoundError,
-  QueueIsClosedError,
-  QueueIsEmptyError,
-} from "../errors.ts";
+import { NotFoundError, } from "../errors.ts";
 import type { Cache, MemKey, Store } from "../store.ts";
 import { AsyncQueue } from "../lib/async-queue.ts";
 import { clearTimeout, setTimeout } from "node:timers";
@@ -21,14 +16,15 @@ export class InMemoryQueue implements Queue {
     this.queues = new Map(topics.map((topic) => [topic, new AsyncQueue()]));
   }
 
-  public async close() {
+  public async close(): Promise<boolean> {
     if (this.closing) {
-      throw new QueueIsClosedError();
+      return false
     }
     this.closing = true;
     for (const [_, queue] of this.queues) {
       queue.shutdown();
     }
+    return true
   }
 
   public async join() {
@@ -86,26 +82,28 @@ export class InMemoryByteStore implements Store, Cache {
   public async compareAndDelete(
     key: MemKey,
     expected: Uint8Array,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const keyStr = this.key2str(key);
     const value = this.innerStore.get(keyStr);
     if (!value || !this.isEqualBytes(value, expected)) {
-      throw new CompareMismatchError(key);
+      return false
     }
     this.innerStore.delete(keyStr);
+    return true
   }
 
   public async compareAndSet(
     key: MemKey,
     value: Uint8Array,
     expected: Uint8Array,
-  ): Promise<void> {
+  ): Promise<boolean> {
     const keyStr = this.key2str(key);
     const currentValue = this.innerStore.get(keyStr);
     if (!currentValue || !this.isEqualBytes(currentValue, expected)) {
-      throw new CompareMismatchError(key);
+      return false
     }
     this.innerStore.set(keyStr, value);
+    return true
   }
 
   public async delete(key: MemKey): Promise<void> {

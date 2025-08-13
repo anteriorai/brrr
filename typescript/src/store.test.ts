@@ -2,7 +2,7 @@ import { beforeEach, suite, test, } from "node:test";
 import { deepStrictEqual, doesNotReject, ok, rejects, strictEqual, } from "node:assert/strict";
 import { type Cache, type MemKey, Memory, PendingReturns, type Store, } from "./store.ts";
 import type { Message, Queue } from "./queue.ts";
-import { CompareMismatchError, NotFoundError, } from "./errors.ts";
+import { NotFoundError, } from "./errors.ts";
 import { InMemoryByteStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
 
@@ -137,10 +137,7 @@ export async function storeContractTest(factory: () => Store) {
 
     await test("Basic setNewValue", async () => {
       const newValue = new Uint8Array([6, 7, 8, 9, 10]);
-      await rejects(
-        store.setNewValue(fixture.key, newValue),
-        CompareMismatchError,
-      );
+      ok(!await store.setNewValue(fixture.key, newValue));
       await doesNotReject(store.setNewValue(fixture.otherKey, newValue));
       const retrieved = await store.get(fixture.otherKey);
       deepStrictEqual(retrieved, newValue);
@@ -151,19 +148,13 @@ export async function storeContractTest(factory: () => Store) {
       await store.compareAndSet(fixture.key, newValue, fixture.value);
       const retrieved = await store.get(fixture.key);
       deepStrictEqual(retrieved, newValue);
-      await rejects(
-        store.compareAndSet(fixture.otherKey, newValue, fixture.value),
-        CompareMismatchError,
-      );
+      ok(!await store.compareAndSet(fixture.otherKey, newValue, fixture.value),)
     });
 
     await test("Basic compareAndDelete", async () => {
       await store.compareAndDelete(fixture.key, fixture.value);
       await rejects(store.get(fixture.key), NotFoundError);
-      await rejects(
-        store.compareAndDelete(fixture.otherKey, fixture.value),
-        CompareMismatchError,
-      );
+      ok(!await store.compareAndDelete(fixture.otherKey, fixture.value),)
     });
   });
 }
