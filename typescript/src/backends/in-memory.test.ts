@@ -1,11 +1,11 @@
 import { suite, test } from "node:test";
-import { InMemoryByteStore, InMemoryQueue } from "./in-memory.ts";
+import { InMemoryStore, InMemoryQueue, InMemoryCache } from "./in-memory.ts";
 import { cacheContractTest, queueContractTest, storeContractTest, } from "../store.test.ts";
 
 await suite(import.meta.filename, async () => {
-  await test(InMemoryByteStore.name, async () => {
-    await storeContractTest(() => new InMemoryByteStore());
-    await cacheContractTest(() => new InMemoryByteStore());
+  await test(InMemoryStore.name, async () => {
+    await storeContractTest(() => new InMemoryStore());
+    await cacheContractTest(() => new InMemoryCache());
   });
 
   await test(InMemoryQueue.name, async () => {
