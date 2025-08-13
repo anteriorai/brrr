@@ -1,7 +1,9 @@
-export interface Queue {
-  readonly timeout: number;
+export interface Message {
+  body: string;
+}
 
-  push(topic: string, message: string): Promise<void>;
+export interface Queue {
+  push(topic: string, message: Message): Promise<void>;
 
   pop(topic: string): Promise<string>;
 }
