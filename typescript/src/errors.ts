@@ -8,18 +8,6 @@ abstract class BrrrError extends Error {
   }
 }
 
-export class QueueIsEmptyError extends BrrrError {
-  public constructor() {
-    super("Queue is empty");
-  }
-}
-
-export class QueueIsClosedError extends BrrrError {
-  public constructor() {
-    super("Queue is closed");
-  }
-}
-
 export class InvalidMessageError extends BrrrError {
   public constructor(value: unknown) {
     super(`Invalid message: ${JSON.stringify(value)}`);
@@ -29,12 +17,6 @@ export class InvalidMessageError extends BrrrError {
 export class NotFoundError extends BrrrError {
   public constructor(key: MemKey) {
     super(`Not found: ${key.type}/${key.callHash}`);
-  }
-}
-
-export class CompareMismatchError extends BrrrError {
-  public constructor(key: MemKey) {
-    super(`Compare mismatch for key ${JSON.stringify(key)}`);
   }
 }
 
