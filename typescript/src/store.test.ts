@@ -1,7 +1,7 @@
 import { beforeEach, suite, test, } from "node:test";
 import { deepStrictEqual, doesNotReject, ok, rejects, strictEqual, } from "node:assert/strict";
 import { type Cache, type MemKey, Memory, PendingReturns, type Store, } from "./store.ts";
-import type { Queue } from "./queue.ts";
+import type { Message, Queue } from "./queue.ts";
 import { CompareMismatchError, NotFoundError, } from "./errors.ts";
 import { InMemoryByteStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
@@ -196,7 +196,9 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
 
     const fixture = {
       topic: "test-topic",
-      message: "test-message",
+      message: {
+        body: "test-message"
+      } satisfies Message,
     } as const;
 
     beforeEach(async () => {
@@ -209,7 +211,9 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
     });
 
     await test("Basic push & pop", async () => {
-      const newMessage = "new-test-message";
+      const newMessage: Message = {
+        body: "new-test-message"
+      };
       await queue.push(fixture.topic, newMessage);
       strictEqual(await queue.pop(fixture.topic), fixture.message);
       strictEqual(await queue.pop(fixture.topic), newMessage);
