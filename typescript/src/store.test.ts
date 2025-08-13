@@ -3,7 +3,7 @@ import { deepStrictEqual, doesNotReject, ok, rejects, strictEqual, } from "node:
 import { type Cache, type MemKey, Memory, PendingReturns, type Store, } from "./store.ts";
 import type { Message, Queue } from "./queue.ts";
 import { NotFoundError, } from "./errors.ts";
-import { InMemoryByteStore } from "./backends/in-memory.ts";
+import { InMemoryStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
 
 await suite(import.meta.filename, async () => {
@@ -48,7 +48,7 @@ await suite(import.meta.filename, async () => {
     } as const;
 
     beforeEach(async () => {
-      store = new InMemoryByteStore();
+      store = new InMemoryStore();
       memory = new Memory(store);
       await memory.setCall(fixture.call);
       await memory.setValue(fixture.call.callHash, fixture.call.payload);
