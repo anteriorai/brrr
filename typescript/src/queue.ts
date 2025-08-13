@@ -5,5 +5,5 @@ export interface Message {
 export interface Queue {
   push(topic: string, message: Message): Promise<void>;
 
-  pop(topic: string): Promise<string>;
+  pop(topic: string): Promise<Message>;
 }
