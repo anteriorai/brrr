@@ -1,5 +1,5 @@
 export interface Message {
-  body: string;
+  readonly body: string;
 }
 
 export interface Queue {
