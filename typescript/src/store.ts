@@ -49,26 +49,53 @@ export interface MemKey {
 }
 
 export interface Store {
+  /**
+   * Check if the store has a value for the given key.
+   */
   has(key: MemKey): Promise<boolean>;
 
+  /**
+   * Get the value for the given key.
+   */
   get(key: MemKey): Promise<Uint8Array>;
 
+  /**
+   * Set the value for the given key.
+   */
   set(key: MemKey, value: Uint8Array): Promise<void>;
 
+  /**
+   * Delete the value for the given key.
+   */
   delete(key: MemKey): Promise<void>;
 
-  setNewValue(key: MemKey, value: Uint8Array): Promise<void>;
+  /**
+   * Set a new value for the given key.
+   * Returns true if the value was set, false if the key already exists.
+   */
+  setNewValue(key: MemKey, value: Uint8Array): Promise<boolean>;
 
+  /**
+   * Compare and set a value for the given key.
+   * Returns true if the value was set, false if the expected value did not match.
+   */
   compareAndSet(
     key: MemKey,
     value: Uint8Array,
     expected: Uint8Array,
-  ): Promise<void>;
+  ): Promise<boolean>;
 
-  compareAndDelete(key: MemKey, expected: Uint8Array): Promise<void>;
+  /**
+   * Compare and delete a value for the given key.
+   * Returns true if the value was deleted, false if the expected value did not match.
+   */
+  compareAndDelete(key: MemKey, expected: Uint8Array): Promise<boolean>;
 }
 
 export interface Cache {
+  /**
+   * Increment the value for the given key.
+   */
   incr(key: string): Promise<number>;
 }
 
