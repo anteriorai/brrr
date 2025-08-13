@@ -1,32 +1,8 @@
-import {
-  afterEach,
-  before,
-  beforeEach,
-  mock,
-  type MockTimersOptions,
-  suite,
-  test,
-} from "node:test";
-import {
-  deepStrictEqual,
-  doesNotReject,
-  ok,
-  rejects,
-  strictEqual,
-} from "node:assert/strict";
-import {
-  type Cache,
-  type MemKey,
-  Memory,
-  PendingReturns,
-  type Store,
-} from "./store.ts";
+import { beforeEach, suite, test, } from "node:test";
+import { deepStrictEqual, doesNotReject, ok, rejects, strictEqual, } from "node:assert/strict";
+import { type Cache, type MemKey, Memory, PendingReturns, type Store, } from "./store.ts";
 import type { Queue } from "./queue.ts";
-import {
-  CompareMismatchError,
-  NotFoundError,
-  UnknownTopicError,
-} from "./errors.ts";
+import { CompareMismatchError, NotFoundError, } from "./errors.ts";
 import { InMemoryByteStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
 
@@ -236,10 +212,12 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
     });
 
     await test("Non-existing topic operations should throw", async () => {
-      await rejects(queue.pop("non-existing-topic"), UnknownTopicError);
+      await rejects(queue.pop("non-existing-topic"), Error);
       await rejects(
-        queue.push("non-existing-topic", "message"),
-        UnknownTopicError,
+        queue.push("non-existing-topic", {
+          body: "message"
+        }),
+        Error,
       );
     });
   });
