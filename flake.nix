@@ -150,7 +150,6 @@
             };
             brrrts = pkgs.callPackage ./typescript/package.nix {
               inherit (inputs) package-lock2nix;
-              inherit (pkgs) callPackage;
               inherit nodejs;
             };
           in
@@ -215,130 +214,135 @@
                   inherit self pkgs;
                   dynamodb-module = self.nixosModules.dynamodb;
                 };
-              devshells = {
-                default = {
-                  packages = devPackages ++ [ self'.packages.python ];
-                  motd =
-                    ''
-                      This is the generic devshell for brrr development.  Use this to fix
-                      problems in the Python lockfile and to access generic tooling.
-
-                      Available tools:
-                    ''
-                    + lib.concatLines (map (x: "  - ${x.pname or x.name}") devPackages)
-                    + ''
-
-                      For Python-specific development, use: nix develop .#python
-                      For TypeScript-specific development, use: nix develop .#typescript
-                    '';
-                  env = [
-                    {
-                      name = "PYTHONPATH";
-                      unset = true;
-                    }
-                    {
-                      name = "UV_PYTHON_DOWNLOADS";
-                      value = "never";
-                    }
-                  ];
-                };
-                python = {
-                  env = [
-                    {
-                      name = "REPO_ROOT";
-                      eval = "$(git rev-parse --show-toplevel)";
-                    }
-                    {
-                      name = "PYTHONPATH";
-                      unset = true;
-                    }
-                    {
-                      name = "UV_PYTHON_DOWNLOADS";
-                      value = "never";
-                    }
-                    {
-                      name = "UV_NO_SYNC";
-                      value = "1";
-                    }
-                  ];
-                  packages = devPackages ++ [ brrrpy.brrr-venv-editable ];
-                  commands = [
-                    {
-                      name = "brrr-test-unit";
-                      category = "test";
-                      help = "Tests which don't need dependencies";
-                      command = ''
-                        pytest -m 'not dependencies' "$@"
-                      '';
-                    }
-                    {
-                      name = "brrr-test-all";
-                      category = "test";
-                      help = "Tests including dependencies, make sure to run brrr-demo-deps";
-                      # Lol
-                      command = ''
-                        (
-                                            : "''${AWS_DEFAULT_REGION=fake}"
-                                            export AWS_DEFAULT_REGION
-                                            : "''${AWS_ENDPOINT_URL=http://localhost:8000}"
-                                            export AWS_ENDPOINT_URL
-                                            : "''${AWS_ACCESS_KEY_ID=fake}"
-                                            export AWS_ACCESS_KEY_ID
-                                            : "''${AWS_SECRET_ACCESS_KEY=fake}"
-                                            export AWS_SECRET_ACCESS_KEY
-                                            exec pytest "$@"
-                                          )'';
-                    }
-                    # Always build aarch64-linux
-                    {
-                      name = "brrr-build-docker";
-                      category = "build";
-                      help = "Build and load a Docker image (requires a Nix Linux builder)";
-                      command =
-                        let
-                          drv = self'.packages.docker;
-                        in
-                        ''
-                          (
-                            set -o pipefail
-                            if nix build --no-link --print-out-paths .#packages.aarch64-linux.docker | xargs -r docker load -i; then
-                              echo 'Start a new worker with `docker run <image name>`'
-                            fi
-                          )
-                        '';
-                    }
-                    {
-                      name = "brrr-demo-full";
-                      category = "demo";
-                      help = "Launch a full demo locally";
-                      command = ''
-                        nix run .#demo
-                      '';
-                    }
-                  ];
-                };
-                typescript = {
-                  packages = devPackages;
-                  commands = [
-                    {
-                      name = "brrr-test-unit";
-                      category = "test";
-                      help = "Tests which don't need dependencies";
-                      command = ''
-                        npm run test
-                      '';
-                    }
+              devshells =
+                let
+                  sharedCommands = [
                     {
                       name = "brrr-demo-deps";
                       category = "demo";
-                      help = "Start all dependent services without any brrr workers / server";
+                      help = "Run the brrr-demo-deps process-compose environment";
                       command = ''
-                        nix run .#deps
+                        nix run .#process-compose.deps
                       '';
                     }
                   ];
+                in
+                {
+                  default = {
+                    packages = devPackages ++ [ self'.packages.python ];
+                    motd =
+                      ''
+                        This is the generic devshell for brrr development.  Use this to fix
+                        problems in the Python lockfile and to access generic tooling.
+
+                        Available tools:
+                      ''
+                      + lib.concatLines (map (x: "  - ${x.pname or x.name}") devPackages)
+                      + ''
+
+                        For Python-specific development, use: nix develop .#python
+                        For TypeScript-specific development, use: nix develop .#typescript
+                      '';
+                    env = [
+                      {
+                        name = "PYTHONPATH";
+                        unset = true;
+                      }
+                      {
+                        name = "UV_PYTHON_DOWNLOADS";
+                        value = "never";
+                      }
+                    ];
+                  };
+                  python = {
+                    env = [
+                      {
+                        name = "REPO_ROOT";
+                        eval = "$(git rev-parse --show-toplevel)";
+                      }
+                      {
+                        name = "PYTHONPATH";
+                        unset = true;
+                      }
+                      {
+                        name = "UV_PYTHON_DOWNLOADS";
+                        value = "never";
+                      }
+                      {
+                        name = "UV_NO_SYNC";
+                        value = "1";
+                      }
+                    ];
+                    packages = devPackages ++ [ brrrpy.brrr-venv-editable ];
+                    commands = [
+                      {
+                        name = "brrr-test-unit";
+                        category = "test";
+                        help = "Tests which don't need dependencies";
+                        command = ''
+                          pytest -m 'not dependencies' "$@"
+                        '';
+                      }
+                      {
+                        name = "brrr-test-all";
+                        category = "test";
+                        help = "Tests including dependencies, make sure to run brrr-demo-deps";
+                        # Lol
+                        command = ''
+                          (
+                                              : "''${AWS_DEFAULT_REGION=fake}"
+                                              export AWS_DEFAULT_REGION
+                                              : "''${AWS_ENDPOINT_URL=http://localhost:8000}"
+                                              export AWS_ENDPOINT_URL
+                                              : "''${AWS_ACCESS_KEY_ID=fake}"
+                                              export AWS_ACCESS_KEY_ID
+                                              : "''${AWS_SECRET_ACCESS_KEY=fake}"
+                                              export AWS_SECRET_ACCESS_KEY
+                                              exec pytest "$@"
+                                            )'';
+                      }
+                      # Always build aarch64-linux
+                      {
+                        name = "brrr-build-docker";
+                        category = "build";
+                        help = "Build and load a Docker image (requires a Nix Linux builder)";
+                        command =
+                          let
+                            drv = self'.packages.docker;
+                          in
+                          ''
+                            (
+                              set -o pipefail
+                              if nix build --no-link --print-out-paths .#packages.aarch64-linux.docker | xargs -r docker load -i; then
+                                echo 'Start a new worker with `docker run <image name>`'
+                              fi
+                            )
+                          '';
+                      }
+                      {
+                        name = "brrr-demo-full";
+                        category = "demo";
+                        help = "Launch a full demo locally";
+                        command = ''
+                          nix run .#demo
+                        '';
+                      }
+                    ] ++ sharedCommands;
+                  };
+                  typescript = {
+                    packages = devPackages;
+                    commands = [
+                      {
+                        name = "brrr-test-unit";
+                        category = "test";
+                        help = "Tests which don't need dependencies";
+                        command = ''
+                          npm run test
+                        '';
+                      }
+                    ] ++ sharedCommands;
+                  };
                 };
-              };
             };
           };
       };
