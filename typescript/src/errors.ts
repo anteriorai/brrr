@@ -20,12 +20,6 @@ export class QueueIsClosedError extends BrrrError {
   }
 }
 
-export class BencodeError extends BrrrError {
-  public constructor(err: unknown, data: unknown) {
-    super(`Bencode error: ${err}, while processing data: ${data}`);
-  }
-}
-
 export class InvalidMessageError extends BrrrError {
   public constructor(value: unknown) {
     super(`Invalid message: ${JSON.stringify(value)}`);
