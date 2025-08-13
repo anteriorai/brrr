@@ -20,12 +20,6 @@ export class QueueIsClosedError extends BrrrError {
   }
 }
 
-export class QueuePopTimeoutError extends BrrrError {
-  public constructor(timeout: number) {
-    super(`Queue pop timed out after ${timeout}ms`);
-  }
-}
-
 export class BencodeError extends BrrrError {
   public constructor(data: unknown) {
     super(`Bencode error: ${JSON.stringify(data)}`);
@@ -38,15 +32,9 @@ export class InvalidMessageError extends BrrrError {
   }
 }
 
-export class UnknownTopicError extends BrrrError {
-  public constructor(topic: string) {
-    super(`Unknown topic: ${topic}`);
-  }
-}
-
 export class NotFoundError extends BrrrError {
   public constructor(key: MemKey) {
-    super(`Not found: ${JSON.stringify(key)}`);
+    super(`Not found: ${key.type}/${key.callHash}`);
   }
 }
 
