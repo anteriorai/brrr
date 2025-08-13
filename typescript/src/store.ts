@@ -101,7 +101,9 @@ export interface Cache {
 
 export class Memory {
   private static readonly casRetryLimit = 100;
-  private static decoder = new TextDecoder("ascii");
+  private static readonly encoding = "ascii" satisfies Encoding;
+  private static readonly decoder = new TextDecoder(Memory.encoding);
+
   private readonly store: Store;
 
   public constructor(store: Store) {
