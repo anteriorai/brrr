@@ -1,10 +1,9 @@
-import type { Queue } from "../queue.ts";
+import type { Message, Queue } from "../queue.ts";
 import {
   CompareMismatchError,
   NotFoundError,
   QueueIsClosedError,
   QueueIsEmptyError,
-  UnknownTopicError,
 } from "../errors.ts";
 import type { Cache, MemKey, Store } from "../store.ts";
 import { AsyncQueue } from "../lib/async-queue.ts";
@@ -13,7 +12,7 @@ import { clearTimeout, setTimeout } from "node:timers";
 export class InMemoryQueue implements Queue {
   public readonly timeout = 10;
 
-  private readonly queues: Map<string, AsyncQueue<string>>;
+  private readonly queues: Map<string, AsyncQueue<Message>>;
 
   private closing = false;
   private flushing = false;
@@ -36,9 +35,9 @@ export class InMemoryQueue implements Queue {
     await Promise.all(this.queues.values().map((queue) => queue.join()));
   }
 
-  public async pop(topic: string): Promise<string> {
+  public async pop(topic: string): Promise<Message> {
     const queue = this.getTopicQueue(topic);
-    let payload: string;
+    let payload: Message;
     if (this.flushing) {
       try {
         payload = queue.popSync();
@@ -63,7 +62,7 @@ export class InMemoryQueue implements Queue {
     return payload;
   }
 
-  public async push(topic: string, message: string): Promise<void> {
+  public async push(topic: string, message: Message): Promise<void> {
     await this.getTopicQueue(topic).push(message);
   }
 
@@ -71,10 +70,10 @@ export class InMemoryQueue implements Queue {
     this.flushing = true;
   }
 
-  private getTopicQueue(topic: string): AsyncQueue<string> {
+  private getTopicQueue(topic: string): AsyncQueue<Message> {
     const queue = this.queues.get(topic);
     if (!queue) {
-      throw new UnknownTopicError(topic);
+      throw new Error(`Could not find queue for topic "${queue}"`);
     }
     return queue;
   }
