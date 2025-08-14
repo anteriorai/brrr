@@ -4,7 +4,6 @@ import { bencoder } from "./bencode.ts";
 import { Buffer } from "node:buffer";
 import {
   CasRetryLimitReachedError,
-  CompareMismatchError,
   NotFoundError,
 } from "./errors.ts";
 import { TextDecoder } from "node:util";
@@ -246,11 +245,11 @@ export class Memory {
         PendingReturns.decode(pendingEncoded).returns.difference(handled);
       await f(toHandle);
       toHandle.forEach((it) => handled.add(it));
-      await this.store.compareAndDelete(memKey, pendingEncoded);
+      return this.store.compareAndDelete(memKey, pendingEncoded);
     });
   }
 
-  private async withCas<T>(f: () => Promise<T>): Promise<T> {
+  private async withCas(f: () => Promise<boolean>): Promise<void> {
     for (let i = 0; i < Memory.casRetryLimit; i++) {
       try {
         return await f();
