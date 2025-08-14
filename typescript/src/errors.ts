@@ -10,7 +10,7 @@ abstract class BrrrError extends Error {
 
 export class InvalidMessageError extends BrrrError {
   public constructor() {
-    super('Recieved invalid message');
+    super("Recieved invalid message");
   }
 }
 
