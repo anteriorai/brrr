@@ -115,10 +115,10 @@ export class Memory {
     const memKey: MemKey = {
       type: "call",
       callHash,
-    }
+    };
     const encoded = await this.store.get(memKey);
     if (!encoded) {
-      throw new NotFoundError(memKey)
+      throw new NotFoundError(memKey);
     }
     const { task_name, payload } = bencoder.decode(encoded) as {
       task_name: Uint8Array;
