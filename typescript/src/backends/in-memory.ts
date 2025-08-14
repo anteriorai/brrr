@@ -1,5 +1,5 @@
 import type { Message, Queue, QueuePopResult } from "../queue.ts";
-import { NotFoundError, QueueIsClosedError, } from "../errors.ts";
+import { NotFoundError, QueueIsClosedError } from "../errors.ts";
 import type { Cache, MemKey, Store } from "../store.ts";
 import { AsyncQueue } from "../lib/async-queue.ts";
 
@@ -32,7 +32,7 @@ export class InMemoryQueue implements Queue {
 
   public flush(): void {
     for (const queue of this.queues.values()) {
-      queue.flush()
+      queue.flush();
     }
   }
 
@@ -55,10 +55,10 @@ export class InMemoryStore implements Store {
     const keyStr = this.key2str(key);
     const value = this.store.get(keyStr);
     if (!value || !this.isEqualBytes(value, expected)) {
-      return false
+      return false;
     }
     this.store.delete(keyStr);
-    return true
+    return true;
   }
 
   public async compareAndSet(
@@ -69,10 +69,10 @@ export class InMemoryStore implements Store {
     const keyStr = this.key2str(key);
     const currentValue = this.store.get(keyStr);
     if (!currentValue || !this.isEqualBytes(currentValue, expected)) {
-      return false
+      return false;
     }
     this.store.set(keyStr, value);
-    return true
+    return true;
   }
 
   public async delete(key: MemKey): Promise<void> {
@@ -105,10 +105,10 @@ export class InMemoryStore implements Store {
   public async setNewValue(key: MemKey, value: Uint8Array): Promise<boolean> {
     const keyStr = this.key2str(key);
     if (this.store.has(keyStr)) {
-      return false
+      return false;
     }
     this.store.set(keyStr, value);
-    return true
+    return true;
   }
 
   private key2str(key: MemKey): string {
