@@ -1,5 +1,4 @@
 import type { Message, Queue, QueuePopResult } from "../queue.ts";
-import { NotFoundError } from "../errors.ts";
 import type { Cache, MemKey, Store } from "../store.ts";
 import { AsyncQueue } from "../lib/async-queue.ts";
 
@@ -69,21 +68,14 @@ export class InMemoryStore implements Store {
     return true;
   }
 
-  public async delete(key: MemKey): Promise<void> {
+  public async delete(key: MemKey): Promise<boolean> {
     const keyStr = this.key2str(key);
-    if (!this.store.has(keyStr)) {
-      throw new NotFoundError(key);
-    }
-    this.store.delete(keyStr);
+    return this.store.delete(keyStr);
   }
 
-  public async get(key: MemKey): Promise<Uint8Array> {
+  public async get(key: MemKey): Promise<Uint8Array | undefined> {
     const keyStr = this.key2str(key);
-    const value = this.store.get(keyStr);
-    if (!value) {
-      throw new NotFoundError(key);
-    }
-    return value;
+    return this.store.get(keyStr);
   }
 
   public async has(key: MemKey): Promise<boolean> {
