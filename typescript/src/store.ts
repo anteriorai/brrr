@@ -1,5 +1,10 @@
 import type { Call } from "./call.ts";
 import { bencoder } from "./bencode.ts";
+import { Buffer } from "node:buffer";
+import {
+  CasRetryLimitReachedError,
+  NotFoundError,
+} from "./errors.ts";
 import { TextDecoder } from "node:util";
 import type { Encoding } from "node:crypto";
 import { CasRetryLimitReachedError, NotFoundError } from "./errors.ts";
