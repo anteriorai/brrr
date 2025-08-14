@@ -4,7 +4,7 @@ export interface Message {
   readonly body: string;
 }
 
-export type QueuePopResult = Result<"QueueIsClosed" | "QueueIsEmpty", Message>;
+export type QueuePopResult<T> = Result<"QueueIsClosed" | "QueueIsEmpty", T>;
 
 export interface Queue {
   /**
@@ -16,5 +16,5 @@ export interface Queue {
    * Pop a message from the queue.
    * Returns a result indicating whether the queue is closed, empty, or contains a message.
    */
-  pop(topic: string): Promise<QueuePopResult>;
+  pop(topic: string): Promise<QueuePopResult<Message>>;
 }
