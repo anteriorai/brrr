@@ -1,18 +1,10 @@
+import type { Result } from "./types.ts";
+
 export interface Message {
   readonly body: string;
 }
 
-export type QueuePopResult =
-  | {
-      kind: "QueueIsClosed";
-    }
-  | {
-      kind: "QueueIsEmpty";
-    }
-  | {
-      kind: "Ok";
-      message: Message;
-    };
+export type QueuePopResult = Result<"QueueIsClosed" | "QueueIsEmpty", Message>;
 
 export interface Queue {
   /**
