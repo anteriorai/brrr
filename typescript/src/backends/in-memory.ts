@@ -1,5 +1,5 @@
 import type { Message, Queue, QueuePopResult } from "../queue.ts";
-import { NotFoundError, QueueIsClosedError } from "../errors.ts";
+import { NotFoundError } from "../errors.ts";
 import type { Cache, MemKey, Store } from "../store.ts";
 import { AsyncQueue } from "../lib/async-queue.ts";
 
@@ -23,7 +23,7 @@ export class InMemoryQueue implements Queue {
   }
 
   public async pop(topic: string): Promise<QueuePopResult<Message>> {
-    return this.getTopicQueue(topic).pop();
+    return this.getTopicQueue(topic).pop(this.timeout);
   }
 
   public async push(topic: string, message: Message): Promise<void> {
