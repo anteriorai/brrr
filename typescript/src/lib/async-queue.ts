@@ -1,3 +1,6 @@
+import type { QueuePopResult } from "../queue.ts";
+import { QueueIsClosedError } from "../errors.ts";
+
 interface Deferred<T> {
   resolve: (value: T) => void;
   reject: (err: unknown) => void;
@@ -30,7 +33,7 @@ export class AsyncQueue<T> {
 
   public async push(value: T): Promise<void> {
     if (this.shutdownMode) {
-      throw new QueueIsClosedError();
+      throw new Error("Queue is shutting down")
     }
     this.tasks++;
     if (this.tasks === 1) {
@@ -44,24 +47,30 @@ export class AsyncQueue<T> {
     this.items.push(value);
   }
 
-  public async pop(): Promise<T> {
+  public pop(): QueuePopResult<Promise<T>> {
     if (this.items.length > 0) {
-      return this.items.shift() as T;
+      return {
+        kind: "Ok",
+        value: Promise.resolve(this.items.shift()) as Promise<T>,
+      };
     }
     if (this.shutdownMode) {
-      throw new QueueIsClosedError();
+      return { kind: "QueueIsClosed" }
     }
-    return this.generator.next().value;
+    return {
+      kind: "Ok",
+      value: this.generator.next().value,
+    };
   }
 
-  public popSync(): T {
+  public popSync(): QueuePopResult<T> {
     if (this.items.length > 0) {
-      return this.items.shift() as T;
+      return { kind: "Ok", value: this.items.shift() as T };
     }
     if (this.shutdownMode) {
-      throw new QueueIsClosedError();
+      return { kind: "QueueIsClosed" };
     }
-    throw new QueueIsEmptyError();
+    return { kind: "QueueIsEmpty" }
   }
 
   public done(): void {
@@ -74,7 +83,7 @@ export class AsyncQueue<T> {
     }
   }
 
-  public async join(): Promise<void> {
+  public join(): Promise<void> {
     return this.sentinel;
   }
 

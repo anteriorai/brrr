@@ -1,5 +1,5 @@
 import type { Queue } from "../queue.ts";
-import { NotFoundError, } from "../errors.ts";
+import { NotFoundError, QueueIsClosedError, } from "../errors.ts";
 import type { Cache, MemKey, Store } from "../store.ts";
 import type { AsyncQueue } from "../lib/async-queue.ts";
 
@@ -67,7 +67,7 @@ export class InMemoryQueue implements Queue {
   private getTopicQueue(topic: string): AsyncQueue<string> {
     const queue = this.queues.get(topic);
     if (!queue) {
-      throw new UnknownTopicError(topic);
+      throw new Error(`Cloud not find topic: ${topic}`);
     }
     return queue;
   }
