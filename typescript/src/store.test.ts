@@ -17,6 +17,7 @@ import type { Message, Queue } from "./queue.ts";
 import { NotFoundError } from "./errors.ts";
 import { InMemoryStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
+import { setTimeout } from "node:timers/promises";
 
 await suite(import.meta.filename, async () => {
   await suite(PendingReturns.name, async () => {

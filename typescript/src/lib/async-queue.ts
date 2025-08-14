@@ -47,20 +47,29 @@ export class AsyncQueue<T> {
     this.items.push(value);
   }
 
-  public async pop(): Promise<QueuePopResult<T>> {
+  public async pop(timeout?: number): Promise<QueuePopResult<T>> {
     if (this.items.length) {
       this.done();
-      return {
-        kind: "Ok",
-        value: this.items.shift() as T,
-      };
+      return { kind: "Ok", value: this.items.shift() as T };
     }
     if (this.shutdownMode) {
       return { kind: "QueueIsClosed" };
     }
-    const value = await this.generator.next().value;
-    this.done();
-    return { kind: "Ok", value };
+    const result = this.generator
+      .next()
+      .value.then<QueuePopResult<T>>((value) => {
+        this.done();
+        return { kind: "Ok", value };
+      });
+    if (!timeout) {
+      return result;
+    }
+    const timer = new Promise<QueuePopResult<T>>((resolve) => {
+      setTimeout(() => {
+        resolve({ kind: "QueueIsEmpty" });
+      }, timeout);
+    });
+    return Promise.race<QueuePopResult<T>>([result, timer]);
   }
 
   public popSync(): QueuePopResult<T> {
