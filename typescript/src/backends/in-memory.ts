@@ -13,17 +13,17 @@ export class InMemoryQueue implements Queue {
   }
 
   public async close() {
-    for (const [_, queue] of this.queues) {
+    for (const queue of this.queues.values()) {
       queue.shutdown();
     }
   }
 
-  public async join() {
+  public async join(): Promise<void> {
     await Promise.all(this.queues.values().map((queue) => queue.join()));
   }
 
-  public async pop(topic: string): Promise<QueuePopResult> {
-    const queue = this.getTopicQueue(topic).pop();
+  public async pop(topic: string): Promise<QueuePopResult<Message>> {
+    return this.getTopicQueue(topic).pop();
   }
 
   public async push(topic: string, message: Message): Promise<void> {
@@ -31,6 +31,9 @@ export class InMemoryQueue implements Queue {
   }
 
   public flush() {
+    for (const queue of this.queues.values()) {
+      queue.flush()
+    }
   }
 
   private getTopicQueue(topic: string): AsyncQueue<Message> {

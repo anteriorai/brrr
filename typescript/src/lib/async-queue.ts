@@ -14,6 +14,7 @@ export class AsyncQueue<T> {
   private tasks = 0;
   private shutdownMode = false;
 
+  private flushing = false
   private resolver: (() => void) | undefined;
   private sentinel = Promise.resolve();
 
@@ -47,20 +48,17 @@ export class AsyncQueue<T> {
     this.items.push(value);
   }
 
-  public pop(): QueuePopResult<Promise<T>> {
+  public async pop(): Promise<QueuePopResult<T>> {
     if (this.items.length > 0) {
       return {
         kind: "Ok",
-        value: Promise.resolve(this.items.shift()) as Promise<T>,
+        value: this.items.shift() as T,
       };
     }
     if (this.shutdownMode) {
       return { kind: "QueueIsClosed" }
     }
-    return {
-      kind: "Ok",
-      value: this.generator.next().value,
-    };
+    return this.generator.next().value.then((value) => ({ kind: "Ok", value }))
   }
 
   public popSync(): QueuePopResult<T> {
@@ -85,6 +83,10 @@ export class AsyncQueue<T> {
 
   public join(): Promise<void> {
     return this.sentinel;
+  }
+
+  public flush(): void {
+    this.flushing = true
   }
 
   public shutdown(): void {
