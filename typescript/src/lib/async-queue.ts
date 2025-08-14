@@ -49,7 +49,7 @@ export class AsyncQueue<T> {
   }
 
   public async pop(): Promise<QueuePopResult<T>> {
-    if (this.items.length > 0) {
+    if (this.items.length) {
       return {
         kind: "Ok",
         value: this.items.shift() as T,
@@ -83,10 +83,6 @@ export class AsyncQueue<T> {
 
   public join(): Promise<void> {
     return this.sentinel;
-  }
-
-  public flush(): void {
-    this.flushing = true
   }
 
   public shutdown(): void {
