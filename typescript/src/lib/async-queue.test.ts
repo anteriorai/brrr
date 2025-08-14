@@ -1,7 +1,13 @@
 import { beforeEach, mock, suite, test } from "node:test";
 import { QueueIsClosedError } from "../errors.ts";
 import { AsyncQueue } from "./async-queue.ts";
-import { deepStrictEqual, doesNotThrow, rejects, strictEqual, throws, } from "node:assert/strict";
+import {
+  deepStrictEqual,
+  doesNotThrow,
+  rejects,
+  strictEqual,
+  throws,
+} from "node:assert/strict";
 
 await suite(import.meta.filename, async () => {
   let queue: AsyncQueue<number>;
@@ -44,7 +50,7 @@ await suite(import.meta.filename, async () => {
     });
 
     await test("popSync throws on empty queue", () => {
-      strictEqual(queue.popSync().kind, "QueueIsEmpty")
+      strictEqual(queue.popSync().kind, "QueueIsEmpty");
     });
   });
 
@@ -107,12 +113,12 @@ await suite(import.meta.filename, async () => {
       queue.shutdown();
       deepStrictEqual(await queue.pop(), {
         kind: "Ok",
-        value: 0
+        value: 0,
       });
       queue.done();
       deepStrictEqual(await queue.pop(), {
         kind: "Ok",
-        value: 1
+        value: 1,
       });
       queue.done();
       await queue.join();
@@ -142,7 +148,7 @@ await suite(import.meta.filename, async () => {
 
   await suite("simple stress test", async () => {
     await test("producer-consumer with shutdown", async () => {
-      const values = [0, 1, 2, 3, 4]
+      const values = [0, 1, 2, 3, 4];
       const promises: Promise<void>[] = [];
       for (const _ of values) {
         promises.push(
@@ -159,9 +165,9 @@ await suite(import.meta.filename, async () => {
       await Promise.allSettled(promises);
       deepStrictEqual(
         mockFn.mock.calls.flatMap((call) => call.arguments),
-        values.map(value => ({
+        values.map((value) => ({
           kind: "Ok",
-          value
+          value,
         })),
       );
     });
