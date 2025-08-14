@@ -1,4 +1,4 @@
-import { beforeEach, suite, test } from "node:test";
+import { beforeEach, mock, suite, test } from "node:test";
 import {
   deepStrictEqual,
   doesNotReject,
@@ -17,7 +17,6 @@ import type { Message, Queue } from "./queue.ts";
 import { NotFoundError } from "./errors.ts";
 import { InMemoryStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
-import { setTimeout } from "node:timers/promises";
 
 await suite(import.meta.filename, async () => {
   await suite(PendingReturns.name, async () => {
@@ -196,6 +195,7 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
   await suite("queue-contract", async () => {
     let queue: Queue;
 
+    const mockFn = mock.fn();
     const fixture = {
       topic: "test-topic",
       message: {
@@ -206,6 +206,7 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
     beforeEach(async () => {
       queue = factory([fixture.topic]);
       await queue.push(fixture.topic, fixture.message);
+      mockFn.mock.resetCalls();
     });
 
     await test("Basic pop", async () => {
@@ -232,12 +233,15 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
 
     await test("Non-existing topic operations should throw", async () => {
       await rejects(queue.pop("non-existing-topic"), Error);
-      await rejects(
-        queue.push("non-existing-topic", {
-          body: "message",
-        }),
-        Error,
-      );
+      await rejects(queue.push("non-existing-topic", fixture.message), Error);
+    });
+
+    await test("pop blocks until item is pushed", async () => {
+      const pop = queue.pop(fixture.topic).then(mockFn);
+      strictEqual(mockFn.mock.callCount(), 0);
+      await queue.push(fixture.topic, fixture.message);
+      await pop;
+      strictEqual(mockFn.mock.callCount(), 1);
     });
   });
 }
