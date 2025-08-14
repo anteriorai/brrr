@@ -1,8 +1,20 @@
-import { beforeEach, suite, test, } from "node:test";
-import { deepStrictEqual, doesNotReject, ok, rejects, strictEqual, } from "node:assert/strict";
-import { type Cache, type MemKey, Memory, PendingReturns, type Store, } from "./store.ts";
+import { beforeEach, suite, test } from "node:test";
+import {
+  deepStrictEqual,
+  doesNotReject,
+  ok,
+  rejects,
+  strictEqual,
+} from "node:assert/strict";
+import {
+  type Cache,
+  type MemKey,
+  Memory,
+  PendingReturns,
+  type Store,
+} from "./store.ts";
 import type { Message, Queue } from "./queue.ts";
-import { NotFoundError, } from "./errors.ts";
+import { NotFoundError } from "./errors.ts";
 import { InMemoryStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
 
@@ -137,7 +149,7 @@ export async function storeContractTest(factory: () => Store) {
 
     await test("Basic setNewValue", async () => {
       const newValue = new Uint8Array([6, 7, 8, 9, 10]);
-      ok(!await store.setNewValue(fixture.key, newValue));
+      ok(!(await store.setNewValue(fixture.key, newValue)));
       await doesNotReject(store.setNewValue(fixture.otherKey, newValue));
       const retrieved = await store.get(fixture.otherKey);
       deepStrictEqual(retrieved, newValue);
@@ -148,13 +160,15 @@ export async function storeContractTest(factory: () => Store) {
       await store.compareAndSet(fixture.key, newValue, fixture.value);
       const retrieved = await store.get(fixture.key);
       deepStrictEqual(retrieved, newValue);
-      ok(!await store.compareAndSet(fixture.otherKey, newValue, fixture.value),)
+      ok(
+        !(await store.compareAndSet(fixture.otherKey, newValue, fixture.value)),
+      );
     });
 
     await test("Basic compareAndDelete", async () => {
       await store.compareAndDelete(fixture.key, fixture.value);
       await rejects(store.get(fixture.key), NotFoundError);
-      ok(!await store.compareAndDelete(fixture.otherKey, fixture.value),)
+      ok(!(await store.compareAndDelete(fixture.otherKey, fixture.value)));
     });
   });
 }
@@ -184,7 +198,7 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
     const fixture = {
       topic: "test-topic",
       message: {
-        body: "test-message"
+        body: "test-message",
       } satisfies Message,
     } as const;
 
@@ -196,22 +210,22 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
     await test("Basic pop", async () => {
       deepStrictEqual(await queue.pop(fixture.topic), {
         kind: "Ok",
-        value: fixture.message
+        value: fixture.message,
       });
     });
 
     await test("Basic push & pop", async () => {
       const newMessage: Message = {
-        body: "new-test-message"
+        body: "new-test-message",
       };
       await queue.push(fixture.topic, newMessage);
       deepStrictEqual(await queue.pop(fixture.topic), {
         kind: "Ok",
-        value: fixture.message
+        value: fixture.message,
       });
       deepStrictEqual(await queue.pop(fixture.topic), {
         kind: "Ok",
-        value: newMessage
+        value: newMessage,
       });
     });
 
@@ -219,7 +233,7 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
       await rejects(queue.pop("non-existing-topic"), Error);
       await rejects(
         queue.push("non-existing-topic", {
-          body: "message"
+          body: "message",
         }),
         Error,
       );
