@@ -14,7 +14,6 @@ import {
   type Store,
 } from "./store.ts";
 import type { Message, Queue } from "./queue.ts";
-import { NotFoundError } from "./errors.ts";
 import { InMemoryQueue, InMemoryStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
 
@@ -90,7 +89,7 @@ await suite(import.meta.filename, async () => {
     await test("getValue", async () => {
       const retrieved = await memory.getValue(fixture.call.callHash);
       deepStrictEqual(retrieved, fixture.call.payload);
-      await rejects(memory.getValue("non-existing-call-hash"), NotFoundError);
+      strictEqual(await memory.getValue("non-existing-call-hash"), undefined)
     });
 
     await test("setValue", async () => {
@@ -126,7 +125,7 @@ export async function storeContractTest(factory: () => Store) {
     await test("Basic get", async () => {
       const retrieved = await store.get(fixture.key);
       deepStrictEqual(retrieved, fixture.value);
-      await rejects(store.get(fixture.otherKey), NotFoundError);
+      strictEqual(await store.get(fixture.otherKey), undefined)
     });
 
     await test("Basic has", async () => {
@@ -147,8 +146,8 @@ export async function storeContractTest(factory: () => Store) {
 
     await test("Basic delete", async () => {
       await store.delete(fixture.key);
-      await rejects(store.get(fixture.key), NotFoundError);
-      await rejects(store.delete(fixture.otherKey), NotFoundError);
+      strictEqual(await store.get(fixture.key), undefined)
+      strictEqual(await store.delete(fixture.otherKey), false)
     });
 
     await test("Basic setNewValue", async () => {
@@ -171,7 +170,7 @@ export async function storeContractTest(factory: () => Store) {
 
     await test("Basic compareAndDelete", async () => {
       await store.compareAndDelete(fixture.key, fixture.value);
-      await rejects(store.get(fixture.key), NotFoundError);
+      strictEqual(await store.get(fixture.key), undefined)
       ok(!(await store.compareAndDelete(fixture.otherKey, fixture.value)));
     });
   });
