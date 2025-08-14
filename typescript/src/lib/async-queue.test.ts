@@ -1,14 +1,7 @@
 import { beforeEach, mock, suite, test } from "node:test";
 import { QueueIsClosedError } from "../errors.ts";
 import { AsyncQueue } from "./async-queue.ts";
-import {
-  deepStrictEqual,
-  doesNotThrow,
-  rejects,
-  strictEqual,
-  throws,
-} from "node:assert/strict";
-import type { QueuePopResult } from "../queue.ts";
+import { deepStrictEqual, doesNotThrow, rejects, strictEqual, throws, } from "node:assert/strict";
 
 await suite(import.meta.filename, async () => {
   let queue: AsyncQueue<number>;
@@ -19,16 +12,18 @@ await suite(import.meta.filename, async () => {
     mockFn.mock.resetCalls();
   });
 
-  function Ok(value: number): QueuePopResult<number> {
-    return { kind: "Ok", value };
-  }
-
   await suite("basic", async () => {
     await test("basic push & pop", async () => {
       await queue.push(0);
       await queue.push(1);
-      strictEqual(await queue.pop(), Ok(0));
-      strictEqual(await queue.pop(), Ok(1));
+      deepStrictEqual(await queue.pop(), {
+        kind: "Ok",
+        value: 0,
+      });
+      deepStrictEqual(await queue.pop(), {
+        kind: "Ok",
+        value: 1,
+      });
     });
 
     await test("pop blocks until item is pushed", async (t) => {
@@ -42,18 +37,21 @@ await suite(import.meta.filename, async () => {
     await test("popSync works when queue has items", async () => {
       await queue.push(0);
       const val = queue.popSync();
-      strictEqual(val, 0);
+      deepStrictEqual(val, {
+        kind: "Ok",
+        value: 0,
+      });
     });
 
     await test("popSync throws on empty queue", () => {
-      throws(() => queue.popSync(), QueueIsEmptyError);
+      strictEqual(queue.popSync().kind, "QueueIsEmpty")
     });
   });
 
   await suite("shutdown", async () => {
     await test("pop throws if queue is shutdown and empty", async () => {
       queue.shutdown();
-      await rejects(queue.pop(), QueueIsClosedError);
+      strictEqual((await queue.pop()).kind, "QueueIsClosed");
     });
 
     await test("push throws if queue is shutdown", async () => {
@@ -82,7 +80,7 @@ await suite(import.meta.filename, async () => {
       doesNotThrow(() => queue.shutdown());
       doesNotThrow(() => queue.shutdown());
       await rejects(() => queue.push(0), QueueIsClosedError);
-      await rejects(() => queue.pop(), QueueIsClosedError);
+      strictEqual((await queue.pop()).kind, "QueueIsClosed");
     });
   });
 
@@ -107,9 +105,15 @@ await suite(import.meta.filename, async () => {
       await queue.push(0);
       await queue.push(1);
       queue.shutdown();
-      strictEqual(await queue.pop(), 0);
+      deepStrictEqual(await queue.pop(), {
+        kind: "Ok",
+        value: 0
+      });
       queue.done();
-      strictEqual(await queue.pop(), 1);
+      deepStrictEqual(await queue.pop(), {
+        kind: "Ok",
+        value: 1
+      });
       queue.done();
       await queue.join();
     });
@@ -136,9 +140,34 @@ await suite(import.meta.filename, async () => {
     });
   });
 
+  await suite("flush", async () => {
+    await test("flush clears items but not tasks", async () => {
+      await queue.push(0);
+      await queue.push(1);
+      queue.flush();
+      strictEqual(queue.size(), 0);
+      strictEqual(queue.popSync().kind, "QueueIsEmpty");
+      await queue.push(2);
+      deepStrictEqual(await queue.pop(), {
+        kind: "Ok",
+        value: 2,
+      });
+    });
+
+    await test("flush does not affect blocked pops", async () => {
+      const pop = queue.pop();
+      queue.flush();
+      await queue.push(0);
+      deepStrictEqual(await pop, {
+        kind: "Ok",
+        value: 0,
+      });
+    });
+  })
+
   await suite("simple stress test", async () => {
     await test("producer-consumer with shutdown", async () => {
-      const values = [0, 1, 2, 3, 4];
+      const values = [0, 1, 2, 3, 4]
       const promises: Promise<void>[] = [];
       for (const _ of values) {
         promises.push(
@@ -155,7 +184,10 @@ await suite(import.meta.filename, async () => {
       await Promise.allSettled(promises);
       deepStrictEqual(
         mockFn.mock.calls.flatMap((call) => call.arguments),
-        values,
+        values.map(value => ({
+          kind: "Ok",
+          value
+        })),
       );
     });
 

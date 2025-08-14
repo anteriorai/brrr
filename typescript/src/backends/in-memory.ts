@@ -30,7 +30,7 @@ export class InMemoryQueue implements Queue {
     await this.getTopicQueue(topic).push(message);
   }
 
-  public flush() {
+  public flush(): void {
     for (const queue of this.queues.values()) {
       queue.flush()
     }
