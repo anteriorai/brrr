@@ -30,12 +30,6 @@ export class InMemoryQueue implements Queue {
     await this.getTopicQueue(topic).push(message);
   }
 
-  public flush(): void {
-    for (const queue of this.queues.values()) {
-      queue.flush();
-    }
-  }
-
   private getTopicQueue(topic: string): AsyncQueue<Message> {
     const queue = this.queues.get(topic);
     if (!queue) {
