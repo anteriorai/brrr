@@ -39,3 +39,9 @@ export class TaskNotFoundError extends BrrrError {
     super(`Task not found: ${taskName}`);
   }
 }
+
+export class QueueIsClosedError extends BrrrError {
+  public constructor() {
+    super("Queue is closed");
+  }
+}
