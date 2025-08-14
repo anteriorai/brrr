@@ -1,20 +1,10 @@
-import { beforeEach, describe, test } from "node:test";
-import { deepStrictEqual, ok } from "node:assert/strict";
-import {
-  type Cache,
-  type MemKey,
-  Memory,
-  PendingReturns,
-  type Store,
-} from "./store.ts";
-import type { Queue } from "./queue.ts";
-import { doesNotReject, rejects, strictEqual } from "node:assert";
-import {
-  CompareMismatchError,
-  NotFoundError,
-  QueueIsClosedError,
-  UnknownTopicError,
-} from "./errors.ts";
+import { beforeEach, mock, suite, test } from "node:test";
+import { deepStrictEqual, doesNotReject, ok, rejects, strictEqual, } from "node:assert/strict";
+import { type Cache, type MemKey, Memory, PendingReturns, type Store, } from "./store.ts";
+import type { Message, Queue } from "./queue.ts";
+import { NotFoundError } from "./errors.ts";
+import { InMemoryQueue, InMemoryStore } from "./backends/in-memory.ts";
+import type { Call } from "./call.ts";
 
 await describe(import.meta.filename, async () => {
   await describe(PendingReturns.name, async () => {
@@ -32,6 +22,66 @@ await describe(import.meta.filename, async () => {
       const decoded = PendingReturns.decode(encoded);
       deepStrictEqual(original, decoded);
       deepStrictEqual(encoded, decoded.encode());
+    });
+  });
+
+  await suite(Memory.name, async () => {
+    let store: Store;
+    let memory: Memory;
+
+    const fixture = {
+      call: {
+        taskName: "test-task",
+        payload: new Uint8Array([1, 2, 3]),
+        callHash: "test-call-hash",
+      } satisfies Call,
+      pendingReturns: {
+        key: {
+          type: "pending_returns",
+          callHash: "test-pending-return-hash",
+        } satisfies MemKey,
+      },
+    } as const;
+
+    beforeEach(async () => {
+      store = new InMemoryStore();
+      memory = new Memory(store);
+      await memory.setCall(fixture.call);
+      await memory.setValue(fixture.call.callHash, fixture.call.payload);
+    });
+
+    await test("getCall", async () => {
+      const retrieved = await memory.getCall(fixture.call.callHash);
+      deepStrictEqual(retrieved, fixture.call);
+    });
+
+    await test("setCall", async () => {
+      const newCall: Call = {
+        taskName: "new-task",
+        payload: new Uint8Array([4, 5, 6]),
+        callHash: "new-call-hash",
+      };
+      await memory.setCall(newCall);
+      const retrieved = await memory.getCall(newCall.callHash);
+      deepStrictEqual(retrieved, newCall);
+    });
+
+    await test("hasValue", async () => {
+      ok(await memory.hasValue(fixture.call.callHash));
+      ok(!(await memory.hasValue("non-existing-call-hash")));
+    });
+
+    await test("getValue", async () => {
+      const retrieved = await memory.getValue(fixture.call.callHash);
+      deepStrictEqual(retrieved, fixture.call.payload);
+      await rejects(memory.getValue("non-existing-call-hash"), NotFoundError);
+    });
+
+    await test("setValue", async () => {
+      const newPayload = new Uint8Array([7, 8, 9]);
+      await memory.setValue(fixture.call.callHash, newPayload);
+      const retrieved = await memory.getValue(fixture.call.callHash);
+      deepStrictEqual(retrieved, newPayload);
     });
   });
 });
@@ -143,26 +193,54 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
 
     beforeEach(() => {
       queue = factory([fixture.topic]);
-      queue.put(fixture.topic, fixture.message);
+      await queue.push(fixture.topic, fixture.message);
+      mockFn.mock.resetCalls();
     });
 
-    await test("Basic get", async () => {
-      strictEqual(await queue.get(fixture.topic), fixture.message);
+    await test("Basic pop", async () => {
+      deepStrictEqual(await queue.pop(fixture.topic), {
+        kind: "Ok",
+        value: fixture.message,
+      });
     });
 
-    await test("Basic put", async () => {
-      const newMessage = "new-test-message";
-      await queue.put(fixture.topic, newMessage);
-      strictEqual(await queue.get(fixture.topic), fixture.message);
-      strictEqual(await queue.get(fixture.topic), newMessage);
+    await test("Basic push & pop", async () => {
+      const newMessage: Message = {
+        body: "new-test-message",
+      };
+      await queue.push(fixture.topic, newMessage);
+      deepStrictEqual(await queue.pop(fixture.topic), {
+        kind: "Ok",
+        value: fixture.message,
+      });
+      deepStrictEqual(await queue.pop(fixture.topic), {
+        kind: "Ok",
+        value: newMessage,
+      });
     });
 
     await test("Non-existing topic operations should throw", async () => {
-      await rejects(queue.get("non-existing-topic"), UnknownTopicError);
-      await rejects(
-        queue.put("non-existing-topic", "message"),
-        UnknownTopicError,
-      );
+      await rejects(queue.pop("non-existing-topic"), Error);
+      await rejects(queue.push("non-existing-topic", fixture.message), Error);
+    });
+
+    await test("pop blocks until item is pushed", async () => {
+      const pop = queue.pop(fixture.topic).then(mockFn);
+      strictEqual(mockFn.mock.callCount(), 0);
+      await queue.push(fixture.topic, fixture.message);
+      await pop;
+      strictEqual(mockFn.mock.callCount(), 1);
+    });
+
+    await test("join works over multiple topics", async () => {
+      const topics = ["topic-1", "topic-2"];
+      const queue = new InMemoryQueue(topics);
+      await queue.join();
+      await queue.push("topic-1", { body: "task" });
+      await queue.push("topic-2", { body: "task" });
+      const join = queue.join();
+      await Promise.all([queue.pop("topic-1"), queue.pop("topic-2")]);
+      await join;
     });
 
     await test("Queue can be closed", async () => {
