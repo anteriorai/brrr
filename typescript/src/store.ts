@@ -2,7 +2,6 @@ import type { Call } from "./call.ts";
 import { bencoder } from "./bencode.ts";
 import { TextDecoder } from "node:util";
 import type { Encoding } from "node:crypto";
-import { NotFoundError } from "./errors.ts";
 
 export interface PendingReturnsPayload {
   readonly scheduled_at: number | undefined;
@@ -58,7 +57,7 @@ export interface Store {
   /**
    * Get the value for the given key.
    */
-  get(key: MemKey): Promise<Uint8Array | undefined>;
+  get(key: MemKey): Promise<Uint8Array>;
 
   /**
    * Set the value for the given key.
@@ -68,7 +67,7 @@ export interface Store {
   /**
    * Delete the value for the given key.
    */
-  delete(key: MemKey): Promise<boolean>;
+  delete(key: MemKey): Promise<void>;
 
   /**
    * Set a new value for the given key.
@@ -112,14 +111,10 @@ export class Memory {
   }
 
   public async getCall(callHash: string): Promise<Call> {
-    const memKey: MemKey = {
+    const encoded = await this.store.get({
       type: "call",
       callHash,
-    };
-    const encoded = await this.store.get(memKey);
-    if (!encoded) {
-      throw new NotFoundError(memKey);
-    }
+    });
     const { task_name, payload } = bencoder.decode(encoded) as {
       task_name: Uint8Array;
       payload: Uint8Array;
@@ -152,7 +147,7 @@ export class Memory {
     });
   }
 
-  public async getValue(callHash: string): Promise<Uint8Array | undefined> {
+  public async getValue(callHash: string): Promise<Uint8Array> {
     return this.store.get({
       type: "value",
       callHash,
