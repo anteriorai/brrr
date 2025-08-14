@@ -15,7 +15,7 @@ import {
 } from "./store.ts";
 import type { Message, Queue } from "./queue.ts";
 import { NotFoundError } from "./errors.ts";
-import { InMemoryStore } from "./backends/in-memory.ts";
+import { InMemoryQueue, InMemoryStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
 
 await suite(import.meta.filename, async () => {
@@ -246,6 +246,17 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
       await queue.push(fixture.topic, fixture.message);
       await pop;
       strictEqual(mockFn.mock.callCount(), 1);
+    });
+
+    await test("join works over multiple topics", async () => {
+      const topics = ["topic-1", "topic-2"];
+      const queue = new InMemoryQueue(topics);
+      await queue.join();
+      await queue.push("topic-1", { body: "task" });
+      await queue.push("topic-2", { body: "task" });
+      const join = queue.join();
+      await Promise.all([queue.pop("topic-1"), queue.pop("topic-2")]);
+      await join;
     });
   });
 }
