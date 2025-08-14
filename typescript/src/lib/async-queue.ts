@@ -69,7 +69,7 @@ export class AsyncQueue<T> {
         resolve({ kind: "QueueIsEmpty" });
       }, timeout);
     });
-    return Promise.race<QueuePopResult<T>>([result, timer]);
+    return Promise.race([result, timer]);
   }
 
   public popSync(): QueuePopResult<T> {
