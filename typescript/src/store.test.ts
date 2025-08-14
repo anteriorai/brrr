@@ -89,7 +89,7 @@ await suite(import.meta.filename, async () => {
     await test("getValue", async () => {
       const retrieved = await memory.getValue(fixture.call.callHash);
       deepStrictEqual(retrieved, fixture.call.payload);
-      strictEqual(await memory.getValue("non-existing-call-hash"), undefined)
+      strictEqual(await memory.getValue("non-existing-call-hash"), undefined);
     });
 
     await test("setValue", async () => {
@@ -125,7 +125,7 @@ export async function storeContractTest(factory: () => Store) {
     await test("Basic get", async () => {
       const retrieved = await store.get(fixture.key);
       deepStrictEqual(retrieved, fixture.value);
-      strictEqual(await store.get(fixture.otherKey), undefined)
+      strictEqual(await store.get(fixture.otherKey), undefined);
     });
 
     await test("Basic has", async () => {
@@ -146,8 +146,8 @@ export async function storeContractTest(factory: () => Store) {
 
     await test("Basic delete", async () => {
       await store.delete(fixture.key);
-      strictEqual(await store.get(fixture.key), undefined)
-      strictEqual(await store.delete(fixture.otherKey), false)
+      strictEqual(await store.get(fixture.key), undefined);
+      strictEqual(await store.delete(fixture.otherKey), false);
     });
 
     await test("Basic setNewValue", async () => {
@@ -170,7 +170,7 @@ export async function storeContractTest(factory: () => Store) {
 
     await test("Basic compareAndDelete", async () => {
       await store.compareAndDelete(fixture.key, fixture.value);
-      strictEqual(await store.get(fixture.key), undefined)
+      strictEqual(await store.get(fixture.key), undefined);
       ok(!(await store.compareAndDelete(fixture.otherKey, fixture.value)));
     });
   });
