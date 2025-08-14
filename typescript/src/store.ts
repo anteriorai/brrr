@@ -2,6 +2,7 @@ import type { Call } from "./call.ts";
 import { bencoder } from "./bencode.ts";
 import { TextDecoder } from "node:util";
 import type { Encoding } from "node:crypto";
+import { NotFoundError } from "./errors.ts";
 
 export interface PendingReturnsPayload {
   readonly scheduled_at: number;
@@ -54,11 +55,17 @@ export interface MemKey {
 export interface Store {
   has(key: MemKey): Promise<boolean>;
 
-  get(key: MemKey): Promise<Uint8Array>;
+  /**
+   * Get the value for the given key.
+   */
+  get(key: MemKey): Promise<Uint8Array | undefined>;
 
   set(key: MemKey, value: Uint8Array): Promise<void>;
 
-  delete(key: MemKey): Promise<void>;
+  /**
+   * Delete the value for the given key.
+   */
+  delete(key: MemKey): Promise<boolean>;
 
   setNewValue(key: MemKey, value: Uint8Array): Promise<void>;
 
@@ -85,10 +92,14 @@ export class Memory {
   }
 
   public async getCall(callHash: string): Promise<Call> {
-    const encoded = await this.store.get({
+    const memKey: MemKey = {
       type: "call",
       callHash,
-    });
+    };
+    const encoded = await this.store.get(memKey);
+    if (!encoded) {
+      throw new NotFoundError(memKey);
+    }
     const { task_name, payload } = bencoder.decode(encoded) as {
       task_name: Uint8Array;
       payload: Uint8Array;
@@ -121,7 +132,7 @@ export class Memory {
     });
   }
 
-  public async getValue(callHash: string): Promise<Uint8Array> {
+  public async getValue(callHash: string): Promise<Uint8Array | undefined> {
     return this.store.get({
       type: "value",
       callHash,
