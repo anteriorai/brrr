@@ -1,7 +1,14 @@
 import { beforeEach, mock, suite, test } from "node:test";
 import { QueueIsClosedError } from "../errors.ts";
 import { AsyncQueue } from "./async-queue.ts";
-import { deepStrictEqual, doesNotThrow, ok, rejects, strictEqual, throws, } from "node:assert/strict";
+import {
+  deepStrictEqual,
+  doesNotThrow,
+  ok,
+  rejects,
+  strictEqual,
+  throws,
+} from "node:assert/strict";
 
 await suite(import.meta.filename, async () => {
   let queue: AsyncQueue<number>;
