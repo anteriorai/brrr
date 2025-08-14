@@ -9,8 +9,8 @@ abstract class BrrrError extends Error {
 }
 
 export class InvalidMessageError extends BrrrError {
-  public constructor(value: unknown) {
-    super(`Invalid message: ${JSON.stringify(value)}`);
+  public constructor() {
+    super('Recieved invalid message');
   }
 }
 
