@@ -1,52 +1,73 @@
-import type { Message, Queue, QueuePopResult } from "../queue.ts";
+import type { Queue } from "../queue.ts";
 import { NotFoundError, } from "../errors.ts";
 import type { Cache, MemKey, Store } from "../store.ts";
-
-interface Deferred<T> {
-  resolve: (value: T) => void;
-  reject: (err: unknown) => void;
-}
+import type { AsyncQueue } from "../lib/async-queue.ts";
 
 export class InMemoryQueue implements Queue {
   public readonly timeout = 10;
 
-  private readonly queues: Map<string, {
-    items: Message[];
-    deferred: Deferred<Message>[];
-  }[]>;
+  private readonly queues: Map<string, AsyncQueue<string>>;
 
   private closing = false;
   private flushing = false;
 
   public constructor(topics: string[]) {
-    this.queues = new Map(topics.map((topic) => [topic, []]));
+    this.queues = new Map(topics.map((topic) => [topic, new AsyncQueue()]));
   }
 
-  async push(topic: string, message: Message): Promise<void> {
-    const queue = this.getTopicQueue(topic)
-    queue.push(Promise.resolve(message))
-  }
-
-  async pop(topic: string): Promise<QueuePopResult> {
-    const queue = this.getTopicQueue(topic)
-    const front = await queue.shift()
-    if (front) {
-      return { kind: "Ok", message: front }
+  public async close() {
+    if (this.closing) {
+      throw new QueueIsClosedError();
     }
-    const deferred = new Promise<Message>(() => {
-    })
-    queue.push(deferred)
-    return deferred
+    this.closing = true;
+    for (const [_, queue] of this.queues) {
+      queue.shutdown();
+    }
   }
 
-  public flush(): void {
-    this.flushing = true
+  public async join() {
+    await Promise.all(this.queues.values().map((queue) => queue.join()));
   }
 
-  private getTopicQueue(topic: string): Promise<Message>[] {
+  public async pop(topic: string): Promise<string> {
+    const queue = this.getTopicQueue(topic);
+    let payload: string;
+    if (this.flushing) {
+      try {
+        payload = queue.popSync();
+      } catch (err) {
+        if (err instanceof QueueIsEmptyError) {
+          queue.shutdown();
+          throw new QueueIsClosedError();
+        }
+        throw err;
+      }
+    } else {
+      const timeout = setTimeout(() => {
+        throw new QueueIsEmptyError();
+      }, this.timeout);
+      try {
+        payload = await queue.pop();
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+    queue.done();
+    return payload;
+  }
+
+  public async push(topic: string, message: string): Promise<void> {
+    await this.getTopicQueue(topic).push(message);
+  }
+
+  public flush() {
+    this.flushing = true;
+  }
+
+  private getTopicQueue(topic: string): AsyncQueue<string> {
     const queue = this.queues.get(topic);
     if (!queue) {
-      throw new Error(`Could not find queue for topic "${queue}"`);
+      throw new UnknownTopicError(topic);
     }
     return queue;
   }
