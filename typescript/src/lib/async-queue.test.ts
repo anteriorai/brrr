@@ -9,6 +9,7 @@ import {
   strictEqual,
   throws,
 } from "node:assert/strict";
+import { setTimeout } from "node:timers/promises";
 
 await suite(import.meta.filename, async () => {
   let queue: AsyncQueue<number>;
@@ -33,7 +34,7 @@ await suite(import.meta.filename, async () => {
       });
     });
 
-    await test("pop blocks until item is pushed", async (t) => {
+    await test("pop blocks until item is pushed", async () => {
       const pop = queue.pop().then(mockFn);
       strictEqual(mockFn.mock.callCount(), 0);
       await queue.push(0);
@@ -52,6 +53,21 @@ await suite(import.meta.filename, async () => {
 
     await test("popSync throws on empty queue", () => {
       strictEqual(queue.popSync().kind, "QueueIsEmpty");
+    });
+
+    await test("timeout is enforced on pop", async () => {
+      const timeout = 50;
+      const pop = queue.pop(timeout);
+      await setTimeout(timeout * 2);
+      await queue.push(0);
+      strictEqual((await pop).kind, "QueueIsEmpty");
+    });
+
+    await test("timeout sanity check", async () => {
+      const timeout = 50;
+      const pop = queue.pop(timeout);
+      await queue.push(0);
+      strictEqual((await pop).kind, "Ok");
     });
   });
 
