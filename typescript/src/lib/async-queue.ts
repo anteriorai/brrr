@@ -14,7 +14,6 @@ export class AsyncQueue<T> {
   private tasks = 0;
   private shutdownMode = false;
 
-  private flushing = false;
   private resolver: (() => void) | undefined;
   private sentinel = Promise.resolve();
 
