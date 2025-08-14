@@ -1,6 +1,10 @@
 import { suite, test } from "node:test";
 import { InMemoryCache, InMemoryQueue, InMemoryStore } from "./in-memory.ts";
-import { cacheContractTest, queueContractTest, storeContractTest, } from "../store.test.ts";
+import {
+  cacheContractTest,
+  queueContractTest,
+  storeContractTest,
+} from "../store.test.ts";
 import { deepStrictEqual, rejects, strictEqual } from "node:assert/strict";
 
 await suite(import.meta.filename, async () => {
@@ -12,7 +16,7 @@ await suite(import.meta.filename, async () => {
   await test(InMemoryQueue.name, async () => {
     await queueContractTest((topics) => new InMemoryQueue(topics));
 
-    await test("join", {only: true}, async () => {
+    await test("join", { only: true }, async () => {
       const topics = ["topic-1"];
       const queue = new InMemoryQueue(topics);
 
