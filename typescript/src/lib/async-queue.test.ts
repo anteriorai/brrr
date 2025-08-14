@@ -1,14 +1,7 @@
 import { beforeEach, mock, suite, test } from "node:test";
 import { QueueIsClosedError } from "../errors.ts";
 import { AsyncQueue } from "./async-queue.ts";
-import {
-  deepStrictEqual,
-  doesNotThrow,
-  ok,
-  rejects,
-  strictEqual,
-  throws,
-} from "node:assert/strict";
+import { deepStrictEqual, doesNotThrow, ok, rejects, strictEqual, throws, } from "node:assert/strict";
 
 await suite(import.meta.filename, async () => {
   let queue: AsyncQueue<number>;
@@ -98,12 +91,9 @@ await suite(import.meta.filename, async () => {
         await queue.push(value);
       }
       strictEqual(queue.size(), values.length);
-      await queue.pop();
-      doesNotThrow(() => queue.done());
-      await queue.pop();
-      doesNotThrow(() => queue.done());
-      await queue.pop();
-      doesNotThrow(() => queue.done());
+      for (const _ of values) {
+        await queue.pop();
+      }
       await queue.join();
       throws(() => queue.done());
     });
@@ -116,12 +106,10 @@ await suite(import.meta.filename, async () => {
         kind: "Ok",
         value: 0,
       });
-      queue.done();
       deepStrictEqual(await queue.pop(), {
         kind: "Ok",
         value: 1,
       });
-      queue.done();
       await queue.join();
     });
 
@@ -137,11 +125,8 @@ await suite(import.meta.filename, async () => {
       strictEqual(mockFn.mock.callCount(), 0);
 
       await queue.pop();
-      queue.done();
       await queue.pop();
-      queue.done();
 
-      strictEqual(mockFn.mock.callCount(), 0);
       await join;
       strictEqual(mockFn.mock.callCount(), 1);
     });
