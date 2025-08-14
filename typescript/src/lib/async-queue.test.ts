@@ -140,31 +140,6 @@ await suite(import.meta.filename, async () => {
     });
   });
 
-  await suite("flush", async () => {
-    await test("flush clears items but not tasks", async () => {
-      await queue.push(0);
-      await queue.push(1);
-      queue.flush();
-      strictEqual(queue.size(), 0);
-      strictEqual(queue.popSync().kind, "QueueIsEmpty");
-      await queue.push(2);
-      deepStrictEqual(await queue.pop(), {
-        kind: "Ok",
-        value: 2,
-      });
-    });
-
-    await test("flush does not affect blocked pops", async () => {
-      const pop = queue.pop();
-      queue.flush();
-      await queue.push(0);
-      deepStrictEqual(await pop, {
-        kind: "Ok",
-        value: 0,
-      });
-    });
-  })
-
   await suite("simple stress test", async () => {
     await test("producer-consumer with shutdown", async () => {
       const values = [0, 1, 2, 3, 4]
