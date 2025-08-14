@@ -1,72 +1,49 @@
-import type { Message, Queue } from "../queue.ts";
+import type { Message, Queue, QueuePopResult } from "../queue.ts";
 import { NotFoundError, } from "../errors.ts";
 import type { Cache, MemKey, Store } from "../store.ts";
-import { AsyncQueue } from "../lib/async-queue.ts";
-import { clearTimeout, setTimeout } from "node:timers";
+
+interface Deferred<T> {
+  resolve: (value: T) => void;
+  reject: (err: unknown) => void;
+}
 
 export class InMemoryQueue implements Queue {
   public readonly timeout = 10;
 
-  private readonly queues: Map<string, AsyncQueue<Message>>;
+  private readonly queues: Map<string, {
+    items: Message[];
+    deferred: Deferred<Message>[];
+  }[]>;
 
   private closing = false;
   private flushing = false;
 
   public constructor(topics: string[]) {
-    this.queues = new Map(topics.map((topic) => [topic, new AsyncQueue()]));
+    this.queues = new Map(topics.map((topic) => [topic, []]));
   }
 
-  public async close(): Promise<boolean> {
-    if (this.closing) {
-      return false
+  async push(topic: string, message: Message): Promise<void> {
+    const queue = this.getTopicQueue(topic)
+    queue.push(Promise.resolve(message))
+  }
+
+  async pop(topic: string): Promise<QueuePopResult> {
+    const queue = this.getTopicQueue(topic)
+    const front = await queue.shift()
+    if (front) {
+      return { kind: "Ok", message: front }
     }
-    this.closing = true;
-    for (const [_, queue] of this.queues) {
-      queue.shutdown();
-    }
-    return true
+    const deferred = new Promise<Message>(() => {
+    })
+    queue.push(deferred)
+    return deferred
   }
 
-  public async join() {
-    await Promise.all(this.queues.values().map((queue) => queue.join()));
+  public flush(): void {
+    this.flushing = true
   }
 
-  public async pop(topic: string): Promise<Message> {
-    const queue = this.getTopicQueue(topic);
-    let payload: Message;
-    if (this.flushing) {
-      try {
-        payload = queue.popSync();
-      } catch (err) {
-        if (err instanceof QueueIsEmptyError) {
-          queue.shutdown();
-          throw new QueueIsClosedError();
-        }
-        throw err;
-      }
-    } else {
-      const timeout = setTimeout(() => {
-        throw new QueueIsEmptyError();
-      }, this.timeout);
-      try {
-        payload = await queue.pop();
-      } finally {
-        clearTimeout(timeout);
-      }
-    }
-    queue.done();
-    return payload;
-  }
-
-  public async push(topic: string, message: Message): Promise<void> {
-    await this.getTopicQueue(topic).push(message);
-  }
-
-  public flush() {
-    this.flushing = true;
-  }
-
-  private getTopicQueue(topic: string): AsyncQueue<Message> {
+  private getTopicQueue(topic: string): Promise<Message>[] {
     const queue = this.queues.get(topic);
     if (!queue) {
       throw new Error(`Could not find queue for topic "${queue}"`);
