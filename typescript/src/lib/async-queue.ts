@@ -49,6 +49,7 @@ export class AsyncQueue<T> {
 
   public async pop(): Promise<QueuePopResult<T>> {
     if (this.items.length) {
+      this.done()
       return {
         kind: "Ok",
         value: this.items.shift() as T,
@@ -58,6 +59,7 @@ export class AsyncQueue<T> {
       return { kind: "QueueIsClosed" };
     }
     const value = await this.generator.next().value;
+    this.done()
     return { kind: "Ok", value }
   }
 
