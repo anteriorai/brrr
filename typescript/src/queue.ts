@@ -9,9 +9,8 @@ export type QueuePopResult<T> = Result<"QueueIsClosed" | "QueueIsEmpty", T>;
 export interface Queue {
   /**
    * Push a message to the queue.
-   * Returns true if the message was successfully pushed, false if the queue is closed.
    */
-  push(topic: string, message: Message): Promise<boolean>;
+  push(topic: string, message: Message): Promise<void>;
 
   /**
    * Pop a message from the queue.
