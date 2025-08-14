@@ -245,6 +245,27 @@ async def test_topics_same_app() -> None:
     await queue.join()
 
 
+async def test_weird_names() -> None:
+    store = InMemoryByteStore()
+    topic = "//':\"~`\\"
+    task_name = "`'\"\\/~$!@:"
+    queue = InMemoryQueue([topic])
+
+    @brrr.handler_no_arg
+    async def double(x: int) -> int:
+        await queue.close()
+        return x + x
+
+    async with brrr.serve(queue, store, store) as conn:
+        app = AppWorker(
+            handlers={task_name: double}, codec=PickleCodec(), connection=conn
+        )
+        await app.schedule(task_name, topic=topic)(7)
+        queue.flush()
+        await conn.loop(topic, app.handle)
+        assert await app.read(task_name)(7) == 14
+
+
 async def test_app_nop_closed_queue() -> None:
     store = InMemoryByteStore()
     queue = InMemoryQueue([TOPIC])
