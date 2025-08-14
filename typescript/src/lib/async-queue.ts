@@ -57,7 +57,8 @@ export class AsyncQueue<T> {
     if (this.shutdownMode) {
       return { kind: "QueueIsClosed" };
     }
-    return this.generator.next().value.then((value) => ({ kind: "Ok", value }));
+    const value = await this.generator.next().value;
+    return { kind: "Ok", value }
   }
 
   public popSync(): QueuePopResult<T> {
