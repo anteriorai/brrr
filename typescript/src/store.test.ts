@@ -198,7 +198,10 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
     });
 
     await test("Basic pop", async () => {
-      strictEqual(await queue.pop(fixture.topic), fixture.message);
+      deepStrictEqual(await queue.pop(fixture.topic), {
+        kind: "Ok",
+        value: fixture.message
+      });
     });
 
     await test("Basic push & pop", async () => {
@@ -206,8 +209,14 @@ export async function queueContractTest(factory: (topics: string[]) => Queue) {
         body: "new-test-message"
       };
       await queue.push(fixture.topic, newMessage);
-      strictEqual(await queue.pop(fixture.topic), fixture.message);
-      strictEqual(await queue.pop(fixture.topic), newMessage);
+      deepStrictEqual(await queue.pop(fixture.topic), {
+        kind: "Ok",
+        value: fixture.message
+      });
+      deepStrictEqual(await queue.pop(fixture.topic), {
+        kind: "Ok",
+        value: newMessage
+      });
     });
 
     await test("Non-existing topic operations should throw", async () => {

@@ -34,7 +34,7 @@ export class AsyncQueue<T> {
 
   public async push(value: T): Promise<void> {
     if (this.shutdownMode) {
-      throw new Error("Queue is shutting down")
+      throw new QueueIsClosedError()
     }
     this.tasks++;
     if (this.tasks === 1) {
