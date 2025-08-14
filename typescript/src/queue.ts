@@ -14,7 +14,7 @@ export interface Queue {
 
   /**
    * Pop a message from the queue.
-   * Returns a result indicating whether the queue is closed, empty, or a message.
+   * Returns a result indicating whether the queue is closed, empty, or contains a message.
    */
-  pop(topic: string): QueuePopResult<Promise<Message>>;
+  pop(topic: string): Promise<QueuePopResult<Message>>;
 }
