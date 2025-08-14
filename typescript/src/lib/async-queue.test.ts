@@ -4,6 +4,7 @@ import { AsyncQueue } from "./async-queue.ts";
 import {
   deepStrictEqual,
   doesNotThrow,
+  ok,
   rejects,
   strictEqual,
   throws,
@@ -180,6 +181,13 @@ await suite(import.meta.filename, async () => {
         queue.shutdown();
         await Promise.allSettled([push, pop]);
       }
+    });
+
+    await test("deferred cleanup on shutdown", async () => {
+      const pops = new Array(10).keys().map(() => queue.pop());
+      queue.shutdown();
+      const results = await Promise.all(pops);
+      ok(results.every((result) => result.kind === "QueueIsClosed"));
     });
   });
 });
