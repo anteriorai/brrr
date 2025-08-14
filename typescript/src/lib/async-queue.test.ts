@@ -1,5 +1,5 @@
 import { beforeEach, mock, suite, test } from "node:test";
-import { QueueIsClosedError, QueueIsEmptyError } from "../errors.ts";
+import { QueueIsClosedError } from "../errors.ts";
 import { AsyncQueue } from "./async-queue.ts";
 import {
   deepStrictEqual,
@@ -8,6 +8,7 @@ import {
   strictEqual,
   throws,
 } from "node:assert/strict";
+import type { QueuePopResult } from "../queue.ts";
 
 await suite(import.meta.filename, async () => {
   let queue: AsyncQueue<number>;
@@ -18,12 +19,16 @@ await suite(import.meta.filename, async () => {
     mockFn.mock.resetCalls();
   });
 
+  function Ok(value: number): QueuePopResult<number> {
+    return { kind: "Ok", value };
+  }
+
   await suite("basic", async () => {
     await test("basic push & pop", async () => {
       await queue.push(0);
       await queue.push(1);
-      strictEqual(await queue.pop(), 0);
-      strictEqual(await queue.pop(), 1);
+      strictEqual(await queue.pop(), Ok(0));
+      strictEqual(await queue.pop(), Ok(1));
     });
 
     await test("pop blocks until item is pushed", async (t) => {
