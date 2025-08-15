@@ -1,4 +1,4 @@
-import { beforeEach, mock, suite, test } from "node:test";
+import { afterEach, before, beforeEach, mock, type MockTimersOptions, suite, test } from "node:test";
 import {
   deepStrictEqual,
   doesNotReject,
@@ -93,6 +93,125 @@ await suite(import.meta.filename, async () => {
       await memory.setValue(fixture.call.callHash, newPayload);
       const retrieved = await memory.getValue(fixture.call.callHash);
       deepStrictEqual(retrieved, newPayload);
+    });
+
+    await suite("addPendingReturn", async () => {
+      const mockFn = mock.fn<() => Promise<void>>();
+      const mockTimersOptions = {
+        apis: ["Date"],
+        now: 5000,
+      } as const satisfies MockTimersOptions;
+
+      before(() => {
+        mock.timers.enable(mockTimersOptions);
+      });
+
+      afterEach(() => {
+        mockFn.mock.resetCalls();
+      });
+
+      await test("First-time call triggers schedule and stores return", async () => {
+        const alreadyPending = await memory.addPendingReturns(
+          fixture.call.callHash,
+          "foo",
+          mockFn,
+        );
+        ok(!alreadyPending);
+        const raw = await store.get({
+          type: "pending_returns",
+          callHash: fixture.call.callHash,
+        });
+        ok(raw)
+        const decoded = PendingReturns.decode(raw);
+        ok(decoded.returns.has("foo"));
+        strictEqual(decoded.scheduledAt, mockTimersOptions.now / 1000);
+        strictEqual(mockFn.mock.callCount(), 1);
+      });
+
+      await test("Repeated call with same return does not call schedule again", async () => {
+        await memory.addPendingReturns(fixture.call.callHash, "foo", mockFn);
+        const alreadyPending = await memory.addPendingReturns(
+          fixture.call.callHash,
+          "foo",
+          mockFn,
+        );
+        ok(alreadyPending);
+        strictEqual(mockFn.mock.callCount(), 1);
+        const raw = await store.get({
+          type: "pending_returns",
+          callHash: fixture.call.callHash,
+        });
+        ok(raw)
+        const decoded = PendingReturns.decode(raw);
+        deepStrictEqual(decoded.returns, new Set(["foo"]));
+      });
+
+      await test("Handles different returns properly", async () => {
+        await memory.addPendingReturns(fixture.call.callHash, "foo", mockFn);
+        const alreadyPending = await memory.addPendingReturns(
+          fixture.call.callHash,
+          "bar",
+          mockFn,
+        );
+        ok(alreadyPending);
+        const raw = await store.get({
+          type: "pending_returns",
+          callHash: fixture.call.callHash,
+        });
+        ok(raw)
+        const decoded = PendingReturns.decode(raw);
+        deepStrictEqual(decoded.returns, new Set(["foo", "bar"]));
+      });
+
+      await test("Handles NotFoundError case correctly", async () => {
+        const key: MemKey = {
+          type: "pending_returns",
+          callHash: fixture.call.callHash,
+        };
+        strictEqual(await store.get(key), undefined)
+        const alreadyPending = await memory.addPendingReturns(
+          fixture.call.callHash,
+          "new-return",
+          mockFn,
+        );
+        ok(!alreadyPending);
+        const raw = await store.get(key);
+        ok(raw)
+        const decoded = PendingReturns.decode(raw);
+        deepStrictEqual(decoded.returns, new Set(["new-return"]));
+        strictEqual(decoded.scheduledAt, mockTimersOptions.now / 1000);
+      });
+    });
+
+    await suite("withPendingReturnRemove", async () => {
+      const mockFn = mock.fn<(returns: Iterable<string>) => Promise<void>>();
+
+      afterEach(() => {
+        mockFn.mock.resetCalls();
+      });
+
+      await test("calls f([]) if no pending return is found", async () => {
+        await memory.withPendingReturnsRemove(fixture.call.callHash, mockFn);
+        strictEqual(mockFn.mock.callCount(), 1);
+        deepStrictEqual(mockFn.mock.calls?.at(0)?.arguments, [new Set()]);
+      });
+
+      await test("invokes f with pending returns and deletes the key", async () => {
+        const pendingReturns = new PendingReturns(
+          undefined,
+          new Set(["a", "b"]),
+        );
+        await store.set(fixture.pendingReturns.key, pendingReturns.encode());
+        await memory.withPendingReturnsRemove(
+          fixture.pendingReturns.key.callHash,
+          mockFn,
+        );
+        strictEqual(mockFn.mock.callCount(), 1);
+        deepStrictEqual(mockFn.mock.calls?.at(0)?.arguments, [
+          pendingReturns.returns,
+        ]);
+        strictEqual(await store.get(fixture.pendingReturns.key), undefined)
+      });
     });
   });
 });
