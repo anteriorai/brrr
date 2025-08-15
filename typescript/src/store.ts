@@ -1,12 +1,8 @@
-import type { Encoding } from "node:crypto";
 import type { Call } from "./call.ts";
 import { bencoder } from "./bencode.ts";
-import { Buffer } from "node:buffer";
-import {
-  CasRetryLimitReachedError,
-  NotFoundError,
-} from "./errors.ts";
 import { TextDecoder } from "node:util";
+import type { Encoding } from "node:crypto";
+import { CasRetryLimitReachedError, NotFoundError } from "./errors.ts";
 
 export interface PendingReturnsPayload {
   readonly scheduled_at: number | undefined;
@@ -106,7 +102,9 @@ export interface Cache {
 
 export class Memory {
   private static readonly casRetryLimit = 100;
-  private static decoder = new TextDecoder("ascii");
+  private static readonly encoding = "ascii" satisfies Encoding;
+  private static readonly decoder = new TextDecoder(Memory.encoding);
+
   private readonly store: Store;
 
   public constructor(store: Store) {
@@ -117,7 +115,11 @@ export class Memory {
     const memKey: MemKey = {
       type: "call",
       callHash,
-    });
+    };
+    const encoded = await this.store.get(memKey);
+    if (!encoded) {
+      throw new NotFoundError(memKey);
+    }
     const { task_name, payload } = bencoder.decode(encoded) as {
       task_name: Uint8Array;
       payload: Uint8Array;
@@ -151,10 +153,11 @@ export class Memory {
   }
 
   public async getValue(callHash: string): Promise<Uint8Array | undefined> {
-    return this.store.get({
+    const value = this.store.get({
       type: "value",
       callHash,
     });
+    if (!value) {}
   }
 
   public async setValue(callHash: string, payload: Uint8Array): Promise<void> {
@@ -172,14 +175,14 @@ export class Memory {
     newReturn: string,
     scheduleJob: () => Promise<void>,
   ): Promise<boolean> {
+    const memKey: MemKey = {
+      type: "pending_returns",
+      callHash,
+    };
+    let shouldStoreAgain = false;
+    let existingEncoded: Uint8Array | undefined;
+    let existing: PendingReturns;
     return this.withCas(async () => {
-      const memKey: MemKey = {
-        type: "pending_returns",
-        callHash,
-      };
-      let shouldStoreAgain = false;
-      let existingEncoded: Uint8Array | undefined;
-      let existing: PendingReturns;
       try {
         existingEncoded = await this.store.get(memKey);
         existing = PendingReturns.decode(existingEncoded);
@@ -251,13 +254,8 @@ export class Memory {
 
   private async withCas(f: () => Promise<boolean>): Promise<void> {
     for (let i = 0; i < Memory.casRetryLimit; i++) {
-      try {
-        return await f();
-      } catch (err) {
-        if (err instanceof CompareMismatchError) {
-          continue;
-        }
-        throw err;
+      if (await f()) {
+        return;
       }
     }
     throw new CasRetryLimitReachedError(Memory.casRetryLimit);
