@@ -190,6 +190,10 @@ class Cache(ABC):
         raise NotImplementedError()
 
 
+def _parse_call_id(call_id: str) -> list[str]:
+    return call_id.split("/")
+
+
 class Memory:
     def __init__(self, store: Store):
         self.store = store
@@ -300,6 +304,10 @@ class Memory:
         async def cas_body() -> bool:
             memkey = MemKey("pending_returns", call_hash)
             logger.debug(f"Scheduling pending returns for {call_hash} to {new_return}")
+
+            should_schedule = False
+            new_root, new_parent, new_topic = _parse_call_id(new_return)
+
             try:
                 existing_enc = await self.store.get(memkey)
                 logger.debug(f"    ... found! {existing_enc!r}")
@@ -310,8 +318,19 @@ class Memory:
                 logger.debug(f"    ... none found. Creating new: {existing_enc!r}")
                 # Note the double CAS!
                 await self.store.set_new_value(memkey, existing_enc)
+                should_schedule = True
 
-            should_schedule = new_return not in existing.returns
+            if not should_schedule:
+                for ret in existing.returns:
+                    ext_root, ext_parent, ext_topic = _parse_call_id(ret)
+                    if (
+                        ext_root != new_root
+                        and ext_parent == new_parent
+                        and ext_topic == new_topic
+                    ):
+                        should_schedule = True
+                        break
+
             existing.returns.add(new_return)
             await self.store.compare_and_set(memkey, existing.encode(), existing_enc)
             return should_schedule
