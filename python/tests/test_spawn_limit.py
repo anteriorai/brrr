@@ -104,7 +104,7 @@ async def test_spawn_limit_recoverable() -> None:
 
     # I expect messages to be left pending as unhandled here, that’s the point:
     assert spawn_limit_encountered
-    assert await app.read("foo")(101) == 101
+    assert await app.read("foo")(n) == n
 
 
 async def test_spawn_limit_breadth_manual() -> None:
