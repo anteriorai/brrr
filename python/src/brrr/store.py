@@ -295,7 +295,7 @@ class Memory:
 
         """
 
-        def _determine_should_schedule(new_return: str, existing_return: str):
+        def _is_repeated_call(new_return: str, existing_return: str):
             new_root, new_parent, new_topic = new_return.split("/")
             ext_root, ext_parent, ext_topic = existing_return.split("/")
             return (
@@ -323,7 +323,7 @@ class Memory:
                 should_schedule = True
 
             should_schedule |= any(
-                _determine_should_schedule(new_return, ret) for ret in existing.returns
+                _is_repeated_call(new_return, ret) for ret in existing.returns
             )
             existing.returns.add(new_return)
             await self.store.compare_and_set(memkey, existing.encode(), existing_enc)
