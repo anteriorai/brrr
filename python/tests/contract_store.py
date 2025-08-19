@@ -290,20 +290,20 @@ class MemoryContract(ByteStoreContract):
 
             await memory.with_pending_returns_remove("key", body)
 
-            assert await memory.add_pending_return("key", "a/b/p1")
-            assert await memory.add_pending_return("key", "c/d/p2")
-            assert await memory.add_pending_return("key", "c/d/p2") == False
+            assert await memory.add_pending_return("key", "p1")
+            assert await memory.add_pending_return("key", "p2")
+            assert await memory.add_pending_return("key", "p2") == False
 
             with pytest.raises(FakeError):
 
                 async def body(keys) -> None:
-                    assert set(keys) == {"a/b/p1", "c/d/p2"}
+                    assert set(keys) == {"p1", "p2"}
                     raise FakeError()
 
                 await memory.with_pending_returns_remove("key", body)
 
             async def body2(keys) -> None:
-                assert set(keys) == {"a/b/p1", "c/d/p2"}
+                assert set(keys) == {"p1", "p2"}
 
             await memory.with_pending_returns_remove("key", body2)
 
