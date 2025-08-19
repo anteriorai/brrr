@@ -292,7 +292,7 @@ class MemoryContract(ByteStoreContract):
 
             assert await memory.add_pending_return("key", "p1")
             assert await memory.add_pending_return("key", "p2")
-            assert await memory.add_pending_return("key", "p2") == False
+            assert not await memory.add_pending_return("key", "p2")
 
             with pytest.raises(FakeError):
 

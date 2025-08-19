@@ -291,9 +291,7 @@ class Memory:
         visible to the thread that writes it--you can only trust that it is
         visible to _some_ worker.
 
-        Return value indicates whether or not a call (any call) was already
-        pending, even if it was this very same call, or any other call.  This
-        can be used as an indication that an operation is currently `in flight.'
+        Return value indicates whether we need to schedule this call.
 
         """
 
