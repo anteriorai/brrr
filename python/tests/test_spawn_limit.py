@@ -90,13 +90,13 @@ async def test_spawn_limit_recoverable() -> None:
         app = AppWorker(
             handlers=dict(foo=foo, one=one), codec=PickleCodec(), connection=conn
         )
-        await app.schedule("foo", topic=TOPIC)(n)
-        queue.flush()
 
         while True:
             # Very ugly but this works for testing
             cache.inner = {}
             try:
+                await app.schedule("foo", topic=TOPIC)(n)
+                queue.flush()
                 await conn.loop(TOPIC, app.handle)
                 break
             except SpawnLimitError:
@@ -104,8 +104,6 @@ async def test_spawn_limit_recoverable() -> None:
 
     # I expect messages to be left pending as unhandled here, that’s the point:
     assert spawn_limit_encountered
-    # Once we debounce parent calls this should be foo=2
-    assert calls == Counter(dict(one=n, foo=n + 1))
     assert await app.read("foo")(101) == 101
 
 

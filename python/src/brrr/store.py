@@ -362,21 +362,3 @@ class Memory:
             await self.store.compare_and_delete(memkey, pending_enc)
 
         return await self._with_cas(cas_body)
-
-    async def remove_pending_return(self, call_hash: str, remove_return: str) -> None:
-        memkey = MemKey("pending_returns", call_hash)
-
-        async def cas_body():
-            try:
-                pending_enc = await self.store.get(memkey)
-            except NotFoundError:
-                return
-
-            pending = PendingReturns.decode(pending_enc)
-            pending.returns.discard(remove_return)
-            if pending.returns:
-                await self.store.compare_and_set(memkey, pending.encode(), pending_enc)
-            else:
-                await self.store.compare_and_delete(memkey, pending_enc)
-
-        await self._with_cas(cas_body)

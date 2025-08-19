@@ -236,11 +236,7 @@ class Server(Connection):
         return_addr = f"{parent_call_id}/{my_topic}"
         should_schedule = await self._memory.add_pending_return(call_hash, return_addr)
         if should_schedule:
-            try:
-                await self._put_job(child_topic, call_hash, root_id)
-            except SpawnLimitError:
-                await self._memory.remove_pending_return(call_hash, return_addr)
-                raise
+            await self._put_job(child_topic, call_hash, root_id)
 
     async def _handle_msg(
         self, handler: Handler, my_topic: str, my_call_id: str
