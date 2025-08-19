@@ -308,8 +308,6 @@ class Memory:
         # every single line.
         async def cas_body() -> bool:
             memkey = MemKey("pending_returns", call_hash)
-            logger.debug(f"Scheduling pending returns for {call_hash} to {new_return}")
-
             should_schedule = False
 
             try:
