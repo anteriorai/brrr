@@ -1,16 +1,15 @@
 from __future__ import annotations
 
+import logging
+import time
 from abc import abstractmethod, ABC
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
-import logging
-import time
 from typing import Literal
 
 import bencodepy
 
 from .call import Call
-
 
 logger = logging.getLogger(__name__)
 
@@ -283,12 +282,7 @@ class Memory:
                     raise Exception("exceeded CAS retry limit") from e
                 continue
 
-    async def add_pending_return(
-        self,
-        call_hash: str,
-        new_return: str,
-        schedule_job: Callable[[], Awaitable[None]],
-    ):
+    async def add_pending_return(self, call_hash: str, new_return: str) -> bool:
         """Register a pending return address for a call.
 
         Note this is inherently racy: as soon as this call completes, another
@@ -305,48 +299,26 @@ class Memory:
 
         # Beware race conditions here!  Be aware of concurrency corner cases on
         # every single line.
-        async def cas_body() -> None:
+        async def cas_body() -> bool:
             memkey = MemKey("pending_returns", call_hash)
-            should_store_again = False
+            logger.debug(f"Scheduling pending returns for {call_hash} to {new_return}")
             try:
                 existing_enc = await self.store.get(memkey)
+                logger.debug(f"    ... found! {existing_enc!r}")
+                existing = PendingReturns.decode(existing_enc)
             except NotFoundError:
-                existing = PendingReturns(None, {new_return})
+                existing = PendingReturns(int(time.time()), set())
                 existing_enc = existing.encode()
                 logger.debug(f"    ... none found. Creating new: {existing_enc!r}")
                 # Note the double CAS!
                 await self.store.set_new_value(memkey, existing_enc)
-                adj = "First"
-                verb = "added to"
-            else:
-                logger.debug(f"    ... found! {existing_enc!r}")
-                existing = PendingReturns.decode(existing_enc)
-                if new_return not in existing.returns:
-                    existing.returns |= {new_return}
-                    should_store_again = True
-                    adj = "Another"
-                    verb = "added to"
-                else:
-                    # 🙄
-                    adj = "Existing"
-                    verb = "ignored by"
 
-            if existing.scheduled_at is None:
-                await schedule_job()
-                existing.scheduled_at = int(time.time())
-                should_store_again = True
-                verb += " and scheduled"
+            should_schedule = new_return not in existing.returns
+            existing.returns.add(new_return)
+            await self.store.compare_and_set(memkey, existing.encode(), existing_enc)
+            return should_schedule
 
-            # Something changed, store the update.  Think through the potential
-            # race conditions here, in particular.  CAS failures, restarts, etc.
-            if should_store_again:
-                await self.store.compare_and_set(
-                    memkey, existing.encode(), existing_enc
-                )
-
-            logger.debug(f"{adj} pending return {new_return} {verb} {call_hash}")
-
-        await self._with_cas(cas_body)
+        return await self._with_cas(cas_body)
 
     async def with_pending_returns_remove(
         self, call_hash: str, f: Callable[[Iterable[str]], Awaitable[None]]
@@ -373,3 +345,21 @@ class Memory:
             await self.store.compare_and_delete(memkey, pending_enc)
 
         return await self._with_cas(cas_body)
+
+    async def remove_pending_return(self, call_hash: str, remove_return: str) -> None:
+        memkey = MemKey("pending_returns", call_hash)
+
+        async def cas_body():
+            try:
+                pending_enc = await self.store.get(memkey)
+            except NotFoundError:
+                return
+
+            pending = PendingReturns.decode(pending_enc)
+            pending.returns.discard(remove_return)
+            if pending.returns:
+                await self.store.compare_and_set(memkey, pending.encode(), pending_enc)
+            else:
+                await self.store.compare_and_delete(memkey, pending_enc)
+
+        await self._with_cas(cas_body)

@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-import functools
 from typing import Awaitable, Callable
 
 from brrr.call import Call
@@ -291,27 +290,20 @@ class MemoryContract(ByteStoreContract):
 
             await memory.with_pending_returns_remove("key", body)
 
-            calls = set()
-
-            async def callback(x) -> None:
-                calls.add(x)
-
-            await memory.add_pending_return("key", "p1", functools.partial(callback, 1))
-            await memory.add_pending_return("key", "p2", functools.partial(callback, 2))
-            await memory.add_pending_return("key", "p2", functools.partial(callback, 3))
-
-            assert calls == {1}
+            assert await memory.add_pending_return("key", "a/b/p1")
+            assert await memory.add_pending_return("key", "c/d/p2")
+            assert await memory.add_pending_return("key", "c/d/p2") == False
 
             with pytest.raises(FakeError):
 
                 async def body(keys) -> None:
-                    assert set(keys) == {"p1", "p2"}
+                    assert set(keys) == {"a/b/p1", "c/d/p2"}
                     raise FakeError()
 
                 await memory.with_pending_returns_remove("key", body)
 
             async def body2(keys) -> None:
-                assert set(keys) == {"p1", "p2"}
+                assert set(keys) == {"a/b/p1", "c/d/p2"}
 
             await memory.with_pending_returns_remove("key", body2)
 

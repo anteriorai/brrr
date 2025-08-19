@@ -106,6 +106,7 @@ async def test_spawn_limit_recoverable() -> None:
     assert spawn_limit_encountered
     # Once we debounce parent calls this should be foo=2
     assert calls == Counter(dict(one=n, foo=n + 1))
+    assert await app.read("foo")(101) == 101
 
 
 async def test_spawn_limit_breadth_manual() -> None:
