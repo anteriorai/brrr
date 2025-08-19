@@ -233,8 +233,9 @@ class Server(Connection):
         # however is user-controlled and can contain any character, so it must
         # come last for deterministic decoding.  Obviously a far better idea
         # would be to just use bencode here.
-        return_addr = f"{parent_call_id}/{my_topic}"
-        should_schedule = await self._memory.add_pending_return(call_hash, return_addr)
+        should_schedule = await self._memory.add_pending_return(
+            call_hash, f"{parent_call_id}/{my_topic}"
+        )
         if should_schedule:
             await self._put_job(child_topic, call_hash, root_id)
 
