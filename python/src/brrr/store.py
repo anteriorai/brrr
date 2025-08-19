@@ -190,10 +190,6 @@ class Cache(ABC):
         raise NotImplementedError()
 
 
-def _parse_call_id(call_id: str) -> list[str]:
-    return call_id.split("/")
-
-
 class Memory:
     def __init__(self, store: Store):
         self.store = store
@@ -300,8 +296,8 @@ class Memory:
         """
 
         def _determine_should_schedule(new_return: str, existing_return: str):
-            new_root, new_parent, new_topic = _parse_call_id(new_return)
-            ext_root, ext_parent, ext_topic = _parse_call_id(existing_return)
+            new_root, new_parent, new_topic = new_return.split("/")
+            ext_root, ext_parent, ext_topic = existing_return.split("/")
             return (
                 ext_root != new_root
                 and ext_parent == new_parent
@@ -315,7 +311,6 @@ class Memory:
             logger.debug(f"Scheduling pending returns for {call_hash} to {new_return}")
 
             should_schedule = False
-            new_root, new_parent, new_topic = _parse_call_id(new_return)
 
             try:
                 existing_enc = await self.store.get(memkey)
