@@ -299,6 +299,15 @@ class Memory:
 
         """
 
+        def _determine_should_schedule(new_return: str, existing_return: str):
+            new_root, new_parent, new_topic = _parse_call_id(new_return)
+            ext_root, ext_parent, ext_topic = _parse_call_id(existing_return)
+            return (
+                ext_root != new_root
+                and ext_parent == new_parent
+                and ext_topic == new_topic
+            )
+
         # Beware race conditions here!  Be aware of concurrency corner cases on
         # every single line.
         async def cas_body() -> bool:
@@ -320,17 +329,9 @@ class Memory:
                 await self.store.set_new_value(memkey, existing_enc)
                 should_schedule = True
 
-            if not should_schedule:
-                for ret in existing.returns:
-                    ext_root, ext_parent, ext_topic = _parse_call_id(ret)
-                    if (
-                        ext_root != new_root
-                        and ext_parent == new_parent
-                        and ext_topic == new_topic
-                    ):
-                        should_schedule = True
-                        break
-
+            should_schedule |= any(
+                _determine_should_schedule(new_return, ret) for ret in existing.returns
+            )
             existing.returns.add(new_return)
             await self.store.compare_and_set(memkey, existing.encode(), existing_enc)
             return should_schedule
