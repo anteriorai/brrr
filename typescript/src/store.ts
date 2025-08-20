@@ -153,11 +153,10 @@ export class Memory {
   }
 
   public async getValue(callHash: string): Promise<Uint8Array | undefined> {
-    const value = this.store.get({
+    return this.store.get({
       type: "value",
       callHash,
     });
-    if (!value) {}
   }
 
   public async setValue(callHash: string, payload: Uint8Array): Promise<void> {
@@ -172,57 +171,33 @@ export class Memory {
 
   public async addPendingReturns(
     callHash: string,
-    newReturn: string,
-    scheduleJob: () => Promise<void>,
+    newReturn: string
   ): Promise<boolean> {
     const memKey: MemKey = {
       type: "pending_returns",
       callHash,
     };
-    let shouldStoreAgain = false;
-    let existingEncoded: Uint8Array | undefined;
-    let existing: PendingReturns;
-    return this.withCas(async () => {
-      try {
-        existingEncoded = await this.store.get(memKey);
-        existing = PendingReturns.decode(existingEncoded);
-        if (!existing.returns.has(newReturn)) {
-          existing = new PendingReturns(
-            existing.scheduledAt,
-            new Set([...existing.returns, newReturn]),
-          );
-          shouldStoreAgain = true;
-        }
-      } catch (err) {
-        if (!(err instanceof NotFoundError)) {
-          throw err;
-        }
-        existing = new PendingReturns(undefined, new Set([newReturn]));
-        existingEncoded = existing.encode();
-        await this.store.setNewValue(memKey, existingEncoded);
+    let shouldSchedule = false;
+    await this.withCas(async () => {
+      shouldSchedule = false
+      let existingEncoded = await this.store.get(memKey)
+      let existing: PendingReturns
+      if (existingEncoded) {
+        existing = PendingReturns.decode(existingEncoded)
+      } else {
+        existing = new PendingReturns(Math.floor(Date.now() / 1000), new Set())
+        existingEncoded = existing.encode()
+        await this.store.setNewValue(memKey, existingEncoded)
+        shouldSchedule = true
       }
-      const alreadyPending = !!existing.scheduledAt;
-      let shouldSchedule = false;
-      if (!alreadyPending) {
-        existing = new PendingReturns(
-          Math.floor(Date.now() / 1000),
-          existing.returns,
-        );
-        shouldStoreAgain = true;
-        shouldSchedule = true;
-      }
-      if (shouldStoreAgain) {
-        await this.store.compareAndSet(
-          memKey,
-          existing.encode(),
-          existingEncoded,
-        );
-        if (shouldSchedule) {
-          await scheduleJob();
-        }
-      }
-      return alreadyPending;
-    });
+      shouldSchedule ||= existing.returns.values().some(it => this.isRepeatedCall(it, newReturn))
+      const newReturns = new PendingReturns(
+        existing.scheduledAt,
+        new Set([...existing.returns, newReturn]),
+      )
+      return this.store.compareAndSet(memKey, newReturns.encode(), existingEncoded)
+    })
+    return shouldSchedule
   }
 
   public async withPendingReturnsRemove(
@@ -235,19 +210,15 @@ export class Memory {
     };
     const handled = new Set<string>();
     return this.withCas(async () => {
-      let pendingEncoded: Uint8Array;
-      try {
-        pendingEncoded = await this.store.get(memKey);
-      } catch (err) {
-        if (err instanceof NotFoundError) {
-          return f(new Set());
-        }
-        throw err;
+      const pendingEncoded = await this.store.get(memKey);
+      if (!pendingEncoded) {
+        return true
       }
-      const toHandle =
-        PendingReturns.decode(pendingEncoded).returns.difference(handled);
+      const toHandle = PendingReturns.decode(pendingEncoded).returns.difference(handled);
       await f(toHandle);
-      toHandle.forEach((it) => handled.add(it));
+      for (const it of toHandle) {
+        handled.add(it);
+      }
       return this.store.compareAndDelete(memKey, pendingEncoded);
     });
   }
@@ -259,5 +230,11 @@ export class Memory {
       }
     }
     throw new CasRetryLimitReachedError(Memory.casRetryLimit);
+  }
+
+  private isRepeatedCall(newReturn: string, existingReturn: string): boolean {
+    const [newRoot, newParent, newTopic] = newReturn.split("/")
+    const [existingRoot, existingParent, existingTopic] = existingReturn.split("/");
+    return newRoot !== existingRoot && newParent === existingParent && newTopic === existingTopic
   }
 }
