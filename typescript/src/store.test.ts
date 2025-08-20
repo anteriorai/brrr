@@ -114,7 +114,6 @@ await suite(import.meta.filename, async () => {
         const alreadyPending = await memory.addPendingReturns(
           fixture.call.callHash,
           "foo",
-          mockFn,
         );
         ok(!alreadyPending);
         const raw = await store.get({
@@ -129,11 +128,10 @@ await suite(import.meta.filename, async () => {
       });
 
       await test("Repeated call with same return does not call schedule again", async () => {
-        await memory.addPendingReturns(fixture.call.callHash, "foo", mockFn);
+        await memory.addPendingReturns(fixture.call.callHash, "foo");
         const alreadyPending = await memory.addPendingReturns(
           fixture.call.callHash,
           "foo",
-          mockFn,
         );
         ok(alreadyPending);
         strictEqual(mockFn.mock.callCount(), 1);
@@ -147,11 +145,10 @@ await suite(import.meta.filename, async () => {
       });
 
       await test("Handles different returns properly", async () => {
-        await memory.addPendingReturns(fixture.call.callHash, "foo", mockFn);
+        await memory.addPendingReturns(fixture.call.callHash, "foo");
         const alreadyPending = await memory.addPendingReturns(
           fixture.call.callHash,
           "bar",
-          mockFn,
         );
         ok(alreadyPending);
         const raw = await store.get({
@@ -172,7 +169,6 @@ await suite(import.meta.filename, async () => {
         const alreadyPending = await memory.addPendingReturns(
           fixture.call.callHash,
           "new-return",
-          mockFn,
         );
         ok(!alreadyPending);
         const raw = await store.get(key);
