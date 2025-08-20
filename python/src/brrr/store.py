@@ -28,6 +28,9 @@ class Info:
     log_prints: bool | None
 
 
+type _EncodedPendingReturns = dict[bytes, int | None | Sequence[bytes]]
+
+
 @dataclass
 class PendingReturns:
     """Set of parents waiting for a child call to complete.
@@ -62,7 +65,7 @@ class PendingReturns:
 
     @classmethod
     def decode(cls, enc: bytes) -> PendingReturns:
-        decoded = cast(dict[bytes, int | None | Sequence[bytes]], bencodepy.decode(enc))
+        decoded = cast(_EncodedPendingReturns, bencodepy.decode(enc))
         scheduled_at = cast(int | None, decoded.get(b"scheduled_at"))
         returns = cast(Sequence[bytes], decoded[b"returns"])
         return PendingReturns(
