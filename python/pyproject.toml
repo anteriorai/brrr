@@ -42,6 +42,10 @@ asyncio_mode = "auto"
 timeout = 10
 markers = ["dependencies: requires external store / queue dependencies running"]
 
+[tool.mypy]
+strict = true
+follow_untyped_imports = true
+
 [[tool.mypy.overrides]]
 module = ["bencodepy.*"]
 ignore_missing_imports = true

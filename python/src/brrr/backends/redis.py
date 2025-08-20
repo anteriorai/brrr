@@ -13,20 +13,22 @@ from ..store import Cache
 if typing.TYPE_CHECKING:
     from redis.asyncio import Redis
 
+from typing import cast
+
 
 logger = logging.getLogger(__name__)
 
 
 class RedisQueue(Queue, Cache):
-    client: Redis
+    client: Redis[bytes]
 
-    def __init__(self, client: Redis):
+    def __init__(self, client: Redis[bytes]):
         self.client = client
 
-    async def setup(self):
+    async def setup(self) -> None:
         pass
 
-    async def put_message(self, topic: str, body: str):
+    async def put_message(self, topic: str, body: str) -> None:
         logger.debug(f"Putting new message on {topic}")
         val = bencodepy.encode((1, int(time.time()), body.encode("utf-8")))
         await self.client.rpush(topic, val)
@@ -36,7 +38,7 @@ class RedisQueue(Queue, Cache):
         if not response:
             raise QueueIsEmpty()
         try:
-            chunks = bencodepy.decode(response[1])
+            chunks = cast(tuple[int, int, bytes], bencodepy.decode(response[1]))
         except bencodepy.exceptions.BencodeDecodeError:
             logger.error(f"Invalid bencoded message in queue {topic}: {repr(response)}")
             raise
@@ -48,7 +50,7 @@ class RedisQueue(Queue, Cache):
         # Ignore timestamp for now
         return Message(chunks[2].decode("utf-8"))
 
-    async def get_info(self, topic: str):
+    async def get_info(self, topic: str) -> QueueInfo:
         total = await self.client.llen(topic)
         return QueueInfo(num_messages=total)
 

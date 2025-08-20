@@ -67,7 +67,7 @@ class Response:
 type Handler = Callable[[Request, Connection], Awaitable[Response | Defer]]
 
 
-def _parse_call_id(call_id: str):
+def _parse_call_id(call_id: str) -> list[str]:
     return call_id.split("/")
 
 
