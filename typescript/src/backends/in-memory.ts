@@ -32,7 +32,7 @@ export class InMemoryQueue implements Queue {
   private getTopicQueue(topic: string): AsyncQueue<Message> {
     const queue = this.queues.get(topic);
     if (!queue) {
-      throw new Error(`Cloud not find topic: ${topic}`);
+      throw new Error(`Could not find topic: ${topic}`);
     }
     return queue;
   }
@@ -102,7 +102,7 @@ export class InMemoryStore implements Store {
   }
 
   private isEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
-    return a.length === b.length && a.every((_, i) => a[i] === b[i]);
+    return a.length === b.length && a.every((it, i) => it === b[i]);
   }
 }
 
