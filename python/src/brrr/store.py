@@ -28,9 +28,6 @@ class Info:
     log_prints: bool | None
 
 
-_EncodedPendingReturns = dict[bytes, int | None | Sequence[bytes]]
-
-
 @dataclass
 class PendingReturns:
     """Set of parents waiting for a child call to complete.
@@ -65,7 +62,7 @@ class PendingReturns:
 
     @classmethod
     def decode(cls, enc: bytes) -> PendingReturns:
-        decoded = cast(_EncodedPendingReturns, bencodepy.decode(enc))
+        decoded = cast(dict[bytes, int | None | Sequence[bytes]], bencodepy.decode(enc))
         scheduled_at = cast(int | None, decoded.get(b"scheduled_at"))
         returns = cast(Sequence[bytes], decoded[b"returns"])
         return PendingReturns(
@@ -194,16 +191,13 @@ class Cache(ABC):
         raise NotImplementedError()
 
 
-_EncodedMemory = dict[bytes, bytes]
-
-
 class Memory:
     def __init__(self, store: Store):
         self.store = store
 
     async def get_call(self, call_hash: str) -> Call:
         enc = await self.store.get(MemKey("call", call_hash))
-        decoded = cast(_EncodedMemory, bencodepy.decode(enc))
+        decoded = cast(dict[bytes, bytes], bencodepy.decode(enc))
         task_name = decoded[b"task_name"]
         payload = decoded[b"payload"]
         return Call(
