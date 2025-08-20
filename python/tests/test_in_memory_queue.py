@@ -2,8 +2,9 @@ from collections.abc import Sequence
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from brrr.queue import Queue
 from brrr.backends.in_memory import InMemoryQueue
+from brrr.queue import Queue
+
 from tests.contract_queue import QueueContract
 
 

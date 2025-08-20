@@ -2,8 +2,8 @@ import hashlib
 import pickle
 from typing import Any, Callable
 
-from .codec import Codec
 from .call import Call
+from .codec import Codec
 
 
 class PickleCodec(Codec):
