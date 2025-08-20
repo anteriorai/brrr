@@ -43,5 +43,7 @@ timeout = 10
 markers = ["dependencies: requires external store / queue dependencies running"]
 
 [[tool.mypy.overrides]]
+strict = true
 module = ["bencodepy.*"]
 ignore_missing_imports = true
+follow_untyped_imports = true

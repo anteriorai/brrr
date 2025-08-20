@@ -1,16 +1,14 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping, Sequence
 import typing
+from collections.abc import Mapping, Sequence
 
 from brrr.store import CompareMismatch, NotFoundError
 from ..queue import Queue, Message, QueueInfo, QueueIsClosed, QueueIsEmpty
 from ..store import Cache, MemKey, Store
 
-if typing.TYPE_CHECKING:
-    from typing import Any
-
+from typing import cast
 
 class InMemoryQueue(Queue):
     """In-memory, inherently ephemeral message queue for testing."""
@@ -30,7 +28,9 @@ class InMemoryQueue(Queue):
             raise ValueError("InMemoryQueue already closed/closing")
         self._closing = True
         for q in self._queues.values():
-            q.shutdown()
+            # Backwards compatible with python 3.12
+            if hasattr(q, "shutdown"):
+                q.shutdown()
 
     async def join(self) -> None:
         """Wait for all queues to be fully closed"""
@@ -57,8 +57,10 @@ class InMemoryQueue(Queue):
                         payload = await q.get()
                 except TimeoutError:
                     raise QueueIsEmpty()
-        except asyncio.QueueShutDown:
-            raise QueueIsClosed()
+        except Exception as e:
+            if hasattr(asyncio, "QueueShutDown") and isinstance(e, asyncio.QueueShutDown):
+                raise QueueIsClosed() from e
+            raise
 
         q.task_done()
         return Message(body=payload)
@@ -98,7 +100,7 @@ class InMemoryByteStore(Store, Cache):
     A store that stores bytes
     """
 
-    inner: dict[str, Any]
+    inner: dict[str, bytes | int]
 
     def __init__(self) -> None:
         self.inner = {}
@@ -110,36 +112,36 @@ class InMemoryByteStore(Store, Cache):
         full_hash = _key2str(key)
         if full_hash not in self.inner:
             raise NotFoundError(key)
-        return self.inner[full_hash]
+        return cast(bytes, self.inner[full_hash])
 
     async def set(self, key: MemKey, value: bytes) -> None:
         self.inner[_key2str(key)] = value
 
-    async def delete(self, key: MemKey):
+    async def delete(self, key: MemKey) -> None:
         try:
             del self.inner[_key2str(key)]
         except KeyError:
             pass
 
-    async def set_new_value(self, key: MemKey, value: bytes):
+    async def set_new_value(self, key: MemKey, value: bytes) -> None:
         k = _key2str(key)
         if k in self.inner:
             raise CompareMismatch()
         self.inner[k] = value
 
-    async def compare_and_set(self, key: MemKey, value: bytes, expected: bytes):
+    async def compare_and_set(self, key: MemKey, value: bytes, expected: bytes) -> None:
         k = _key2str(key)
         if (k not in self.inner) or (self.inner[k] != expected):
             raise CompareMismatch()
         self.inner[k] = value
 
-    async def compare_and_delete(self, key: MemKey, expected: bytes):
+    async def compare_and_delete(self, key: MemKey, expected: bytes) -> None:
         k = _key2str(key)
         if (k not in self.inner) or (self.inner[k] != expected):
             raise CompareMismatch()
         del self.inner[k]
 
     async def incr(self, key: str) -> int:
-        n = self.inner.get(key, 0) + 1
+        n = cast(int, self.inner.get(key, 0)) + 1
         self.inner[key] = n
         return n
