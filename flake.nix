@@ -43,7 +43,8 @@
       inputs.flake-parts.follows = "flake-parts";
       inputs.treefmt-nix.follows = "treefmt-nix";
     };
-    treefmt-nix.url = "github:numtide/treefmt-nix";
+    # Pending PR: https://github.com/numtide/treefmt-nix/pull/402
+    treefmt-nix.url = "github:anteriorai/treefmt-nix";
   };
 
   outputs =

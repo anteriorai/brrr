@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping, Sequence
 import typing
+from collections.abc import Mapping, Sequence
 
 from brrr.store import CompareMismatch, NotFoundError
-from ..queue import Queue, Message, QueueInfo, QueueIsClosed, QueueIsEmpty
+
+from ..queue import Message, Queue, QueueInfo, QueueIsClosed, QueueIsEmpty
 from ..store import Cache, MemKey, Store
 
 if typing.TYPE_CHECKING:

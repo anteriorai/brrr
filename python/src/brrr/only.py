@@ -1,9 +1,8 @@
+import functools
 from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-import functools
 from typing import Awaitable, Callable
-
 
 _in_brrr: ContextVar[bool] = ContextVar("brrr.only", default=False)
 

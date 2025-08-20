@@ -1,19 +1,17 @@
+import functools
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-import functools
 from typing import Awaitable, Callable
 
-from brrr.call import Call
-
 import pytest
-
+from brrr.call import Call
 from brrr.store import (
     CompareMismatch,
+    MemKey,
     Memory,
     NotFoundError,
     Store,
-    MemKey,
 )
 
 

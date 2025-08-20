@@ -1,8 +1,7 @@
-from brrr.local_app import LocalBrrr
-import pytest
-
 import brrr
+import pytest
 from brrr import OnlyInBrrrError
+from brrr.local_app import LocalBrrr
 from brrr.pickle_codec import PickleCodec
 
 TOPIC = "brrr-test"

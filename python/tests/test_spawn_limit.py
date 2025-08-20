@@ -1,8 +1,7 @@
 from collections import Counter
 
-import pytest
-
 import brrr
+import pytest
 from brrr import ActiveWorker, AppWorker, SpawnLimitError
 from brrr.backends.in_memory import InMemoryByteStore, InMemoryQueue
 from brrr.pickle_codec import PickleCodec
