@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import logging
-import time
 from abc import abstractmethod, ABC
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
+import logging
+import time
 from typing import Literal
 
 import bencodepy
