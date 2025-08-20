@@ -1,16 +1,15 @@
 from __future__ import annotations
 
+import logging
 from abc import abstractmethod, ABC
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
-import logging
-import time
-from typing import Literal
+from typing import Literal, Sequence, cast
 
 import bencodepy
+import time
 
 from .call import Call
-
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +26,9 @@ class Info:
     retries: int | None
     retry_delay_seconds: int | None
     log_prints: bool | None
+
+
+_EncodedPendingReturns = dict[bytes, int | None | Sequence[bytes]]
 
 
 @dataclass
@@ -63,10 +65,11 @@ class PendingReturns:
 
     @classmethod
     def decode(cls, enc: bytes) -> PendingReturns:
-        decoded = bencodepy.decode(enc)
-        returns = decoded[b"returns"]
+        decoded = cast(_EncodedPendingReturns, bencodepy.decode(enc))
+        scheduled_at = cast(int | None, decoded.get(b"scheduled_at"))
+        returns = cast(Sequence[bytes], decoded[b"returns"])
         return PendingReturns(
-            decoded.get(b"scheduled_at"),
+            scheduled_at,
             set(map(lambda x: x.decode("us-ascii"), returns)),
         )
 
@@ -191,13 +194,16 @@ class Cache(ABC):
         raise NotImplementedError()
 
 
+_EncodedMemory = dict[bytes, bytes]
+
+
 class Memory:
     def __init__(self, store: Store):
         self.store = store
 
     async def get_call(self, call_hash: str) -> Call:
         enc = await self.store.get(MemKey("call", call_hash))
-        decoded = bencodepy.decode(enc)
+        decoded = cast(_EncodedMemory, bencodepy.decode(enc))
         task_name = decoded[b"task_name"]
         payload = decoded[b"payload"]
         return Call(

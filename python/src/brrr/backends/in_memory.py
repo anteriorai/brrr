@@ -10,6 +10,7 @@ from ..store import Cache, MemKey, Store
 
 from typing import cast
 
+
 class InMemoryQueue(Queue):
     """In-memory, inherently ephemeral message queue for testing."""
 
@@ -58,7 +59,9 @@ class InMemoryQueue(Queue):
                 except TimeoutError:
                     raise QueueIsEmpty()
         except Exception as e:
-            if hasattr(asyncio, "QueueShutDown") and isinstance(e, asyncio.QueueShutDown):
+            if hasattr(asyncio, "QueueShutDown") and isinstance(
+                e, asyncio.QueueShutDown
+            ):
                 raise QueueIsClosed() from e
             raise
 
