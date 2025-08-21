@@ -1,4 +1,12 @@
-import { afterEach, before, beforeEach, mock, type MockTimersOptions, suite, test } from "node:test";
+import {
+  afterEach,
+  before,
+  beforeEach,
+  mock,
+  type MockTimersOptions,
+  suite,
+  test,
+} from "node:test";
 import {
   deepStrictEqual,
   doesNotReject,
@@ -120,7 +128,7 @@ await suite(import.meta.filename, async () => {
           type: "pending_returns",
           callHash: fixture.call.callHash,
         });
-        ok(raw)
+        ok(raw);
         const decoded = PendingReturns.decode(raw);
         ok(decoded.returns.has("foo"));
         strictEqual(decoded.scheduledAt, mockTimersOptions.now / 1000);
@@ -139,7 +147,7 @@ await suite(import.meta.filename, async () => {
           type: "pending_returns",
           callHash: fixture.call.callHash,
         });
-        ok(raw)
+        ok(raw);
         const decoded = PendingReturns.decode(raw);
         deepStrictEqual(decoded.returns, new Set(["foo"]));
       });
@@ -155,7 +163,7 @@ await suite(import.meta.filename, async () => {
           type: "pending_returns",
           callHash: fixture.call.callHash,
         });
-        ok(raw)
+        ok(raw);
         const decoded = PendingReturns.decode(raw);
         deepStrictEqual(decoded.returns, new Set(["foo", "bar"]));
       });
@@ -165,14 +173,14 @@ await suite(import.meta.filename, async () => {
           type: "pending_returns",
           callHash: fixture.call.callHash,
         };
-        strictEqual(await store.get(key), undefined)
+        strictEqual(await store.get(key), undefined);
         const alreadyPending = await memory.addPendingReturns(
           fixture.call.callHash,
           "new-return",
         );
         ok(!alreadyPending);
         const raw = await store.get(key);
-        ok(raw)
+        ok(raw);
         const decoded = PendingReturns.decode(raw);
         deepStrictEqual(decoded.returns, new Set(["new-return"]));
         strictEqual(decoded.scheduledAt, mockTimersOptions.now / 1000);
@@ -206,7 +214,7 @@ await suite(import.meta.filename, async () => {
         deepStrictEqual(mockFn.mock.calls?.at(0)?.arguments, [
           pendingReturns.returns,
         ]);
-        strictEqual(await store.get(fixture.pendingReturns.key), undefined)
+        strictEqual(await store.get(fixture.pendingReturns.key), undefined);
       });
     });
   });
