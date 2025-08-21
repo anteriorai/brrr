@@ -4,7 +4,16 @@ import type { Call } from "./call.ts";
 import type { Codec } from "./codec.ts";
 import { parse, stringify } from "superjson";
 
-export class JsonCodec implements Codec {
+/**
+ * Naive JSON codec that uses `superjson` for serialization and deserialization.
+ *
+ * @remarks
+ * It tries its best to ensure that the serialized data is deterministic by
+ * sorting object keys recursively before serialization, but it's not
+ * reccommended for production use; the primary purpose of this codec is
+ * executable documentation.
+ */
+export class NaiveJsonCodec implements Codec {
   public static readonly algorithm = "sha256";
   public static readonly binaryToTextEncoding =
     "hex" satisfies BinaryToTextEncoding;
@@ -13,7 +22,7 @@ export class JsonCodec implements Codec {
   private static readonly decoder = new TextDecoder();
 
   public async decodeReturn(_: string, payload: Uint8Array): Promise<unknown> {
-    const decoded = JsonCodec.decoder.decode(payload);
+    const decoded = NaiveJsonCodec.decoder.decode(payload);
     return parse(decoded);
   }
 
@@ -21,9 +30,9 @@ export class JsonCodec implements Codec {
     taskName: string,
     args: A,
   ): Promise<Call> {
-    const sortedArgs = args.map(JsonCodec.sortObjectKeys);
+    const sortedArgs = args.map(NaiveJsonCodec.sortObjectKeys);
     const data = stringify(sortedArgs);
-    const payload = JsonCodec.encoder.encode(data);
+    const payload = NaiveJsonCodec.encoder.encode(data);
     const callHash = await this.hashCall(taskName, sortedArgs);
     return { taskName, payload, callHash };
   }
@@ -32,11 +41,11 @@ export class JsonCodec implements Codec {
     call: Call,
     task: (...args: A) => Promise<R>,
   ): Promise<Uint8Array> {
-    const decoded = JsonCodec.decoder.decode(call.payload);
+    const decoded = NaiveJsonCodec.decoder.decode(call.payload);
     const args = parse<A>(decoded);
     const result = await task(...args);
     const resultJson = stringify(result);
-    return JsonCodec.encoder.encode(resultJson);
+    return NaiveJsonCodec.encoder.encode(resultJson);
   }
 
   private async hashCall<A extends unknown>(
@@ -46,7 +55,7 @@ export class JsonCodec implements Codec {
     const data = stringify([taskName, args]);
     return createHash("sha256")
       .update(data)
-      .digest(JsonCodec.binaryToTextEncoding);
+      .digest(NaiveJsonCodec.binaryToTextEncoding);
   }
 
   private static sortObjectKeys<T>(unordered: T): T {
@@ -54,13 +63,13 @@ export class JsonCodec implements Codec {
       return unordered;
     }
     if (Array.isArray(unordered)) {
-      return unordered.map(JsonCodec.sortObjectKeys) as T;
+      return unordered.map(NaiveJsonCodec.sortObjectKeys) as T;
     }
     const entries = Object.keys(unordered)
       .sort()
       .map((key) => [
         key,
-        JsonCodec.sortObjectKeys(unordered[key as keyof typeof unordered]),
+        NaiveJsonCodec.sortObjectKeys(unordered[key as keyof typeof unordered]),
       ]);
     return Object.fromEntries(entries);
   }
