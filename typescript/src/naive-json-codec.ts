@@ -7,6 +7,7 @@ import { parse, stringify } from "superjson";
 /**
  * Naive JSON codec that uses `superjson` for serialization and deserialization.
  *
+ * @remarks
  * It tries its best to ensure that the serialized data is deterministic by
  * sorting object keys recursively before serialization, but it's not
  * reccommended for production use; the primary purpose of this codec is
@@ -52,7 +53,7 @@ export class NaiveJsonCodec implements Codec {
     args: A,
   ): Promise<string> {
     const data = stringify([taskName, args]);
-    return createHash(NaiveJsonCodec.algorithm)
+    return createHash("sha256")
       .update(data)
       .digest(NaiveJsonCodec.binaryToTextEncoding);
   }
