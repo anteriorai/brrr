@@ -171,7 +171,7 @@ export class Memory {
 
   public async addPendingReturns(
     callHash: string,
-    newReturn: string
+    newReturn: string,
   ): Promise<boolean> {
     const memKey: MemKey = {
       type: "pending_returns",
@@ -179,25 +179,31 @@ export class Memory {
     };
     let shouldSchedule = false;
     await this.withCas(async () => {
-      shouldSchedule = false
-      let existingEncoded = await this.store.get(memKey)
-      let existing: PendingReturns
+      shouldSchedule = false;
+      let existingEncoded = await this.store.get(memKey);
+      let existing: PendingReturns;
       if (existingEncoded) {
-        existing = PendingReturns.decode(existingEncoded)
+        existing = PendingReturns.decode(existingEncoded);
       } else {
-        existing = new PendingReturns(Math.floor(Date.now() / 1000), new Set())
-        existingEncoded = existing.encode()
-        await this.store.setNewValue(memKey, existingEncoded)
-        shouldSchedule = true
+        existing = new PendingReturns(Math.floor(Date.now() / 1000), new Set());
+        existingEncoded = existing.encode();
+        await this.store.setNewValue(memKey, existingEncoded);
+        shouldSchedule = true;
       }
-      shouldSchedule ||= existing.returns.values().some(it => this.isRepeatedCall(it, newReturn))
+      shouldSchedule ||= existing.returns
+        .values()
+        .some((it) => this.isRepeatedCall(it, newReturn));
       const newReturns = new PendingReturns(
         existing.scheduledAt,
         new Set([...existing.returns, newReturn]),
-      )
-      return this.store.compareAndSet(memKey, newReturns.encode(), existingEncoded)
-    })
-    return shouldSchedule
+      );
+      return this.store.compareAndSet(
+        memKey,
+        newReturns.encode(),
+        existingEncoded,
+      );
+    });
+    return shouldSchedule;
   }
 
   public async withPendingReturnsRemove(
@@ -212,9 +218,10 @@ export class Memory {
     return this.withCas(async () => {
       const pendingEncoded = await this.store.get(memKey);
       if (!pendingEncoded) {
-        return true
+        return true;
       }
-      const toHandle = PendingReturns.decode(pendingEncoded).returns.difference(handled);
+      const toHandle =
+        PendingReturns.decode(pendingEncoded).returns.difference(handled);
       await f(toHandle);
       for (const it of toHandle) {
         handled.add(it);
@@ -233,8 +240,16 @@ export class Memory {
   }
 
   private isRepeatedCall(newReturn: string, existingReturn: string): boolean {
-    const [newRoot, newParent, newTopic] = newReturn.split("/")
-    const [existingRoot, existingParent, existingTopic] = existingReturn.split("/");
-    return newRoot !== existingRoot && newParent === existingParent && newTopic === existingTopic
+    const [newRoot, newParent, newTopic, ...rest] = newReturn.split("/");
+    if (!newRoot || !newParent || !newTopic || rest.length) {
+      throw new Error(`Invalid return address: ${newReturn}`);
+    }
+    const [existingRoot, existingParent, existingTopic] =
+      existingReturn.split("/");
+    return (
+      newRoot !== existingRoot &&
+      newParent === existingParent &&
+      newTopic === existingTopic
+    );
   }
 }
