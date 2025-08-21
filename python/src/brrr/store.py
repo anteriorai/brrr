@@ -295,7 +295,7 @@ class Memory:
 
         """
 
-        def _is_repeated_call(new_return: str, existing_return: str):
+        def _is_repeated_call(existing_return: str):
             new_root, new_parent, new_topic = new_return.split("/")
             ext_root, ext_parent, ext_topic = existing_return.split("/")
             return (
@@ -310,6 +310,7 @@ class Memory:
             memkey = MemKey("pending_returns", call_hash)
             should_schedule = False
 
+            logger.debug(f"Looking for existing pending returns for {call_hash}...")
             try:
                 existing_enc = await self.store.get(memkey)
                 logger.debug(f"    ... found! {existing_enc!r}")
@@ -322,9 +323,10 @@ class Memory:
                 await self.store.set_new_value(memkey, existing_enc)
                 should_schedule = True
 
-            should_schedule |= any(
-                _is_repeated_call(new_return, ret) for ret in existing.returns
+            should_schedule = should_schedule or any(
+                map(_is_repeated_call, existing.returns)
             )
+
             existing.returns.add(new_return)
             await self.store.compare_and_set(memkey, existing.encode(), existing_enc)
             return should_schedule
