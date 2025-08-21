@@ -1,7 +1,7 @@
 import brrr
-from brrr.call import Call
 from brrr import Connection, Defer, DeferredCall, Request, Response
 from brrr.backends.in_memory import InMemoryByteStore, InMemoryQueue
+from brrr.call import Call
 
 TOPIC = "brrr-test"
 

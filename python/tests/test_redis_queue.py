@@ -1,13 +1,13 @@
+import os
 from collections.abc import Sequence
 from contextlib import asynccontextmanager
-import os
 from typing import AsyncIterator
 
 import pytest
 import redis.asyncio as redis
-
 from brrr.backends.redis import RedisQueue
 from brrr.queue import Queue
+
 from tests.contract_queue import QueueContract
 
 

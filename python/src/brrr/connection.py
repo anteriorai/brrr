@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import logging
 from collections.abc import (
     AsyncIterator,
     Awaitable,
@@ -10,17 +11,16 @@ from collections.abc import (
 )
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
-import logging
 from uuid import uuid4
 
 from .call import Call
+from .queue import Queue, QueueIsClosed, QueueIsEmpty
 from .store import (
     Cache,
     Memory,
     NotFoundError,
     Store,
 )
-from .queue import Queue, QueueIsClosed, QueueIsEmpty
 
 logger = logging.getLogger(__name__)
 

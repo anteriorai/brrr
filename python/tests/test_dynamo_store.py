@@ -1,11 +1,10 @@
 import asyncio
+import uuid
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Awaitable, Callable
-import uuid
 
 import aioboto3
 import pytest
-
 from brrr.backends.dynamo import DynamoDbMemStore
 from brrr.store import Store
 

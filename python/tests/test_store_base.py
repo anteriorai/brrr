@@ -1,12 +1,11 @@
 import functools
 
 import pytest
-
 from brrr.backends.in_memory import InMemoryByteStore
 from brrr.store import (
     CompareMismatch,
-    Memory,
     MemKey,
+    Memory,
     PendingReturns,
 )
 
