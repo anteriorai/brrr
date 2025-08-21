@@ -459,7 +459,9 @@ async def test_app_loop_resumable() -> None:
         return await app.call(bar)(a)
 
     async with brrr.serve(queue, store, store) as conn:
-        app = AppWorker(handlers=dict(foo=foo, bar=bar), codec=PickleCodec(), connection=conn)
+        app = AppWorker(
+            handlers=dict(foo=foo, bar=bar), codec=PickleCodec(), connection=conn
+        )
         while True:
             try:
                 await app.schedule(foo, topic=TOPIC)(3)
