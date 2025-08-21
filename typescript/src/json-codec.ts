@@ -21,9 +21,10 @@ export class JsonCodec implements Codec {
     taskName: string,
     args: A,
   ): Promise<Call> {
-    const data = stringify(args);
+    const sortedArgs = args.map(JsonCodec.sortObjectKeys);
+    const data = stringify(sortedArgs);
     const payload = JsonCodec.encoder.encode(data);
-    const callHash = await this.hashCall(taskName, args);
+    const callHash = await this.hashCall(taskName, sortedArgs);
     return { taskName, payload, callHash };
   }
 
@@ -46,5 +47,21 @@ export class JsonCodec implements Codec {
     return createHash("sha256")
       .update(data)
       .digest(JsonCodec.binaryToTextEncoding);
+  }
+
+  private static sortObjectKeys<T>(unordered: T): T {
+    if (!unordered || typeof unordered !== "object") {
+      return unordered;
+    }
+    if (Array.isArray(unordered)) {
+      return unordered.map(JsonCodec.sortObjectKeys) as T;
+    }
+    const entries = Object.keys(unordered)
+      .sort()
+      .map((key) => [
+        key,
+        JsonCodec.sortObjectKeys(unordered[key as keyof typeof unordered]),
+      ]);
+    return Object.fromEntries(entries);
   }
 }
