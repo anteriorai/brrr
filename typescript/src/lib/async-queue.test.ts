@@ -84,7 +84,7 @@ await suite(import.meta.filename, async () => {
     await test("blocked pop rejects on shutdown", async () => {
       const pop = queue.pop();
       queue.shutdown();
-      await rejects(pop, { message: "Queue is closed" });
+      deepStrictEqual(await pop, { kind: "QueueIsClosed" });
     });
 
     await test("multiple blocked pops reject on shutdown", async () => {
@@ -92,9 +92,9 @@ await suite(import.meta.filename, async () => {
       const b = queue.pop();
       const c = queue.pop();
       queue.shutdown();
-      await rejects(a, { message: "Queue is closed" });
-      await rejects(b, { message: "Queue is closed" });
-      await rejects(c, { message: "Queue is closed" });
+      deepStrictEqual(await a, { kind: "QueueIsClosed" });
+      deepStrictEqual(await b, { kind: "QueueIsClosed" });
+      deepStrictEqual(await c, { kind: "QueueIsClosed" });
     });
 
     await test("shutdown is idempotent", async () => {
@@ -102,7 +102,7 @@ await suite(import.meta.filename, async () => {
       doesNotThrow(() => queue.shutdown());
       doesNotThrow(() => queue.shutdown());
       await rejects(() => queue.push(0), { message: "Queue is closed" });
-      strictEqual((await queue.pop()).kind, "QueueIsClosed");
+      deepStrictEqual(await queue.pop(), { kind: "QueueIsClosed" });
     });
   });
 
