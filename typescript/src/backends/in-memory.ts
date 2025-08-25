@@ -34,8 +34,9 @@ export class InMemoryQueue implements Queue {
       const result = queue.popSync();
       if (result.kind === "QueueIsEmpty") {
         queue.shutdown();
+        return { kind: 'QueueIsClosed' }
       }
-      return result;
+      return result
     }
     return queue.pop(this.timeout);
   }
