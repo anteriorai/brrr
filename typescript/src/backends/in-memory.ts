@@ -5,13 +5,20 @@ import { AsyncQueue } from "../lib/async-queue.ts";
 export class InMemoryQueue implements Queue {
   public readonly timeout = 10;
 
+  private closing = false;
+  private flushing = false;
+
   private readonly queues: Map<string, AsyncQueue<Message>>;
 
   public constructor(topics: string[]) {
     this.queues = new Map(topics.map((topic) => [topic, new AsyncQueue()]));
   }
 
-  public async close() {
+  public async close(): Promise<void> {
+    if (this.closing) {
+      return;
+    }
+    this.closing = true;
     for (const queue of this.queues.values()) {
       queue.shutdown();
     }
@@ -22,7 +29,19 @@ export class InMemoryQueue implements Queue {
   }
 
   public async pop(topic: string): Promise<QueuePopResult<Message>> {
-    return this.getTopicQueue(topic).pop(this.timeout);
+    const queue = this.getTopicQueue(topic);
+    if (this.flushing) {
+      const result = queue.popSync();
+      if (result.kind === "QueueIsEmpty") {
+        queue.shutdown();
+      }
+      return result;
+    }
+    return queue.pop(this.timeout);
+  }
+
+  public flush(): void {
+    this.flushing = true;
   }
 
   public async push(topic: string, message: Message): Promise<boolean> {
