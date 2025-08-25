@@ -1,5 +1,4 @@
 import type { QueuePopResult } from "../queue.ts";
-import { QueueIsClosedError } from "../errors.ts";
 
 interface Deferred<T> {
   resolve: (value: T) => void;
@@ -33,7 +32,7 @@ export class AsyncQueue<T> {
 
   public async push(value: T): Promise<void> {
     if (this.shutdownMode) {
-      throw new QueueIsClosedError();
+      throw new Error("Queue is closed");
     }
     this.tasks++;
     if (this.tasks === 1) {
@@ -99,7 +98,7 @@ export class AsyncQueue<T> {
   public shutdown(): void {
     this.shutdownMode = true;
     while (this.deferred.length > 0) {
-      this.deferred.shift()?.reject(new QueueIsClosedError());
+      this.deferred.shift()?.reject(new Error("Queue is closed"));
     }
     if (this.tasks === 0 && this.resolver) {
       this.resolver();
