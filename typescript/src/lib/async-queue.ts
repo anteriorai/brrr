@@ -1,5 +1,4 @@
 import type { QueuePopResult } from "../queue.ts";
-import { QueueIsClosedError } from "../errors.ts";
 
 interface Deferred<T> {
   resolve: (value: QueuePopResult<T>) => void;
@@ -66,12 +65,7 @@ export class AsyncQueue<T> {
     if (this.shutdownMode) {
       return { kind: "QueueIsClosed" };
     }
-    const result = this.generator
-      .next()
-      .value.then<QueuePopResult<T>>((value) => {
-        this.done();
-        return { kind: "Ok", value };
-      });
+    const result = this.generator.next().value;
     if (!timeout) {
       return result;
     }

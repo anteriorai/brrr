@@ -1,5 +1,4 @@
 import { beforeEach, mock, suite, test } from "node:test";
-import { QueueIsClosedError } from "../errors.ts";
 import { AsyncQueue } from "./async-queue.ts";
 import {
   deepStrictEqual,
@@ -102,8 +101,8 @@ await suite(import.meta.filename, async () => {
       queue.shutdown();
       doesNotThrow(() => queue.shutdown());
       doesNotThrow(() => queue.shutdown());
-      await rejects(() => queue.push(0), QueueIsClosedError);
-      strictEqual((await queue.pop()).kind, "QueueIsClosed");
+      ok(!(await queue.push(0)));
+      deepStrictEqual(await queue.pop(), { kind: "QueueIsClosed" });
     });
   });
 
