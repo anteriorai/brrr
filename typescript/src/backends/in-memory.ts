@@ -5,7 +5,7 @@ import { AsyncQueue } from "../lib/async-queue.ts";
 export class InMemoryQueue implements Queue {
   public readonly timeout = 10;
 
-  private closing = false;
+  private closed = false;
   private flushing = false;
 
   private readonly queues: Map<string, AsyncQueue<Message>>;
@@ -15,13 +15,13 @@ export class InMemoryQueue implements Queue {
   }
 
   public async close(): Promise<void> {
-    if (this.closing) {
+    if (this.closed) {
       return;
     }
-    this.closing = true;
     for (const queue of this.queues.values()) {
       queue.shutdown();
     }
+    this.closed = true;
   }
 
   public async join(): Promise<void> {
