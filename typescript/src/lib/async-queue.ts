@@ -15,7 +15,8 @@ export class AsyncQueue<T> {
   private readonly deferred: Deferred<T>[] = [];
 
   private tasks = 0;
-  private shutdownMode = false;
+  private isShuttingDown = false;
+  private isFlushing = false;
 
   private resolver: (() => void) | undefined;
   private sentinel = Promise.resolve();
@@ -38,7 +39,7 @@ export class AsyncQueue<T> {
   }
 
   public async push(value: T): Promise<boolean> {
-    if (this.shutdownMode) {
+    if (this.isShuttingDown) {
       return false;
     }
     this.tasks++;
@@ -62,7 +63,10 @@ export class AsyncQueue<T> {
       this.done();
       return { kind: "Ok", value: this.items.shift() as T };
     }
-    if (this.shutdownMode) {
+    if (this.isShuttingDown) {
+      return { kind: "QueueIsClosed" };
+    }
+    if (this.isFlushing) {
       return this.popSync();
     }
     const result = this.generator.next().value;
@@ -81,7 +85,7 @@ export class AsyncQueue<T> {
     if (this.items.length > 0) {
       return { kind: "Ok", value: this.items.shift() as T };
     }
-    if (this.shutdownMode) {
+    if (this.isShuttingDown || this.isFlushing) {
       return { kind: "QueueIsClosed" };
     }
     return { kind: "QueueIsEmpty" };
@@ -102,11 +106,11 @@ export class AsyncQueue<T> {
   }
 
   public flush() {
-    this.shutdownMode = true
+    this.isFlushing = true
   }
 
   public shutdown(): void {
-    this.shutdownMode = true;
+    this.isShuttingDown = true;
     while (this.deferred.length > 0) {
       this.deferred.shift()?.resolve({
         kind: "QueueIsClosed",
