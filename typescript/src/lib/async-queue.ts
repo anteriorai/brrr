@@ -37,9 +37,9 @@ export class AsyncQueue<T> {
     })();
   }
 
-  public async push(value: T): Promise<void> {
+  public async push(value: T): Promise<boolean> {
     if (this.shutdownMode) {
-      throw new Error("Queue is closed");
+      return false
     }
     this.tasks++;
     if (this.tasks === 1) {
@@ -48,12 +48,13 @@ export class AsyncQueue<T> {
       });
     }
     if (this.deferred.length) {
-      return this.deferred.shift()?.resolve?.({
+      this.deferred.shift()?.resolve?.({
         kind: "Ok",
         value,
       });
     }
     this.items.push(value);
+    return true;
   }
 
   public async pop(timeout?: number): Promise<QueuePopResult<T>> {
