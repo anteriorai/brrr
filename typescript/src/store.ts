@@ -1,20 +1,15 @@
-import type { Encoding } from "node:crypto";
 import type { Call } from "./call.ts";
 import { bencoder } from "./bencode.ts";
-import { Buffer } from "node:buffer";
-import {
-  CasRetryLimitReachedError,
-  CompareMismatchError,
-  NotFoundError,
-} from "./errors.ts";
 import { TextDecoder } from "node:util";
+import type { Encoding } from "node:crypto";
+import { CasRetryLimitReachedError, NotFoundError } from "./errors.ts";
 
 export interface PendingReturnsPayload {
   readonly scheduled_at: number;
   readonly returns: Buffer[];
 }
 
-export class PendingReturn {
+export class PendingReturns {
   private static readonly encoding = "ascii" satisfies Encoding;
 
   public readonly scheduledAt: number | undefined;
@@ -31,11 +26,11 @@ export class PendingReturn {
   public static decode(encoded: Uint8Array): PendingReturns {
     const { scheduled_at, returns } = bencoder.decode(
       encoded,
-      PendingReturn.encoding,
+      PendingReturns.encoding,
     ) as PendingReturnsPayload;
-    return new PendingReturn(
+    return new PendingReturns(
       scheduled_at,
-      new Set(returns.map((it) => it.toString(PendingReturn.encoding))),
+      new Set(returns.map((it) => it.toString(PendingReturns.encoding))),
     );
   }
 
@@ -50,7 +45,7 @@ export class PendingReturn {
 }
 
 export interface MemKey {
-  readonly type: "pending_return" | "call" | "value";
+  readonly type: "pending_returns" | "call" | "value";
   readonly callHash: string;
 }
 
@@ -86,7 +81,9 @@ export interface Cache {
 
 export class Memory {
   private static readonly casRetryLimit = 100;
-  private static decoder = new TextDecoder("ascii");
+  private static readonly encoding = "ascii" satisfies Encoding;
+  private static readonly decoder = new TextDecoder(Memory.encoding);
+
   private readonly store: Store;
 
   public constructor(store: Store) {
@@ -97,7 +94,11 @@ export class Memory {
     const memKey: MemKey = {
       type: "call",
       callHash,
-    });
+    };
+    const encoded = await this.store.get(memKey);
+    if (!encoded) {
+      throw new NotFoundError(memKey);
+    }
     const { task_name, payload } = bencoder.decode(encoded) as {
       task_name: Uint8Array;
       payload: Uint8Array;
@@ -151,96 +152,84 @@ export class Memory {
   public async addPendingReturns(
     callHash: string,
     newReturn: string,
-    scheduleJob: () => Promise<void>,
   ): Promise<boolean> {
-    return this.withCas(async () => {
-      const memKey: MemKey = {
-        type: "pending_return",
-        callHash,
-      };
-      let shouldStoreAgain = false;
-      let existingEncoded: Uint8Array | undefined;
-      let existing: PendingReturn;
-      try {
-        existingEncoded = await this.store.get(memKey);
-        existing = PendingReturn.decode(existingEncoded);
-        if (!existing.returns.has(newReturn)) {
-          existing = new PendingReturn(
-            existing.scheduledAt,
-            new Set([...existing.returns, newReturn]),
-          );
-          shouldStoreAgain = true;
-        }
-      } catch (err) {
-        if (!(err instanceof NotFoundError)) {
-          throw err;
-        }
-        existing = new PendingReturns(undefined, new Set([newReturn]));
+    const memKey: MemKey = {
+      type: "pending_returns",
+      callHash,
+    };
+    let shouldSchedule = false;
+    await this.withCas(async () => {
+      shouldSchedule = false;
+      let existingEncoded = await this.store.get(memKey);
+      let existing: PendingReturns;
+      if (existingEncoded) {
+        existing = PendingReturns.decode(existingEncoded);
+      } else {
+        existing = new PendingReturns(Math.floor(Date.now() / 1000), new Set());
         existingEncoded = existing.encode();
         await this.store.setNewValue(memKey, existingEncoded);
-      }
-      const alreadyPending = !!existing.scheduledAt;
-      let shouldSchedule = false;
-      if (!alreadyPending) {
-        existing = new PendingReturns(
-          Math.floor(Date.now() / 1000),
-          existing.returns,
-        );
-        shouldStoreAgain = true;
         shouldSchedule = true;
       }
-      if (shouldStoreAgain) {
-        await this.store.compareAndSet(
-          memKey,
-          existing.encode(),
-          existingEncoded,
-        );
-        if (shouldSchedule) {
-          await scheduleJob();
-        }
-      }
-      return alreadyPending;
+      shouldSchedule ||= existing.returns
+        .values()
+        .some((it) => this.isRepeatedCall(it, newReturn));
+      const newReturns = new PendingReturns(
+        existing.scheduledAt,
+        new Set([...existing.returns, newReturn]),
+      );
+      return this.store.compareAndSet(
+        memKey,
+        newReturns.encode(),
+        existingEncoded,
+      );
     });
+    return shouldSchedule;
   }
 
-  public async withPendingReturnRemove(
+  public async withPendingReturnsRemove(
     callHash: string,
     f: (returns: ReadonlySet<string>) => Promise<void>,
   ) {
     const memKey: MemKey = {
-      type: "pending_return",
+      type: "pending_returns",
       callHash,
     };
     const handled = new Set<string>();
     return this.withCas(async () => {
-      let pendingEncoded: Uint8Array;
-      try {
-        pendingEncoded = await this.store.get(memKey);
-      } catch (err) {
-        if (err instanceof NotFoundError) {
-          return f(new Set());
-        }
-        throw err;
+      const pendingEncoded = await this.store.get(memKey);
+      if (!pendingEncoded) {
+        return true;
       }
       const toHandle =
-        PendingReturn.decode(pendingEncoded).returns.difference(handled);
+        PendingReturns.decode(pendingEncoded).returns.difference(handled);
       await f(toHandle);
-      toHandle.forEach((it) => handled.add(it));
-      await this.store.compareAndDelete(memKey, pendingEncoded);
+      for (const it of toHandle) {
+        handled.add(it);
+      }
+      return this.store.compareAndDelete(memKey, pendingEncoded);
     });
   }
 
-  private async withCas<T>(f: () => Promise<T>): Promise<T> {
+  private async withCas(f: () => Promise<boolean>): Promise<void> {
     for (let i = 0; i < Memory.casRetryLimit; i++) {
-      try {
-        return await f();
-      } catch (e) {
-        if (e instanceof CompareMismatchError) {
-          continue;
-        }
-        throw e;
+      if (await f()) {
+        return;
       }
     }
     throw new CasRetryLimitReachedError(Memory.casRetryLimit);
+  }
+
+  private isRepeatedCall(newReturn: string, existingReturn: string): boolean {
+    const [newRoot, newParent, newTopic, ...rest] = newReturn.split("/");
+    if (!newRoot || !newParent || !newTopic || rest.length) {
+      throw new Error(`Invalid return address: ${newReturn}`);
+    }
+    const [existingRoot, existingParent, existingTopic] =
+      existingReturn.split("/");
+    return (
+      newRoot !== existingRoot &&
+      newParent === existingParent &&
+      newTopic === existingTopic
+    );
   }
 }
