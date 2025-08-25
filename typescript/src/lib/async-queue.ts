@@ -1,13 +1,17 @@
 import type { QueuePopResult } from "../queue.ts";
 
 interface Deferred<T> {
-  resolve: (value: T) => void;
+  resolve: (value: QueuePopResult<T>) => void;
   reject: (err: unknown) => void;
 }
 
 export class AsyncQueue<T> {
   private readonly items: T[] = [];
-  private readonly generator: Generator<Promise<T>, never, never>;
+  private readonly generator: Generator<
+    Promise<QueuePopResult<T>>,
+    never,
+    never
+  >;
   private readonly deferred: Deferred<T>[] = [];
 
   private tasks = 0;
@@ -20,9 +24,12 @@ export class AsyncQueue<T> {
     const { items, deferred } = this;
     this.generator = (function* () {
       while (true) {
-        yield new Promise<T>((resolve, reject) => {
+        yield new Promise<QueuePopResult<T>>((resolve, reject) => {
           if (items.length) {
-            resolve(items.shift() as T);
+            resolve({
+              kind: "Ok",
+              value: items.shift() as T,
+            });
           }
           deferred.push({ resolve, reject });
         });
@@ -41,7 +48,10 @@ export class AsyncQueue<T> {
       });
     }
     if (this.deferred.length) {
-      return this.deferred.shift()?.resolve?.(value);
+      return this.deferred.shift()?.resolve?.({
+        kind: "Ok",
+        value,
+      });
     }
     this.items.push(value);
   }
@@ -54,12 +64,7 @@ export class AsyncQueue<T> {
     if (this.shutdownMode) {
       return { kind: "QueueIsClosed" };
     }
-    const result = this.generator
-      .next()
-      .value.then<QueuePopResult<T>>((value) => {
-        this.done();
-        return { kind: "Ok", value };
-      });
+    const result = this.generator.next().value;
     if (!timeout) {
       return result;
     }
@@ -82,11 +87,11 @@ export class AsyncQueue<T> {
   }
 
   public done(): void {
-    if (this.tasks === 0) {
+    if (!this.tasks) {
       throw new Error("done() called too many times");
     }
     this.tasks--;
-    if (this.tasks === 0 && this.resolver) {
+    if (!this.tasks && this.resolver) {
       this.resolver();
     }
   }
@@ -98,9 +103,11 @@ export class AsyncQueue<T> {
   public shutdown(): void {
     this.shutdownMode = true;
     while (this.deferred.length > 0) {
-      this.deferred.shift()?.reject(new Error("Queue is closed"));
+      this.deferred.shift()?.resolve({
+        kind: "QueueIsClosed",
+      });
     }
-    if (this.tasks === 0 && this.resolver) {
+    if (!this.tasks && this.resolver) {
       this.resolver();
     }
   }
