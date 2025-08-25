@@ -15,7 +15,7 @@ export class AsyncQueue<T> {
   private readonly deferred: Deferred<T>[] = [];
 
   private tasks = 0;
-  private isClosed = false;
+  private shutdownMode = false;
 
   private resolver: (() => void) | undefined;
   private sentinel = Promise.resolve();
@@ -38,7 +38,7 @@ export class AsyncQueue<T> {
   }
 
   public async push(value: T): Promise<boolean> {
-    if (this.isClosed) {
+    if (this.shutdownMode) {
       return false;
     }
     this.tasks++;
@@ -62,7 +62,7 @@ export class AsyncQueue<T> {
       this.done();
       return { kind: "Ok", value: this.items.shift() as T };
     }
-    if (this.isClosed) {
+    if (this.shutdownMode) {
       return { kind: "QueueIsClosed" };
     }
     const result = this.generator.next().value;
@@ -81,7 +81,7 @@ export class AsyncQueue<T> {
     if (this.items.length > 0) {
       return { kind: "Ok", value: this.items.shift() as T };
     }
-    if (this.isClosed) {
+    if (this.shutdownMode) {
       return { kind: "QueueIsClosed" };
     }
     return { kind: "QueueIsEmpty" };
@@ -110,7 +110,7 @@ export class AsyncQueue<T> {
     if (!this.tasks && this.resolver) {
       this.resolver();
     }
-    this.isClosed = true;
+    this.shutdownMode = true;
   }
 
   public size(): number {
