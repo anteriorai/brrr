@@ -104,40 +104,6 @@ await suite(import.meta.filename, async () => {
       ok(!(await queue.push(0)));
       deepStrictEqual(await queue.pop(), { kind: "QueueIsClosed" });
     });
-
-    await test("flush closes the queue when empty", async () => {
-      queue.flush();
-      await queue.push(0);
-      await queue.push(1);
-      deepStrictEqual(await queue.pop(), {
-        kind: "Ok",
-        value: 0,
-      });
-      deepStrictEqual(await queue.pop(), {
-        kind: "Ok",
-        value: 1,
-      });
-      deepStrictEqual(await queue.pop(), {
-        kind: "QueueIsClosed",
-      });
-    });
-
-    await test("flush does not close the queue when not empty", async () => {
-      await queue.push(0);
-      await queue.push(1);
-      queue.flush();
-      deepStrictEqual(await queue.pop(), {
-        kind: "Ok",
-        value: 0,
-      });
-      deepStrictEqual(await queue.pop(), {
-        kind: "Ok",
-        value: 1,
-      });
-      deepStrictEqual(await queue.pop(), {
-        kind: "QueueIsClosed",
-      });
-    });
   });
 
   await suite("task tracking", async () => {
