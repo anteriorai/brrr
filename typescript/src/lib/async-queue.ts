@@ -63,7 +63,7 @@ export class AsyncQueue<T> {
       return { kind: "Ok", value: this.items.shift() as T };
     }
     if (this.shutdownMode) {
-      return { kind: "QueueIsClosed" };
+      return this.popSync();
     }
     const result = this.generator.next().value;
     if (!timeout) {
@@ -99,6 +99,10 @@ export class AsyncQueue<T> {
 
   public join(): Promise<void> {
     return this.sentinel;
+  }
+
+  public flush() {
+    this.shutdownMode = true
   }
 
   public shutdown(): void {
