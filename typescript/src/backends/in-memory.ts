@@ -26,7 +26,7 @@ export class InMemoryQueue implements Queue {
   }
 
   public async push(topic: string, message: Message): Promise<boolean> {
-    await this.getTopicQueue(topic).push(message);
+    return this.getTopicQueue(topic).push(message);
   }
 
   private getTopicQueue(topic: string): AsyncQueue<Message> {
