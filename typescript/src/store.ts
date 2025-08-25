@@ -159,7 +159,6 @@ export class Memory {
     };
     let shouldSchedule = false;
     await this.withCas(async () => {
-      shouldSchedule = false;
       let existingEncoded = await this.store.get(memKey);
       let existing: PendingReturns;
       if (existingEncoded) {
@@ -167,7 +166,9 @@ export class Memory {
       } else {
         existing = new PendingReturns(Math.floor(Date.now() / 1000), new Set());
         existingEncoded = existing.encode();
-        await this.store.setNewValue(memKey, existingEncoded);
+        if (!(await this.store.setNewValue(memKey, existingEncoded))) {
+          return false;
+        }
         shouldSchedule = true;
       }
       shouldSchedule ||= existing.returns
@@ -175,7 +176,7 @@ export class Memory {
         .some((it) => this.isRepeatedCall(it, newReturn));
       const newReturns = new PendingReturns(
         existing.scheduledAt,
-        new Set([...existing.returns, newReturn]),
+        existing.returns.union(new Set([newReturn])),
       );
       return this.store.compareAndSet(
         memKey,
