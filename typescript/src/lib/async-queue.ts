@@ -106,7 +106,7 @@ export class AsyncQueue<T> {
   }
 
   public flush() {
-    this.isFlushing = true
+    this.isFlushing = true;
   }
 
   public shutdown(): void {
