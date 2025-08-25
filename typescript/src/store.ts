@@ -177,7 +177,7 @@ export class Memory {
       type: "pending_returns",
       callHash,
     };
-    let shouldSchedule = false;
+    let shouldSchedule = true;
     await this.withCas(async () => {
       shouldSchedule = false;
       let existingEncoded = await this.store.get(memKey);
@@ -195,7 +195,7 @@ export class Memory {
         .some((it) => this.isRepeatedCall(it, newReturn));
       const newReturns = new PendingReturns(
         existing.scheduledAt,
-        new Set([...existing.returns, newReturn]),
+        existing.returns.union(new Set([newReturn]))
       );
       return this.store.compareAndSet(
         memKey,
