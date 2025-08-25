@@ -116,16 +116,6 @@
                       args = [ "web_server" ];
                       environment = demoEnv;
                     };
-                    brrr-demo.ts-worker = {
-                      package = self.packages.${pkgs.system}.brrr-ts-demo;
-                      args = [ "brrr_worker" ];
-                      environment = demoEnv;
-                    };
-                    brrr-demo.ts-server = {
-                      package = self.packages.${pkgs.system}.brrr-ts-demo;
-                      args = [ "web_server" ];
-                      environment = demoEnv;
-                    };
                   };
               };
           };
@@ -160,7 +150,6 @@
             };
             brrrts = pkgs.callPackage ./typescript/package.nix {
               inherit (inputs) package-lock2nix;
-              inherit (pkgs) callPackage;
               inherit nodejs;
             };
           in
@@ -189,15 +178,6 @@
                 services.brrr-demo.server.enable = false;
                 services.brrr-demo.worker.enable = false;
               };
-              process-compose.demo-ts = {
-                imports = [
-                  inputs.services-flake.processComposeModules.default
-                  self.processComposeModules.default
-                ];
-                cli.options.no-server = true;
-                services.brrr-demo.ts-server.enable = true;
-                services.brrr-demo.ts-worker.enable = true;
-              };
               treefmt = import ./nix/treefmt.nix;
               packages = {
                 inherit docsync;
@@ -218,15 +198,6 @@
                   # the interpreter for the demo script.
                   meta.mainProgram = "brrr_demo.py";
                 };
-                brrr-ts-demo = pkgs.stdenvNoCC.mkDerivation {
-                  name = "brrr-ts-demo";
-                  dontUnpack = true;
-                  installPhase = ''
-                    mkdir -p $out/bin
-                    ln -s ${lib.getExe' brrrts.brrr-ts "brrr-ts-demo"} $out/bin/brrr-ts-demo
-                  '';
-                  meta.mainProgram = "brrr-ts-demo";
-                };
                 # Best-effort package for convenience, zero guarantees, could
                 # disappear at any time.
                 nix-flake-check-changed = pkgs.callPackage ./nix-flake-check-changed/package.nix { };
@@ -236,106 +207,9 @@
                   inherit self;
                   dynamodb-module = self.nixosModules.dynamodb;
                 };
-              devshells = {
-                default = {
-                  packages = devPackages ++ [ self'.packages.python ];
-                  motd =
-                    ''
-                      This is the generic devshell for brrr development.  Use this to fix
-                      problems in the Python lockfile and to access generic tooling.
-
-                      Available tools:
-                    ''
-                    + lib.concatLines (map (x: "  - ${x.pname or x.name}") devPackages)
-                    + ''
-
-                      For Python-specific development, use: nix develop .#python
-                      For TypeScript-specific development, use: nix develop .#typescript
-                    '';
-                  env = [
-                    {
-                      name = "PYTHONPATH";
-                      unset = true;
-                    }
-                    {
-                      name = "UV_PYTHON_DOWNLOADS";
-                      value = "never";
-                    }
-                  ];
-                };
-                python = {
-                  env = [
-                    {
-                      name = "REPO_ROOT";
-                      eval = "$(git rev-parse --show-toplevel)";
-                    }
-                    {
-                      name = "PYTHONPATH";
-                      unset = true;
-                    }
-                    {
-                      name = "UV_PYTHON_DOWNLOADS";
-                      value = "never";
-                    }
-                    {
-                      name = "UV_NO_SYNC";
-                      value = "1";
-                    }
-                  ];
-                  packages = devPackages ++ [ brrrpy.brrr-venv-editable ];
-                  commands = [
-                    {
-                      name = "brrr-test-unit";
-                      category = "test";
-                      help = "Tests which don't need dependencies";
-                      command = ''
-                        pytest -m 'not dependencies' "$@"
-                      '';
-                    }
-                    {
-                      name = "brrr-test-all";
-                      category = "test";
-                      help = "Tests including dependencies, make sure to run brrr-demo-deps";
-                      # Lol
-                      command = ''
-                        (
-                                            : "''${AWS_DEFAULT_REGION=fake}"
-                                            export AWS_DEFAULT_REGION
-                                            : "''${AWS_ENDPOINT_URL=http://localhost:8000}"
-                                            export AWS_ENDPOINT_URL
-                                            : "''${AWS_ACCESS_KEY_ID=fake}"
-                                            export AWS_ACCESS_KEY_ID
-                                            : "''${AWS_SECRET_ACCESS_KEY=fake}"
-                                            export AWS_SECRET_ACCESS_KEY
-                                            exec pytest "$@"
-                                          )'';
-                    }
-                    # Always build aarch64-linux
-                    {
-                      name = "brrr-build-docker";
-                      category = "build";
-                      help = "Build and load a Docker image (requires a Nix Linux builder)";
-                      command =
-                        let
-                          drv = self'.packages.docker;
-                        in
-                        ''
-                          (
-                            set -o pipefail
-                            if nix build --no-link --print-out-paths .#packages.aarch64-linux.docker | xargs -r docker load -i; then
-                              echo 'Start a new worker with `docker run <image name>`'
-                            fi
-                          )
-                        '';
-                    }
-                    {
-                      name = "brrr-demo-full";
-                      category = "demo";
-                      help = "Launch a full demo locally";
-                      command = ''
-                        nix run .#demo
-                      '';
-                    }
+              devshells =
+                let
+                  sharedCommands = [
                     {
                       name = "brrr-demo-deps";
                       category = "demo";
@@ -463,36 +337,6 @@
                     ++ sharedCommands;
                   };
                 };
-                typescript = {
-                  packages = devPackages;
-                  commands = [
-                    {
-                      name = "brrr-test-unit";
-                      category = "test";
-                      help = "Tests which don't need dependencies";
-                      command = ''
-                        npm run test
-                      '';
-                    }
-                    {
-                      name = "brrr-demo-full";
-                      category = "demo";
-                      help = "Launch a full demo locally";
-                      command = ''
-                        nix run .#demo-ts
-                      '';
-                    }
-                    {
-                      name = "brrr-demo-deps";
-                      category = "demo";
-                      help = "Start all dependent services without any brrr workers / server";
-                      command = ''
-                        nix run .#deps
-                      '';
-                    }
-                  ];
-                };
-              };
             };
           };
       };
