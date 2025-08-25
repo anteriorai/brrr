@@ -78,7 +78,7 @@ await suite(import.meta.filename, async () => {
 
     await test("push throws if queue is shutdown", async () => {
       queue.shutdown();
-      ok(!await queue.push(0))
+      ok(!(await queue.push(0)));
     });
 
     await test("blocked pop rejects on shutdown", async () => {
@@ -101,7 +101,7 @@ await suite(import.meta.filename, async () => {
       queue.shutdown();
       doesNotThrow(() => queue.shutdown());
       doesNotThrow(() => queue.shutdown());
-      ok(!await  queue.push(0));
+      ok(!(await queue.push(0)));
       deepStrictEqual(await queue.pop(), { kind: "QueueIsClosed" });
     });
   });
@@ -157,7 +157,7 @@ await suite(import.meta.filename, async () => {
   await suite("simple stress test", async () => {
     await test("producer-consumer with shutdown", async () => {
       const values = [0, 1, 2, 3, 4];
-      const promises: Promise<void>[] = [];
+      const promises: Promise<boolean | void>[] = [];
       for (const _ of values) {
         promises.push(
           queue.pop().then((val) => {

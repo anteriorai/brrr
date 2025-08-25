@@ -39,7 +39,7 @@ export class AsyncQueue<T> {
 
   public async push(value: T): Promise<boolean> {
     if (this.shutdownMode) {
-      return false
+      return false;
     }
     this.tasks++;
     if (this.tasks === 1) {
