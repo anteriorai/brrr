@@ -1,5 +1,4 @@
 import { beforeEach, mock, suite, test } from "node:test";
-import { QueueIsClosedError } from "../errors.ts";
 import { AsyncQueue } from "./async-queue.ts";
 import {
   deepStrictEqual,
@@ -79,13 +78,13 @@ await suite(import.meta.filename, async () => {
 
     await test("push throws if queue is shutdown", async () => {
       queue.shutdown();
-      await rejects(queue.push(0), QueueIsClosedError);
+      await rejects(queue.push(0), { message: "Queue is closed" });
     });
 
     await test("blocked pop rejects on shutdown", async () => {
       const pop = queue.pop();
       queue.shutdown();
-      await rejects(pop, QueueIsClosedError);
+      await rejects(pop, { message: "Queue is closed" });
     });
 
     await test("multiple blocked pops reject on shutdown", async () => {
@@ -93,16 +92,16 @@ await suite(import.meta.filename, async () => {
       const b = queue.pop();
       const c = queue.pop();
       queue.shutdown();
-      await rejects(a, QueueIsClosedError);
-      await rejects(b, QueueIsClosedError);
-      await rejects(c, QueueIsClosedError);
+      await rejects(a, { message: "Queue is closed" });
+      await rejects(b, { message: "Queue is closed" });
+      await rejects(c, { message: "Queue is closed" });
     });
 
     await test("shutdown is idempotent", async () => {
       queue.shutdown();
       doesNotThrow(() => queue.shutdown());
       doesNotThrow(() => queue.shutdown());
-      await rejects(() => queue.push(0), QueueIsClosedError);
+      await rejects(() => queue.push(0), { message: "Queue is closed" });
       strictEqual((await queue.pop()).kind, "QueueIsClosed");
     });
   });
