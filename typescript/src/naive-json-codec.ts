@@ -53,7 +53,7 @@ export class NaiveJsonCodec implements Codec {
     args: A,
   ): Promise<string> {
     const data = stringify([taskName, args]);
-    return createHash("sha256")
+    return createHash(NaiveJsonCodec.algorithm)
       .update(data)
       .digest(NaiveJsonCodec.binaryToTextEncoding);
   }
