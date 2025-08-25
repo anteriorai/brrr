@@ -1,6 +1,10 @@
 import { beforeEach, suite, test } from "node:test";
 import { InMemoryCache, InMemoryQueue, InMemoryStore } from "./in-memory.ts";
-import { cacheContractTest, queueContractTest, storeContractTest, } from "../store.test.ts";
+import {
+  cacheContractTest,
+  queueContractTest,
+  storeContractTest,
+} from "../store.test.ts";
 import { deepStrictEqual, strictEqual } from "node:assert/strict";
 
 await suite(import.meta.filename, async () => {
@@ -26,8 +30,14 @@ await suite(import.meta.filename, async () => {
       queue.flush();
       await queue.push(topic, { body: "a" });
       await queue.push(topic, { body: "b" });
-      deepStrictEqual(await queue.pop(topic), { kind: "Ok", value: { body: "a" } })
-      deepStrictEqual(await queue.pop(topic), { kind: "Ok", value: { body: "b" } })
+      deepStrictEqual(await queue.pop(topic), {
+        kind: "Ok",
+        value: { body: "a" },
+      });
+      deepStrictEqual(await queue.pop(topic), {
+        kind: "Ok",
+        value: { body: "b" },
+      });
       const result = await queue.pop(topic);
       strictEqual(result.kind, "QueueIsClosed");
     });
