@@ -118,9 +118,9 @@ await suite(import.meta.filename, async () => {
         value: 1,
       });
       deepStrictEqual(await queue.pop(), {
-        kind: "QueueIsClosed"
+        kind: "QueueIsClosed",
       });
-    })
+    });
 
     await test("flush does not close the queue when not empty", async () => {
       await queue.push(0);
@@ -135,9 +135,9 @@ await suite(import.meta.filename, async () => {
         value: 1,
       });
       deepStrictEqual(await queue.pop(), {
-        kind: "QueueIsClosed"
+        kind: "QueueIsClosed",
       });
-    })
+    });
   });
 
   await suite("task tracking", async () => {
