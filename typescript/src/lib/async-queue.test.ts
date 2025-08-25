@@ -78,7 +78,7 @@ await suite(import.meta.filename, async () => {
 
     await test("push throws if queue is shutdown", async () => {
       queue.shutdown();
-      await rejects(queue.push(0), { message: "Queue is closed" });
+      ok(!await queue.push(0))
     });
 
     await test("blocked pop rejects on shutdown", async () => {
@@ -101,7 +101,7 @@ await suite(import.meta.filename, async () => {
       queue.shutdown();
       doesNotThrow(() => queue.shutdown());
       doesNotThrow(() => queue.shutdown());
-      await rejects(() => queue.push(0), { message: "Queue is closed" });
+      ok(!await  queue.push(0));
       deepStrictEqual(await queue.pop(), { kind: "QueueIsClosed" });
     });
   });
