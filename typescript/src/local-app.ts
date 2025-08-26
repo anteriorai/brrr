@@ -1,5 +1,4 @@
 import { Server } from "./connection.ts";
-import { InMemoryByteStore, InMemoryQueue } from "./backends/in-memory.ts";
 import {
   AppWorker,
   type Handlers,
@@ -9,11 +8,11 @@ import {
   taskIdentifierToName,
 } from "./app.ts";
 import type { Codec } from "./codec.ts";
+import { InMemoryCache, InMemoryStore } from "./backends/in-memory.ts";
 
 export class LocalApp {
   private readonly topic: string;
   private readonly server: Server;
-  private readonly queue: InMemoryQueue;
   private readonly app: AppWorker;
 
   private hasRun = false;
@@ -21,12 +20,10 @@ export class LocalApp {
   public constructor(
     topic: string,
     server: Server,
-    queue: InMemoryQueue,
     app: AppWorker,
   ) {
     this.topic = topic;
     this.server = server;
-    this.queue = queue;
     this.app = app;
   }
 
@@ -47,8 +44,7 @@ export class LocalApp {
       throw new Error("LocalApp has already been run");
     }
     this.hasRun = true;
-    this.queue.flush();
-    await this.server.loop(this.topic, this.app.handle);
+    this.app.listen(this.topic)
   }
 }
 
@@ -64,11 +60,11 @@ export class LocalBrrr {
   }
 
   public run<A extends unknown[], R>(taskIdentifier: TaskIdentifier<A, R>) {
-    const store = new InMemoryByteStore();
-    const queue = new InMemoryQueue([this.topic]);
-    const server = new Server(queue, store, store);
+    const store = new InMemoryStore();
+    const cache = new InMemoryCache();
+    const server = new Server(store, cache);
     const worker = new AppWorker(this.codec, server, this.handlers);
-    const app = new LocalApp(this.topic, server, queue, worker);
+    const app = new LocalApp(this.topic, server, worker);
     const taskName = taskIdentifierToName(taskIdentifier, this.handlers);
     return async (...args: StripLeadingActiveWorker<A>): Promise<R> => {
       await app.schedule(taskName)(...args);
