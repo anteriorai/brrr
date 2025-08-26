@@ -30,33 +30,11 @@ type RequestHandler = (
   connection: Connection,
 ) => Promise<Response | Defer>;
 
-export class Brrr {
-  private readonly emitter = new EventEmitter()
-
-  public on(event: string, callback: (...args: any[]) => void) {
-    this.emitter.on(event, callback);
-  }
-}
-
-/**
- * const brrr = new Server({ store, cache }, {
- *   foo,
- *   bar: taskfn(bar)
- * });
- *
- * brrr.on('done', /* ... * /)
- *
- * await brrr.schedule(foo)(0, 1)
- *
- * sqs.on('message', async (message) => {
- *   brrr.handle(message)
- * })
- */
-
 export class Connection {
   public readonly cache: Cache;
   public readonly memory: Memory;
-  private readonly spawnLimit = 10_000;
+  public readonly emitter = new EventEmitter()
+  public readonly spawnLimit = 10_000;
 
   public constructor(store: Store, cache: Cache) {
     this.cache = cache;
@@ -67,7 +45,7 @@ export class Connection {
     if ((await this.cache.incr(`brrr_count/${job.rootId}`)) > this.spawnLimit) {
       throw new SpawnLimitError(this.spawnLimit, job.rootId, job.callHash);
     }
-    await this.queue.push(topic, `${rootId}/${callHash}`);
+    this.emitter.emit(topic, `${rootId}/${callHash}`)
   }
 
   public async scheduleRaw(
@@ -85,7 +63,7 @@ export class Connection {
   }
 
   public async readRaw(callHash: string): Promise<Uint8Array | undefined> {
-    return this.memory.getValue(callHash).catch(() => undefined);
+    return this.memory.getValue(callHash);
   }
 }
 

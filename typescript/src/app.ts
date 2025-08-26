@@ -1,6 +1,6 @@
 import { type Connection, Defer, type DeferredCall, type Request, type Response, } from "./connection.ts";
 import type { Codec } from "./codec.ts";
-import { NotFoundError, TaskNotFoundError } from "./errors.ts";
+import { TaskNotFoundError } from "./errors.ts";
 
 export type Task<A extends unknown[] = any[], R = any> = (
   ...args: [ActiveWorker, ...A]
@@ -70,6 +70,17 @@ export class AppConsumer {
     this.codec = codec;
     this.connection = connection;
     this.handlers = handlers;
+  }
+
+  public on(event: string, callback: (...args: any[]) => void) {
+    this.connection.emitter.on(event, callback);
+  }
+
+  public listen(topic: string) {
+    const handler = this.handlers[topic]
+    if (handler) {
+      this.connection.emitter.on(topic, handler)
+    }
   }
 
   public schedule<A extends unknown[], R>(
