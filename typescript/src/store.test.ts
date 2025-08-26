@@ -1,6 +1,18 @@
 import { beforeEach, suite, test } from "node:test";
-import { deepStrictEqual, doesNotReject, ok, rejects, strictEqual, } from "node:assert/strict";
-import { type Cache, type MemKey, Memory, PendingReturns, type Store, } from "./store.ts";
+import {
+  deepStrictEqual,
+  doesNotReject,
+  ok,
+  rejects,
+  strictEqual,
+} from "node:assert/strict";
+import {
+  type Cache,
+  type MemKey,
+  Memory,
+  PendingReturns,
+  type Store,
+} from "./store.ts";
 import { InMemoryStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
 
