@@ -7,7 +7,7 @@ export class InMemoryStore implements Store {
     key: MemKey,
     expected: Uint8Array,
   ): Promise<boolean> {
-    const keyStr = this.key2str(key);
+    const keyStr = this.keyToString(key);
     const value = this.store.get(keyStr);
     if (!value || !this.isEqualBytes(value, expected)) {
       return false;
@@ -21,9 +21,9 @@ export class InMemoryStore implements Store {
     value: Uint8Array,
     expected: Uint8Array,
   ): Promise<boolean> {
-    const keyStr = this.key2str(key);
-    const currentValue = this.store.get(keyStr);
-    if (!currentValue || !this.isEqualBytes(currentValue, expected)) {
+    const keyStr = this.keyToString(key);
+    const current = this.store.get(keyStr);
+    if (!current || !this.isEqualBytes(current, expected)) {
       return false;
     }
     this.store.set(keyStr, value);
@@ -31,27 +31,27 @@ export class InMemoryStore implements Store {
   }
 
   public async delete(key: MemKey): Promise<boolean> {
-    const keyStr = this.key2str(key);
+    const keyStr = this.keyToString(key);
     return this.store.delete(keyStr);
   }
 
   public async get(key: MemKey): Promise<Uint8Array | undefined> {
-    const keyStr = this.key2str(key);
+    const keyStr = this.keyToString(key);
     return this.store.get(keyStr);
   }
 
   public async has(key: MemKey): Promise<boolean> {
-    const keyStr = this.key2str(key);
+    const keyStr = this.keyToString(key);
     return this.store.has(keyStr);
   }
 
   public async set(key: MemKey, value: Uint8Array): Promise<void> {
-    const keyStr = this.key2str(key);
+    const keyStr = this.keyToString(key);
     this.store.set(keyStr, value);
   }
 
   public async setNewValue(key: MemKey, value: Uint8Array): Promise<boolean> {
-    const keyStr = this.key2str(key);
+    const keyStr = this.keyToString(key);
     if (this.store.has(keyStr)) {
       return false;
     }
@@ -59,7 +59,7 @@ export class InMemoryStore implements Store {
     return true;
   }
 
-  private key2str(key: MemKey): string {
+  private keyToString(key: MemKey): string {
     return `${key.type}/${key.callHash}`;
   }
 
