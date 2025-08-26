@@ -1,9 +1,8 @@
 import type { Call } from "./call.ts";
 import { type Cache, Memory, type Store } from "./store.ts";
-import {
-  SpawnLimitError,
-} from "./errors.ts";
+import { SpawnLimitError, } from "./errors.ts";
 import { randomUUID } from "node:crypto";
+import { EventEmitter } from "node:events";
 
 export interface DeferredCall {
   readonly topic: string | undefined;
@@ -31,12 +30,16 @@ type RequestHandler = (
   connection: Connection,
 ) => Promise<Response | Defer>;
 
-class Brrr {
+export class Brrr {
+  private readonly emitter = new EventEmitter()
 
+  public on(event: string, callback: (...args: any[]) => void) {
+    this.emitter.on(event, callback);
+  }
 }
 
 /**
- * const brrr = new Brrr({ store, cache, queue }, {
+ * const brrr = new Server({ store, cache }, {
  *   foo,
  *   bar: taskfn(bar)
  * });
@@ -50,16 +53,14 @@ class Brrr {
  * })
  */
 
-
 export class Connection {
   public readonly cache: Cache;
   public readonly memory: Memory;
   private readonly spawnLimit = 10_000;
 
-  public constructor(queue: Queue, store: Store, cache: Cache) {
+  public constructor(store: Store, cache: Cache) {
     this.cache = cache;
     this.memory = new Memory(store);
-    this.queue = queue;
   }
 
   public async putJob(
@@ -93,8 +94,8 @@ export class Connection {
 }
 
 export class Server extends Connection {
-  public constructor(queue: Queue, store: Store, cache: Cache) {
-    super(queue, store, cache);
+  public constructor(store: Store, cache: Cache) {
+    super(store, cache);
   }
 
   private async scheduleReturnCall(addr: string): Promise<void> {
@@ -113,15 +114,14 @@ export class Server extends Connection {
     parentKey: string,
   ): Promise<void> {
     await this.memory.setCall(child.call);
-    const childTopic = child.topic || topic;
     const callHash = child.call.callHash;
-    await this.memory.addPendingReturns(
+    const shouldSchedule = await this.memory.addPendingReturns(
       callHash,
-      `${topic}/${parentKey}`,
-      () => {
-        return this.putJob(childTopic, callHash, rootId);
-      },
+      `${topic}/${parentKey}`
     );
+    if (shouldSchedule) {
+      await this.putJob(child.topic || topic, callHash, rootId);
+    }
   }
 
   private async handleMessage(

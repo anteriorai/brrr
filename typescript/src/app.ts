@@ -95,6 +95,9 @@ export class AppConsumer {
       const taskName = taskIdentifierToName(taskIdentifier, this.handlers);
       const call = await this.codec.encodeCall(taskName, args);
       const payload = await this.connection.memory.getValue(call.callHash);
+      if (!payload) {
+        throw new Error("NOCOMMIT")
+      }
       return this.codec.decodeReturn(taskName, payload) as R;
     };
   }
@@ -146,15 +149,11 @@ export class ActiveWorker {
     const taskName = taskIdentifierToName(taskIdentifier, this.handlers);
     return async (...args: StripLeadingActiveWorker<A>): Promise<R> => {
       const call = await this.codec.encodeCall(taskName, args);
-      try {
-        const payload = await this.connection.memory.getValue(call.callHash);
-        return this.codec.decodeReturn(taskName, payload) as R;
-      } catch (err) {
-        if (err instanceof NotFoundError) {
-          throw new Defer({ topic, call });
-        }
-        throw err;
+      const payload = await this.connection.memory.getValue(call.callHash);
+      if (!payload) {
+        throw new Defer({ topic, call })
       }
+      return this.codec.decodeReturn(taskName, payload) as R;
     };
   }
 
