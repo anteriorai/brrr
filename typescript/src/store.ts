@@ -240,6 +240,7 @@ export class Memory {
     throw new CasRetryLimitReachedError(Memory.casRetryLimit);
   }
 
+  // TODO: migrate to bencode
   private isRepeatedCall(newReturn: string, existingReturn: string): boolean {
     const [newRoot, newParent, newTopic, ...rest] = newReturn.split("/");
     if (!newRoot || !newParent || !newTopic || rest.length) {
