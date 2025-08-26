@@ -1,9 +1,6 @@
 import type { Call } from "./call.ts";
-import type { Queue } from "./queue.ts";
 import { type Cache, Memory, type Store } from "./store.ts";
 import {
-  QueueIsClosedError,
-  QueueIsEmptyError,
   SpawnLimitError,
 } from "./errors.ts";
 import { randomUUID } from "node:crypto";
@@ -34,10 +31,29 @@ type RequestHandler = (
   connection: Connection,
 ) => Promise<Response | Defer>;
 
+class Brrr {
+
+}
+
+/**
+ * const brrr = new Brrr({ store, cache, queue }, {
+ *   foo,
+ *   bar: taskfn(bar)
+ * });
+ *
+ * brrr.on('done', /* ... * /)
+ *
+ * await brrr.schedule(foo)(0, 1)
+ *
+ * sqs.on('message', async (message) => {
+ *   brrr.handle(message)
+ * })
+ */
+
+
 export class Connection {
   public readonly cache: Cache;
   public readonly memory: Memory;
-  public readonly queue: Queue;
   private readonly spawnLimit = 10_000;
 
   public constructor(queue: Queue, store: Store, cache: Cache) {
@@ -79,26 +95,6 @@ export class Connection {
 export class Server extends Connection {
   public constructor(queue: Queue, store: Store, cache: Cache) {
     super(queue, store, cache);
-  }
-
-  public async loop(
-    topic: string,
-    requestHandler: RequestHandler,
-  ): Promise<void> {
-    while (true) {
-      try {
-        const message = await this.queue.pop(topic);
-        await this.handleMessage(requestHandler, topic, message);
-      } catch (err) {
-        if (err instanceof QueueIsEmptyError) {
-          continue;
-        }
-        if (err instanceof QueueIsClosedError) {
-          return;
-        }
-        throw err;
-      }
-    }
   }
 
   private async scheduleReturnCall(addr: string): Promise<void> {

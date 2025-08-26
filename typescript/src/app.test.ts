@@ -1,5 +1,4 @@
 import { beforeEach, suite, test } from "node:test";
-import { InMemoryByteStore, InMemoryQueue } from "./backends/in-memory.ts";
 import { rejects, strictEqual } from "node:assert";
 import {
   type ActiveWorker,
@@ -9,12 +8,13 @@ import {
   taskFn,
 } from "./app.ts";
 import { Server } from "./connection.ts";
-import { JsonCodec } from "./json-codec.ts";
 import { NotFoundError } from "./errors.ts";
 import { LocalApp, LocalBrrr } from "./local-app.ts";
 import { deepStrictEqual, ok } from "node:assert/strict";
+import type { InMemoryStore } from "./backends/in-memory.ts";
+import { NaiveJsonCodec } from "./naive-json-codec.ts";
 
-const codec = new JsonCodec();
+const codec = new NaiveJsonCodec();
 const topic = "brrr-test";
 const subtopics = {
   t1: "t1",
@@ -22,8 +22,7 @@ const subtopics = {
   t3: "t3",
 } as const;
 
-let store: InMemoryByteStore;
-let queue: InMemoryQueue;
+let store: InMemoryStore;
 let server: Server;
 
 // Test tasks
@@ -53,9 +52,7 @@ const handlers: Handlers = {
 await suite(import.meta.filename, async () => {
   beforeEach(() => {
     store = new InMemoryByteStore();
-    queue = new InMemoryQueue([topic, ...Object.values(subtopics)]);
     server = new Server(queue, store, store);
-    queue.flush();
   });
 
   await test(AppWorker.name, async () => {
