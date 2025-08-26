@@ -21,8 +21,7 @@ import {
   PendingReturns,
   type Store,
 } from "./store.ts";
-import type { Message, Queue } from "./queue.ts";
-import { InMemoryQueue, InMemoryStore } from "./backends/in-memory.ts";
+import { InMemoryStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
 
 await suite(import.meta.filename, async () => {
@@ -312,72 +311,6 @@ export async function cacheContractTest(factory: () => Cache) {
       strictEqual(initialValue, 1);
       const nextValue = await cache.incr(key);
       strictEqual(nextValue, 2);
-    });
-  });
-}
-
-export async function queueContractTest(factory: (topics: string[]) => Queue) {
-  await suite("queue-contract", async () => {
-    let queue: Queue;
-
-    const mockFn = mock.fn();
-    const fixture = {
-      topic: "test-topic",
-      message: {
-        body: "test-message",
-      } satisfies Message,
-    } as const;
-
-    beforeEach(async () => {
-      queue = factory([fixture.topic]);
-      await queue.push(fixture.topic, fixture.message);
-      mockFn.mock.resetCalls();
-    });
-
-    await test("Basic pop", async () => {
-      deepStrictEqual(await queue.pop(fixture.topic), {
-        kind: "Ok",
-        value: fixture.message,
-      });
-    });
-
-    await test("Basic push & pop", async () => {
-      const newMessage: Message = {
-        body: "new-test-message",
-      };
-      await queue.push(fixture.topic, newMessage);
-      deepStrictEqual(await queue.pop(fixture.topic), {
-        kind: "Ok",
-        value: fixture.message,
-      });
-      deepStrictEqual(await queue.pop(fixture.topic), {
-        kind: "Ok",
-        value: newMessage,
-      });
-    });
-
-    await test("Non-existing topic operations should throw", async () => {
-      await rejects(queue.pop("non-existing-topic"), Error);
-      await rejects(queue.push("non-existing-topic", fixture.message), Error);
-    });
-
-    await test("pop blocks until item is pushed", async () => {
-      const pop = queue.pop(fixture.topic).then(mockFn);
-      strictEqual(mockFn.mock.callCount(), 0);
-      await queue.push(fixture.topic, fixture.message);
-      await pop;
-      strictEqual(mockFn.mock.callCount(), 1);
-    });
-
-    await test("join works over multiple topics", async () => {
-      const topics = ["topic-1", "topic-2"];
-      const queue = new InMemoryQueue(topics);
-      await queue.join();
-      await queue.push("topic-1", { body: "task" });
-      await queue.push("topic-2", { body: "task" });
-      const join = queue.join();
-      await Promise.all([queue.pop("topic-1"), queue.pop("topic-2")]);
-      await join;
     });
   });
 }
