@@ -112,6 +112,32 @@ await suite(import.meta.filename, async () => {
         mock.timers.enable(mockTimersOptions);
       });
 
+      await test("simple cases to document & test shouldSchedule", async () => {
+        const hash = "some-hash";
+        const base = "root/parent/topic";
+        const cases = [
+          // base case
+          [[hash, base], true],
+          // same one, shouldn't schedule again
+          [[hash, base], false],
+          // different root, should schedule - it's a retry
+          [[hash, "different-root/parent/topic"], true],
+          // new callHash, new PR, should schedule
+          [["different-hash", base], true],
+          // continuation, shouldn't schedule again
+          [[hash, "root/parent/different-topic"], false],
+          [[hash, "root/different-parent/topic"], false],
+          [[hash, "root/different-parent/different-topic"], false],
+        ] as const;
+
+        for (const [args, shouldSchedule] of cases) {
+          strictEqual(
+            await memory.addPendingReturns(args[0], args[1]),
+            shouldSchedule,
+          );
+        }
+      });
+
       await test("First-time call triggers schedule and stores return", async () => {
         const shouldSchedule = await memory.addPendingReturns(
           fixture.call.callHash,
@@ -186,33 +212,6 @@ await suite(import.meta.filename, async () => {
         const decoded = PendingReturns.decode(raw);
         ok(decoded.returns.has(returnWithDifferentRoot));
         strictEqual(decoded.scheduledAt, mockTimersOptions.now / 1000);
-      });
-
-      await test("more cases to test shouldSchedule", async () => {
-        // simple test cases that also serves as a documentation for the scheduling logic
-        const hash = "some-hash";
-        const base = "root/parent/topic";
-        const cases = [
-          // base case
-          [[hash, base], true],
-          // same one, shouldn't schedule again
-          [[hash, base], false],
-          // different root, should schedule - it's a retry
-          [[hash, "different-root/parent/topic"], true],
-          // new callHash, new PR, should schedule
-          [["different-hash", base], true],
-          // continuation, shouldn't schedule again
-          [[hash, "root/parent/different-topic"], false],
-          [[hash, "root/different-parent/topic"], false],
-          [[hash, "root/different-parent/different-topic"], false],
-        ] as const;
-
-        for (const [args, shouldSchedule] of cases) {
-          strictEqual(
-            await memory.addPendingReturns(args[0], args[1]),
-            shouldSchedule,
-          );
-        }
       });
     });
 
