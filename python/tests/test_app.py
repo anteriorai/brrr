@@ -4,13 +4,21 @@ import typing
 from collections import Counter
 from typing import cast
 
-import pytest
-
 import brrr
-from brrr import ActiveWorker, AppWorker, AppConsumer
-from brrr import Connection, Defer, DeferredCall, NotFoundError, Request, Response
+import pytest
+from brrr import (
+    ActiveWorker,
+    AppConsumer,
+    AppWorker,
+    Connection,
+    Defer,
+    DeferredCall,
+    NotFoundError,
+    Request,
+    Response,
+)
 from brrr.backends.in_memory import InMemoryByteStore, InMemoryQueue
-from brrr.local_app import local_app, LocalBrrr
+from brrr.local_app import LocalBrrr, local_app
 from brrr.pickle_codec import PickleCodec
 
 TOPIC = "brrr-test"
@@ -446,7 +454,7 @@ async def test_app_loop_resumable() -> None:
         pass
 
     @brrr.handler_no_arg
-    async def bar(a: int) -> int:
+    async def foo(a: int) -> int:
         nonlocal errors
         if errors:
             errors -= 1
@@ -454,12 +462,8 @@ async def test_app_loop_resumable() -> None:
         await queue.close()
         return a
 
-    @brrr.handler
-    async def foo(app: ActiveWorker, a: int) -> int:
-        return await app.call(bar)(a)
-
     async with brrr.serve(queue, store, store) as conn:
-        app = AppWorker(handlers=dict(foo=foo, bar=bar), codec=PickleCodec(), connection=conn)
+        app = AppWorker(handlers=dict(foo=foo), codec=PickleCodec(), connection=conn)
         while True:
             try:
                 await app.schedule(foo, topic=TOPIC)(3)

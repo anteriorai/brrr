@@ -61,6 +61,24 @@ export async function codecContractTest(codec: Codec) {
       }
     });
 
+    await suite(
+      "round trip: encodeCall -> invokeTask -> decodeReturn",
+      async () => {
+        async function identify<T>(a: T): Promise<T> {
+          return a;
+        }
+
+        for (const [name, args] of Object.entries(cases)) {
+          await test(name, async () => {
+            const call = await codec.encodeCall(identify.name, [args[0]]);
+            const result = await codec.invokeTask(call, identify);
+            const decoded = await codec.decodeReturn(identify.name, result);
+            deepStrictEqual(decoded, await identify(args[1]));
+          });
+        }
+      },
+    );
+
     await test("different arguments produce different hashes", async () => {
       const a = await codec.encodeCall("foo", [1, 2]);
       const b = await codec.encodeCall("foo", [2, 1]);

@@ -1,7 +1,6 @@
 import bencode from "bencode";
 import { Buffer } from "node:buffer";
 import type { Encoding } from "node:crypto";
-import { BencodeError } from "./errors.ts";
 
 /**
  * Bencode encoding and decoding utility.
