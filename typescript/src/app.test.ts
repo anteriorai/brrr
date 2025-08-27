@@ -1,6 +1,12 @@
 import { beforeEach, suite, test } from "node:test";
 import { strictEqual } from "node:assert";
-import { type ActiveWorker, AppConsumer, AppWorker, type Handlers, taskFn, } from "./app.ts";
+import {
+  type ActiveWorker,
+  AppConsumer,
+  AppWorker,
+  type Handlers,
+  taskFn,
+} from "./app.ts";
 import { Server } from "./connection.ts";
 import { InMemoryCache, InMemoryStore } from "./backends/in-memory.ts";
 import { NaiveJsonCodec } from "./naive-json-codec.ts";
