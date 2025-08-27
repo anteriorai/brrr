@@ -248,7 +248,12 @@ export class Memory {
     }
     const [existingRoot, existingParent, existingTopic, ...existingRest] =
       existingReturn.split("/");
-    if (!existingRoot || !existingParent || !existingTopic || existingRest.length) {
+    if (
+      !existingRoot ||
+      !existingParent ||
+      !existingTopic ||
+      existingRest.length
+    ) {
       throw new Error(`Invalid return address: ${existingReturn}`);
     }
     return (
