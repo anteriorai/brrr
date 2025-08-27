@@ -1,12 +1,13 @@
 import { beforeEach, suite, test } from "node:test";
-import { rejects, strictEqual } from "node:assert";
+import { strictEqual } from "node:assert";
 import { type ActiveWorker, AppConsumer, AppWorker, type Handlers, taskFn, } from "./app.ts";
 import { Server } from "./connection.ts";
-import { NotFoundError } from "./errors.ts";
-import { LocalApp, LocalBrrr } from "./local-app.ts";
-import { deepStrictEqual, ok } from "node:assert/strict";
 import { InMemoryCache, InMemoryStore } from "./backends/in-memory.ts";
 import { NaiveJsonCodec } from "./naive-json-codec.ts";
+import type { Call } from "./call.ts";
+import { NotFoundError } from "./errors.ts";
+import { ok, rejects } from "node:assert/strict";
+import { LocalBrrr } from "./local-app.ts";
 
 const codec = new NaiveJsonCodec();
 const topic = "brrr-test";
@@ -44,6 +45,22 @@ const handlers: Handlers = {
 };
 
 await suite(import.meta.filename, async () => {
+  function waitForDone(
+    emitter: AppConsumer,
+    call: Call,
+    predicate: () => void | Promise<void>,
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      emitter.on('done', async ({ callHash }: Call) => {
+        if (callHash === call.callHash) {
+          await predicate()
+          resolve();
+        }
+      });
+    });
+  }
+
+
   beforeEach(() => {
     store = new InMemoryStore();
     cache = new InMemoryCache()
@@ -52,111 +69,119 @@ await suite(import.meta.filename, async () => {
 
   await test(AppWorker.name, async () => {
     const app = new AppWorker(codec, server, handlers);
-    app.listen(topic)
+    server.listen(topic, app.handle)
 
-    await app.schedule(foo, topic)(122);
+    const call = await codec.encodeCall(foo.name, [122])
 
-    app.on('done', async () => {
+    const done = waitForDone(app, call, async () => {
+      strictEqual(await app.read(foo)(122), 457);
       strictEqual(await app.read("foo")(122), 457);
       strictEqual(await app.read(foo)(122), 457);
       strictEqual(await app.read("bar")(123), 456);
       strictEqual(await app.read(bar)(123), 456);
     })
+
+    await app.schedule(foo, topic)(122)
+    return done
   });
 
-  // await test(AppConsumer.name, async () => {
-  //   function foo(n: number) {
-  //     return n * n;
-  //   }
-  //
-  //   const workerServer = new Server(store, cache);
-  //   const appWorker = new AppWorker(codec, workerServer, {
-  //     foo: taskFn(foo),
-  //   });
-  //   appWorker.listen(topic)
-  //
-  //   await appWorker.schedule("foo", topic)(5);
-  //
-  //   const appConsumer = new AppConsumer(codec, workerServer);
-  //
-  //   strictEqual(await appConsumer.read("foo")(5), 25);
-  //   await rejects(appConsumer.read("foo")(3), NotFoundError);
-  //   await rejects(appConsumer.read("bar")(5), NotFoundError);
-  // });
-  //
-  // await test(LocalBrrr.name, async () => {
-  //   const brrr = new LocalBrrr(topic, handlers, codec);
-  //   strictEqual(await brrr.run(foo)(122), 457);
-  // });
-  //
-  // await suite("gather", async () => {
-  //   async function callNestedGather(useBrrGather = true): Promise<string[]> {
-  //     const calls: string[] = [];
-  //
-  //     function foo(a: number): number {
-  //       calls.push(`foo(${a})`);
-  //       return a * 2;
-  //     }
-  //
-  //     function bar(a: number): number {
-  //       calls.push(`bar(${a})`);
-  //       return a - 1;
-  //     }
-  //
-  //     async function notBrrrTask(
-  //       app: ActiveWorker,
-  //       a: number,
-  //     ): Promise<number> {
-  //       const b = await app.call(foo)(a);
-  //       return app.call(bar)(b);
-  //     }
-  //
-  //     async function top(app: ActiveWorker, xs: number[]) {
-  //       calls.push(`top(${xs})`);
-  //       if (useBrrGather) {
-  //         return app.gather(...xs.map((x) => notBrrrTask(app, x)));
-  //       }
-  //       return Promise.all(xs.map((x) => notBrrrTask(app, x)));
-  //     }
-  //
-  //     const localBrrr = new LocalBrrr(
-  //       topic,
-  //       {
-  //         foo: taskFn(foo),
-  //         bar: taskFn(bar),
-  //         top,
-  //       },
-  //       codec,
-  //     );
-  //     await localBrrr.run(top)([3, 4]);
-  //     return calls;
-  //   }
-  //
-  //   await test("app gather", async () => {
-  //     const brrrCalls = await callNestedGather();
-  //     strictEqual(brrrCalls.filter((it) => it.startsWith("top")).length, 5);
-  //     const foo3 = brrrCalls.indexOf("foo(3)");
-  //     const foo4 = brrrCalls.indexOf("foo(4)");
-  //     const bar6 = brrrCalls.indexOf("bar(6)");
-  //     const bar8 = brrrCalls.indexOf("bar(8)");
-  //     ok(foo3 < bar6);
-  //     ok(foo3 < bar8);
-  //     ok(foo4 < bar6);
-  //     ok(foo4 < bar8);
-  //   });
-  //
-  //   await test("Promise.all gather", async () => {
-  //     const promises = await callNestedGather(false);
-  //     strictEqual(promises.filter((it) => it.startsWith("top")).length, 5);
-  //     const foo3 = promises.indexOf("foo(3)");
-  //     const foo4 = promises.indexOf("foo(4)");
-  //     const bar6 = promises.indexOf("bar(6)");
-  //     const bar8 = promises.indexOf("bar(8)");
-  //     ok(foo3 < bar6);
-  //     ok(foo4 < bar8);
-  //   });
-  // });
-  //
+  await test(AppConsumer.name, async () => {
+    function foo(n: number) {
+      return n * n;
+    }
+
+    const workerServer = new Server(store, cache);
+    const appWorker = new AppWorker(codec, workerServer, {
+      foo: taskFn(foo),
+    });
+    workerServer.listen(topic, appWorker.handle)
+
+    const appConsumer = new AppConsumer(codec, workerServer);
+
+    const call = await codec.encodeCall(foo.name, [5])
+    const done = waitForDone(appConsumer, call, async () => {
+      strictEqual(await appConsumer.read("foo")(5), 25);
+      await rejects(appConsumer.read("foo")(3), NotFoundError);
+      await rejects(appConsumer.read("bar")(5), NotFoundError);
+    })
+
+    await appWorker.schedule("foo", topic)(5);
+    return done
+  });
+
+  await test(LocalBrrr.name, async () => {
+    const brrr = new LocalBrrr(topic, handlers, codec);
+    strictEqual(await brrr.run(foo)(122), 457);
+  });
+
+  await suite("gather", async () => {
+    async function callNestedGather(useBrrGather = true): Promise<string[]> {
+      const calls: string[] = [];
+
+      function foo(a: number): number {
+        calls.push(`foo(${a})`);
+        return a * 2;
+      }
+
+      function bar(a: number): number {
+        calls.push(`bar(${a})`);
+        return a - 1;
+      }
+
+      async function notBrrrTask(
+        app: ActiveWorker,
+        a: number,
+      ): Promise<number> {
+        const b = await app.call(foo)(a);
+        return app.call(bar)(b);
+      }
+
+      async function top(app: ActiveWorker, xs: number[]) {
+        calls.push(`top(${xs})`);
+        if (useBrrGather) {
+          return app.gather(...xs.map((x) => notBrrrTask(app, x)));
+        }
+        return Promise.all(xs.map((x) => notBrrrTask(app, x)));
+      }
+
+      const localBrrr = new LocalBrrr(
+        topic,
+        {
+          foo: taskFn(foo),
+          bar: taskFn(bar),
+          top,
+        },
+        codec,
+      );
+      await localBrrr.run(top)([3, 4]);
+      return calls;
+    }
+
+    await test("app gather", async () => {
+      const brrrCalls = await callNestedGather();
+      strictEqual(brrrCalls.filter((it) => it.startsWith("top")).length, 5);
+      const foo3 = brrrCalls.indexOf("foo(3)");
+      const foo4 = brrrCalls.indexOf("foo(4)");
+      const bar6 = brrrCalls.indexOf("bar(6)");
+      const bar8 = brrrCalls.indexOf("bar(8)");
+      ok(foo3 < bar6);
+      ok(foo3 < bar8);
+      ok(foo4 < bar6);
+      ok(foo4 < bar8);
+    });
+
+    await test("Promise.all gather", async () => {
+      const promises = await callNestedGather(false);
+      strictEqual(promises.filter((it) => it.startsWith("top")).length, 5);
+      const foo3 = promises.indexOf("foo(3)");
+      const foo4 = promises.indexOf("foo(4)");
+      const bar6 = promises.indexOf("bar(6)");
+      const bar8 = promises.indexOf("bar(8)");
+      ok(foo3 < bar6);
+      ok(foo4 < bar8);
+    });
+  });
+
   // await test("topics separate app same connection", async () => {
   //   const app1 = new AppWorker(codec, server, {
   //     one: taskFn(one),
@@ -188,7 +213,7 @@ await suite(import.meta.filename, async () => {
   //   app.listen(subtopics.t2)
   //   await app.schedule(two, subtopics.t2)(7);
   // });
-
+  //
   // await test("stop when empty", async () => {
   //   const pre = new Map<number, number>();
   //   const post = new Map<number, number>();
