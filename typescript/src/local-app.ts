@@ -9,11 +9,12 @@ import {
 } from "./app.ts";
 import type { Codec } from "./codec.ts";
 import { InMemoryCache, InMemoryStore } from "./backends/in-memory.ts";
+import { NotFoundError } from "./errors.ts";
 
 export class LocalApp {
-  private readonly topic: string;
-  private readonly server: Server;
-  private readonly app: AppWorker;
+  public readonly topic: string;
+  public readonly server: Server;
+  public readonly app: AppWorker;
 
   private hasRun = false;
 
@@ -44,7 +45,7 @@ export class LocalApp {
       throw new Error("LocalApp has already been run");
     }
     this.hasRun = true;
-    this.app.listen(this.topic)
+    this.server.listen(this.topic, this.app.handle)
   }
 }
 
@@ -64,12 +65,27 @@ export class LocalBrrr {
     const cache = new InMemoryCache();
     const server = new Server(store, cache);
     const worker = new AppWorker(this.codec, server, this.handlers);
-    const app = new LocalApp(this.topic, server, worker);
+    const localApp = new LocalApp(this.topic, server, worker);
     const taskName = taskIdentifierToName(taskIdentifier, this.handlers);
     return async (...args: StripLeadingActiveWorker<A>): Promise<R> => {
-      await app.schedule(taskName)(...args);
-      await app.run();
-      return (await app.read(taskName)(...args)) as R;
+      await localApp.run();
+      await localApp.schedule(taskName)(...args);
+      const call = await this.codec.encodeCall(taskName, args);
+      return new Promise(resolve => {
+        localApp.app.on('done', async ({ callHash }) => {
+          if (callHash === call.callHash) {
+            const payload = await server.readRaw(callHash);
+            if (!payload) {
+              throw new NotFoundError({
+                type: "value",
+                callHash,
+              })
+            }
+            const result = this.codec.decodeReturn(taskName, payload) as R;
+            resolve(result);
+          }
+        })
+      })
     };
   }
 }

@@ -1,6 +1,7 @@
 import { type Connection, Defer, type DeferredCall, type Request, type Response, } from "./connection.ts";
 import type { Codec } from "./codec.ts";
-import { TaskNotFoundError } from "./errors.ts";
+import { NotFoundError, TaskNotFoundError } from "./errors.ts";
+import type { Call } from "./call.ts";
 
 export type Task<A extends unknown[] = any[], R = any> = (
   ...args: [ActiveWorker, ...A]
@@ -58,9 +59,9 @@ export function taskFn<A extends unknown[], R>(
 }
 
 export class AppConsumer {
-  protected readonly codec: Codec;
-  protected readonly connection: Connection;
-  protected readonly handlers: Handlers;
+  public readonly codec: Codec;
+  public readonly connection: Connection;
+  public readonly handlers: Handlers;
 
   public constructor(
     codec: Codec,
@@ -72,15 +73,9 @@ export class AppConsumer {
     this.handlers = handlers;
   }
 
-  public on(event: string, callback: (...args: any[]) => void) {
+  public on(event: 'done', callback: (call: Call) => void): void
+  public on(event: string, callback: (...args: any[]) => void): void {
     this.connection.emitter.on(event, callback);
-  }
-
-  public listen(topic: string) {
-    const handler = this.handlers[topic]
-    if (handler) {
-      this.connection.emitter.on(topic, handler)
-    }
   }
 
   public schedule<A extends unknown[], R>(
@@ -107,7 +102,10 @@ export class AppConsumer {
       const call = await this.codec.encodeCall(taskName, args);
       const payload = await this.connection.memory.getValue(call.callHash);
       if (!payload) {
-        throw new Error("NOCOMMIT")
+        throw new NotFoundError({
+          type: "value",
+          callHash: call.callHash,
+        })
       }
       return this.codec.decodeReturn(taskName, payload) as R;
     };

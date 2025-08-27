@@ -76,6 +76,15 @@ export class Server extends Connection {
     super(store, cache);
   }
 
+  public listen(topic: string, handler: RequestHandler) {
+    this.emitter.on(topic, async (callId: string) => {
+      const result = await this.handleMessage(handler, topic, callId);
+      if (result) {
+        this.emitter.emit('done', result)
+      }
+    });
+  }
+
   private async scheduleReturnCall(addr: string): Promise<void> {
     const [topic, rootId, parentKey] = addr.split("/") as [
       string,
@@ -106,7 +115,7 @@ export class Server extends Connection {
     requestHandler: RequestHandler,
     topic: string,
     callId: string,
-  ): Promise<void> {
+  ): Promise<Call | undefined> {
     const [rootId, callHash] = callId.split("/") as [string, string];
     const call = await this.memory.getCall(callHash);
     const handled = await requestHandler({ call }, this);
@@ -135,5 +144,6 @@ export class Server extends Connection {
         throw spawnLimitError;
       }
     });
+    return call
   }
 }
