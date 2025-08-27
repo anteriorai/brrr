@@ -10,37 +10,13 @@ abstract class BrrrError extends Error {
 
 export class InvalidMessageError extends BrrrError {
   public constructor() {
-    super("Queue is empty");
-  }
-}
-
-export class QueueIsClosedError extends BrrrError {
-  public constructor() {
-    super("Queue is closed");
-  }
-}
-
-export class BencodeError extends BrrrError {
-  public constructor(data: unknown) {
-    super(`Bencode error: ${JSON.stringify(data)}`);
-  }
-}
-
-export class InvalidMessageError extends BrrrError {
-  public constructor(value: unknown) {
-    super(`Invalid message: ${JSON.stringify(value)}`);
+    super("Recieved invalid message");
   }
 }
 
 export class NotFoundError extends BrrrError {
   public constructor(key: MemKey) {
     super(`Not found: ${key.type}/${key.callHash}`);
-  }
-}
-
-export class CompareMismatchError extends BrrrError {
-  public constructor(key: MemKey) {
-    super(`Compare mismatch for key ${JSON.stringify(key)}`);
   }
 }
 
@@ -61,11 +37,5 @@ export class SpawnLimitError extends BrrrError {
 export class TaskNotFoundError extends BrrrError {
   public constructor(taskName: string) {
     super(`Task not found: ${taskName}`);
-  }
-}
-
-export class QueueIsClosedError extends BrrrError {
-  public constructor() {
-    super("Queue is closed");
   }
 }
