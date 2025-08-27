@@ -242,12 +242,15 @@ export class Memory {
 
   // TODO: migrate to bencode
   private isRepeatedCall(newReturn: string, existingReturn: string): boolean {
-    const [newRoot, newParent, newTopic, ...rest] = newReturn.split("/");
-    if (!newRoot || !newParent || !newTopic || rest.length) {
+    const [newRoot, newParent, newTopic, ...newRest] = newReturn.split("/");
+    if (!newRoot || !newParent || !newTopic || newRest.length) {
       throw new Error(`Invalid return address: ${newReturn}`);
     }
-    const [existingRoot, existingParent, existingTopic] =
+    const [existingRoot, existingParent, existingTopic, ...existingRest] =
       existingReturn.split("/");
+    if (!existingRoot || !existingParent || !existingTopic || existingRest.length) {
+      throw new Error(`Invalid return address: ${existingReturn}`);
+    }
     return (
       newRoot !== existingRoot &&
       newParent === existingParent &&
