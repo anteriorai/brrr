@@ -6,8 +6,8 @@ import { InMemoryCache, InMemoryStore } from "./backends/in-memory.ts";
 import { NaiveJsonCodec } from "./naive-json-codec.ts";
 import type { Call } from "./call.ts";
 import { NotFoundError } from "./errors.ts";
-import { ok, rejects } from "node:assert/strict";
-import { LocalBrrr } from "./local-app.ts";
+import { deepStrictEqual, ok, rejects } from "node:assert/strict";
+import { LocalApp, LocalBrrr } from "./local-app.ts";
 import type { Cache, Store } from "./store.ts";
 
 const codec = new NaiveJsonCodec();
@@ -272,86 +272,85 @@ await suite(import.meta.filename, async () => {
   //   await queue.join();
   // });
   //
-  // await test("stress parallel", async () => {
-  //   async function fib(app: ActiveWorker, n: bigint): Promise<bigint> {
-  //     if (n < 2) {
-  //       return n;
-  //     }
-  //     const [a, b] = await app.gather(
-  //       app.call(fib)(n - 1n),
-  //       app.call(fib)(n - 2n),
-  //     );
-  //     return a + b;
-  //   }
-  //
-  //   async function top(app: ActiveWorker): Promise<void> {
-  //     const n = await app.call(fib)(1000n);
-  //     deepStrictEqual(
-  //       n,
-  //       43466557686937456435688527675040625802564660517371780402481729089536555417949051890403879840079255169295922593080322634775209689623239873322471161642996440906533187938298969649928516003704476137795166849228875n,
-  //     );
-  //   }
-  //
-  //   const app = new AppWorker(codec, server, { fib, top });
-  //   await app.schedule(top, topic)();
-  //
-  //   await Promise.all(
-  //     new Array(10).keys().map(() => server.loop(topic, app.handle)),
-  //   );
-  //   await queue.join();
-  // });
-  //
-  // await test("debounce child", async () => {
-  //   const calls = new Map<number, number>();
-  //
-  //   async function foo(app: ActiveWorker, a: number): Promise<number> {
-  //     calls.set(a, (calls.get(a) || 0) + 1);
-  //     if (a === 0) {
-  //       return a;
-  //     }
-  //     const results = await app.gather(
-  //       ...Array(50)
-  //         .keys()
-  //         .map(() => app.call(foo)(a - 1)),
-  //     );
-  //     return results.reduce((sum, val) => sum + val);
-  //   }
-  //
-  //   const brrr = new LocalBrrr(topic, { foo }, codec);
-  //   await brrr.run(foo)(3);
-  //
-  //   deepStrictEqual(Object.fromEntries(calls), { 0: 1, 1: 2, 2: 2, 3: 2 });
-  // });
-  //
-  // await test("no debounce parent", async () => {
-  //   const calls = new Map<string, number>();
-  //
-  //   function one(_: number): number {
-  //     calls.set("one", (calls.get("one") || 0) + 1);
-  //     return 1;
-  //   }
-  //
-  //   async function foo(app: ActiveWorker, a: number): Promise<number> {
-  //     calls.set("foo", (calls.get("foo") || 0) + 1);
-  //     const results = await app.gather(
-  //       ...new Array(a).keys().map((i) => app.call(one)(i)),
-  //     );
-  //     return results.reduce((sum, val) => sum + val);
-  //   }
-  //
-  //   const brrr = new LocalBrrr(
-  //     topic,
-  //     {
-  //       one: taskFn(one),
-  //       foo,
-  //     },
-  //     codec,
-  //   );
-  //   await brrr.run(foo)(50);
-  //
-  //   deepStrictEqual(Object.fromEntries(calls), { one: 50, foo: 51 });
-  // });
-  //
+  await test("stress parallel", async () => {
+    async function fib(app: ActiveWorker, n: bigint): Promise<bigint> {
+      if (n < 2) {
+        return n;
+      }
+      const [a, b] = await app.gather(
+        app.call(fib)(n - 1n),
+        app.call(fib)(n - 2n),
+      );
+      return a + b;
+    }
+
+    async function top(app: ActiveWorker): Promise<void> {
+      const n = await app.call(fib)(1000n);
+      deepStrictEqual(
+        n,
+        43466557686937456435688527675040625802564660517371780402481729089536555417949051890403879840079255169295922593080322634775209689623239873322471161642996440906533187938298969649928516003704476137795166849228875n,
+      );
+    }
+
+    const app = new AppWorker(codec, server, { fib, top });
+    await app.schedule(top, topic)();
+
+    await Promise.all(
+      new Array(10).keys().map(() => server.listen(topic, app.handle)),
+    );
+  });
+
+  await test("debounce child", async () => {
+    const calls = new Map<number, number>();
+
+    async function foo(app: ActiveWorker, a: number): Promise<number> {
+      calls.set(a, (calls.get(a) || 0) + 1);
+      if (a === 0) {
+        return a;
+      }
+      const results = await app.gather(
+        ...Array(50)
+          .keys()
+          .map(() => app.call(foo)(a - 1)),
+      );
+      return results.reduce((sum, val) => sum + val);
+    }
+
+    const brrr = new LocalBrrr(topic, { foo }, codec);
+    await brrr.run(foo)(3);
+
+    deepStrictEqual(Object.fromEntries(calls), { 0: 1, 1: 2, 2: 2, 3: 2 });
+  });
+
+  await test("no debounce parent", async () => {
+    const calls = new Map<string, number>();
+
+    function one(_: number): number {
+      calls.set("one", (calls.get("one") || 0) + 1);
+      return 1;
+    }
+
+    async function foo(app: ActiveWorker, a: number): Promise<number> {
+      calls.set("foo", (calls.get("foo") || 0) + 1);
+      const results = await app.gather(
+        ...new Array(a).keys().map((i) => app.call(one)(i)),
+      );
+      return results.reduce((sum, val) => sum + val);
+    }
+
+    const brrr = new LocalBrrr(
+      topic,
+      {
+        one: taskFn(one),
+        foo,
+      },
+      codec,
+    );
+    await brrr.run(foo)(50);
+
+    deepStrictEqual(Object.fromEntries(calls), { one: 50, foo: 51 });
+  });
+
   // await test("app loop resumable", async () => {
   //   let errors = 5;
   //
@@ -361,9 +360,8 @@ await suite(import.meta.filename, async () => {
   //   async function foo(a: number): Promise<number> {
   //     if (errors) {
   //       errors--;
-  //       throw new MyError("retry");
+  //       throw new MyError();
   //     }
-  //     await queue.close();
   //     return a;
   //   }
   //
@@ -372,7 +370,7 @@ await suite(import.meta.filename, async () => {
   //   while (true) {
   //     try {
   //       await app.schedule(foo, topic)(3);
-  //       await server.loop(topic, app.handle);
+  //       server.listen(topic, app.handle)
   //       break;
   //     } catch (err) {
   //       if (err instanceof MyError) {
@@ -381,32 +379,29 @@ await suite(import.meta.filename, async () => {
   //       throw err;
   //     }
   //   }
-  //
-  //   await queue.join();
   //   strictEqual(errors, 0);
   // });
   //
-  // await test("app handler names", async () => {
-  //   function foo(a: number): number {
-  //     return a * a;
-  //   }
-  //
-  //   async function bar(app: ActiveWorker, a: number): Promise<number> {
-  //     return (
-  //       (await app.call(foo)(a)) *
-  //       (await app.call<[number], number>("quux/zim")(a))
-  //     );
-  //   }
-  //
-  //   const worker = new AppWorker(codec, server, {
-  //     "quux/zim": taskFn(foo),
-  //     "quux/bar": bar,
-  //   });
-  //   const localApp = new LocalApp(topic, server, queue, worker);
-  //   await localApp.schedule("quux/bar")(4);
-  //   await localApp.run();
-  //   strictEqual(await localApp.read("quux/zim")(4), 16);
-  //   strictEqual(await localApp.read(foo)(4), 16);
-  // });
-})
-;
+  await test("app handler names", async () => {
+    function foo(a: number): number {
+      return a * a;
+    }
+
+    async function bar(app: ActiveWorker, a: number): Promise<number> {
+      return (
+        (await app.call(foo)(a)) *
+        (await app.call<[number], number>("quux/zim")(a))
+      );
+    }
+
+    const worker = new AppWorker(codec, server, {
+      "quux/zim": taskFn(foo),
+      "quux/bar": bar,
+    });
+    const localApp = new LocalApp(topic, server, worker);
+    await localApp.schedule("quux/bar")(4);
+    await localApp.run();
+    strictEqual(await localApp.read("quux/zim")(4), 16);
+    strictEqual(await localApp.read(foo)(4), 16);
+  });
+});
