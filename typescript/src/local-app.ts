@@ -40,7 +40,7 @@ export class LocalApp {
     return this.app.read(...args);
   }
 
-  public async run(): Promise<void> {
+  public run(): void {
     if (this.hasRun) {
       throw new Error("LocalApp has already been run");
     }
@@ -68,7 +68,7 @@ export class LocalBrrr {
     const localApp = new LocalApp(this.topic, server, worker);
     const taskName = taskIdentifierToName(taskIdentifier, this.handlers);
     return async (...args: StripLeadingActiveWorker<A>): Promise<R> => {
-      await localApp.run();
+      localApp.run();
       await localApp.schedule(taskName)(...args);
       const call = await this.codec.encodeCall(taskName, args);
       return new Promise(resolve => {
