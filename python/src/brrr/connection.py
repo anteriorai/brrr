@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import functools
 import logging
 from collections.abc import (
     AsyncIterator,
@@ -229,15 +228,16 @@ class Server(Connection):
         # fine because the result does in fact exist.
         child_topic = child.topic or my_topic
         call_hash = child.call.call_hash
-        schedule_job = functools.partial(self._put_job, child_topic, call_hash, root_id)
         # Ad-hoc encoding: I happen to know that parent_call_id itself is
         # root_id/parent_key, neither of which can contain a ‘/’.  The topic
         # however is user-controlled and can contain any character, so it must
         # come last for deterministic decoding.  Obviously a far better idea
         # would be to just use bencode here.
-        await self._memory.add_pending_return(
-            call_hash, f"{parent_call_id}/{my_topic}", schedule_job
+        should_schedule = await self._memory.add_pending_return(
+            call_hash, f"{parent_call_id}/{my_topic}"
         )
+        if should_schedule:
+            await self._put_job(child_topic, call_hash, root_id)
 
     async def _handle_msg(
         self, handler: Handler, my_topic: str, my_call_id: str

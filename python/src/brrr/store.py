@@ -282,12 +282,7 @@ class Memory:
                     raise Exception("exceeded CAS retry limit") from e
                 continue
 
-    async def add_pending_return(
-        self,
-        call_hash: str,
-        new_return: str,
-        schedule_job: Callable[[], Awaitable[None]],
-    ):
+    async def add_pending_return(self, call_hash: str, new_return: str) -> bool:
         """Register a pending return address for a call.
 
         Note this is inherently racy: as soon as this call completes, another
@@ -296,56 +291,47 @@ class Memory:
         visible to the thread that writes it--you can only trust that it is
         visible to _some_ worker.
 
-        Return value indicates whether or not a call (any call) was already
-        pending, even if it was this very same call, or any other call.  This
-        can be used as an indication that an operation is currently `in flight.'
+        Return value indicates whether we need to schedule this call.
 
         """
 
+        def _is_repeated_call(existing_return: str):
+            new_root, new_parent, new_topic = new_return.split("/")
+            ext_root, ext_parent, ext_topic = existing_return.split("/")
+            return (
+                ext_root != new_root
+                and ext_parent == new_parent
+                and ext_topic == new_topic
+            )
+
         # Beware race conditions here!  Be aware of concurrency corner cases on
         # every single line.
-        async def cas_body() -> None:
+        async def cas_body() -> bool:
             memkey = MemKey("pending_returns", call_hash)
-            should_store_again = False
+            should_schedule = False
+
+            logger.debug(f"Looking for existing pending returns for {call_hash}...")
             try:
                 existing_enc = await self.store.get(memkey)
+                logger.debug(f"    ... found! {existing_enc!r}")
+                existing = PendingReturns.decode(existing_enc)
             except NotFoundError:
-                existing = PendingReturns(None, {new_return})
+                existing = PendingReturns(int(time.time()), set())
                 existing_enc = existing.encode()
                 logger.debug(f"    ... none found. Creating new: {existing_enc!r}")
                 # Note the double CAS!
                 await self.store.set_new_value(memkey, existing_enc)
-                adj = "First"
-                verb = "added to"
-            else:
-                logger.debug(f"    ... found! {existing_enc!r}")
-                existing = PendingReturns.decode(existing_enc)
-                if new_return not in existing.returns:
-                    existing.returns |= {new_return}
-                    should_store_again = True
-                    adj = "Another"
-                    verb = "added to"
-                else:
-                    # 🙄
-                    adj = "Existing"
-                    verb = "ignored by"
+                should_schedule = True
 
-            if existing.scheduled_at is None:
-                await schedule_job()
-                existing.scheduled_at = int(time.time())
-                should_store_again = True
-                verb += " and scheduled"
+            should_schedule = should_schedule or any(
+                map(_is_repeated_call, existing.returns)
+            )
 
-            # Something changed, store the update.  Think through the potential
-            # race conditions here, in particular.  CAS failures, restarts, etc.
-            if should_store_again:
-                await self.store.compare_and_set(
-                    memkey, existing.encode(), existing_enc
-                )
+            existing.returns.add(new_return)
+            await self.store.compare_and_set(memkey, existing.encode(), existing_enc)
+            return should_schedule
 
-            logger.debug(f"{adj} pending return {new_return} {verb} {call_hash}")
-
-        await self._with_cas(cas_body)
+        return await self._with_cas(cas_body)
 
     async def with_pending_returns_remove(
         self, call_hash: str, f: Callable[[Iterable[str]], Awaitable[None]]
