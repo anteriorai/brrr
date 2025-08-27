@@ -11,7 +11,6 @@ import {
   deepStrictEqual,
   doesNotReject,
   ok,
-  rejects,
   strictEqual,
 } from "node:assert/strict";
 import {
@@ -111,6 +110,43 @@ await suite(import.meta.filename, async () => {
 
       before(() => {
         mock.timers.enable(mockTimersOptions);
+      });
+
+      await test("simple cases to document & test shouldSchedule", async () => {
+        const hash = "some-hash";
+        const base = "root/parent/topic";
+
+        const cases = [
+          // base case
+          [[hash, base], true],
+          // same one, shouldn't schedule again
+          [[hash, base], false],
+          // different root, should schedule - it's a retry
+          [[hash, "different-root/parent/topic"], true],
+          // new callHash, new PR, should schedule
+          [["different-hash", base], true],
+          // continuation, shouldn't schedule again
+          [[hash, "root/parent/different-topic"], false],
+          [[hash, "root/different-parent/topic"], false],
+          [[hash, "root/different-parent/different-topic"], false],
+        ] as const;
+
+        for (const [args, shouldSchedule] of cases) {
+          strictEqual(
+            await memory.addPendingReturns(args[0], args[1]),
+            shouldSchedule,
+          );
+        }
+
+        // ensure all returns are stored
+        const encoded = await store.get({
+          type: "pending_returns",
+          callHash: hash,
+        });
+        deepStrictEqual(
+          PendingReturns.decode(encoded!).returns,
+          new Set(cases.map((it) => it[0][1])),
+        );
       });
 
       await test("First-time call triggers schedule and stores return", async () => {
