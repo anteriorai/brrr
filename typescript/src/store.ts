@@ -5,7 +5,7 @@ import type { Encoding } from "node:crypto";
 import { CasRetryLimitReachedError, NotFoundError } from "./errors.ts";
 
 export interface PendingReturnsPayload {
-  readonly scheduled_at: number;
+  readonly scheduled_at: number | undefined;
   readonly returns: Buffer[];
 }
 
@@ -50,6 +50,9 @@ export interface MemKey {
 }
 
 export interface Store {
+  /**
+   * Check if the store has a value for the given key.
+   */
   has(key: MemKey): Promise<boolean>;
 
   /**
@@ -57,6 +60,9 @@ export interface Store {
    */
   get(key: MemKey): Promise<Uint8Array | undefined>;
 
+  /**
+   * Set the value for the given key.
+   */
   set(key: MemKey, value: Uint8Array): Promise<void>;
 
   /**
@@ -64,18 +70,33 @@ export interface Store {
    */
   delete(key: MemKey): Promise<boolean>;
 
-  setNewValue(key: MemKey, value: Uint8Array): Promise<void>;
+  /**
+   * Set a new value for the given key.
+   * Returns true if the value was set, false if the key already exists.
+   */
+  setNewValue(key: MemKey, value: Uint8Array): Promise<boolean>;
 
+  /**
+   * Compare and set a value for the given key.
+   * Returns true if the value was set, false if the expected value did not match.
+   */
   compareAndSet(
     key: MemKey,
     value: Uint8Array,
     expected: Uint8Array,
-  ): Promise<void>;
+  ): Promise<boolean>;
 
-  compareAndDelete(key: MemKey, expected: Uint8Array): Promise<void>;
+  /**
+   * Compare and delete a value for the given key.
+   * Returns true if the value was deleted, false if the expected value did not match.
+   */
+  compareAndDelete(key: MemKey, expected: Uint8Array): Promise<boolean>;
 }
 
 export interface Cache {
+  /**
+   * Increment the value for the given key.
+   */
   incr(key: string): Promise<number>;
 }
 
@@ -132,11 +153,10 @@ export class Memory {
   }
 
   public async getValue(callHash: string): Promise<Uint8Array | undefined> {
-    const value = this.store.get({
+    return this.store.get({
       type: "value",
       callHash,
     });
-    if (!value) {}
   }
 
   public async setValue(callHash: string, payload: Uint8Array): Promise<void> {
@@ -220,13 +240,22 @@ export class Memory {
     throw new CasRetryLimitReachedError(Memory.casRetryLimit);
   }
 
+  // TODO: migrate to bencode
   private isRepeatedCall(newReturn: string, existingReturn: string): boolean {
-    const [newRoot, newParent, newTopic, ...rest] = newReturn.split("/");
-    if (!newRoot || !newParent || !newTopic || rest.length) {
+    const [newRoot, newParent, newTopic, ...newRest] = newReturn.split("/");
+    if (!newRoot || !newParent || !newTopic || newRest.length) {
       throw new Error(`Invalid return address: ${newReturn}`);
     }
-    const [existingRoot, existingParent, existingTopic] =
+    const [existingRoot, existingParent, existingTopic, ...existingRest] =
       existingReturn.split("/");
+    if (
+      !existingRoot ||
+      !existingParent ||
+      !existingTopic ||
+      existingRest.length
+    ) {
+      throw new Error(`Invalid return address: ${existingReturn}`);
+    }
     return (
       newRoot !== existingRoot &&
       newParent === existingParent &&
