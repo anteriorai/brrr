@@ -115,6 +115,7 @@ await suite(import.meta.filename, async () => {
       await test("simple cases to document & test shouldSchedule", async () => {
         const hash = "some-hash";
         const base = "root/parent/topic";
+
         const cases = [
           // base case
           [[hash, base], true],
@@ -136,6 +137,16 @@ await suite(import.meta.filename, async () => {
             shouldSchedule,
           );
         }
+
+        // ensure all returns are stored
+        const encoded = await store.get({
+          type: "pending_returns",
+          callHash: hash,
+        });
+        deepStrictEqual(
+          PendingReturns.decode(encoded!).returns,
+          new Set(cases.map((it) => it[0][1])),
+        );
       });
 
       await test("First-time call triggers schedule and stores return", async () => {
