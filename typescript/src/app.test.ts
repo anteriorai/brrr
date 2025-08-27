@@ -8,6 +8,7 @@ import type { Call } from "./call.ts";
 import { NotFoundError } from "./errors.ts";
 import { ok, rejects } from "node:assert/strict";
 import { LocalBrrr } from "./local-app.ts";
+import type { Cache, Store } from "./store.ts";
 
 const codec = new NaiveJsonCodec();
 const topic = "brrr-test";
@@ -17,8 +18,8 @@ const subtopics = {
   t3: "t3",
 } as const;
 
-let store: InMemoryStore;
-let cache: InMemoryCache;
+let store: Store;
+let cache: Cache;
 let server: Server;
 
 // Test tasks
