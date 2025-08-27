@@ -1,16 +1,24 @@
 import asyncio
-from collections import Counter
 import dataclasses
 import typing
+from collections import Counter
 from typing import cast
 
-from brrr.local_app import local_app, LocalBrrr
-import pytest
-
 import brrr
-from brrr import ActiveWorker, AppWorker, AppConsumer
+import pytest
+from brrr import (
+    ActiveWorker,
+    AppConsumer,
+    AppWorker,
+    Connection,
+    Defer,
+    DeferredCall,
+    NotFoundError,
+    Request,
+    Response,
+)
 from brrr.backends.in_memory import InMemoryByteStore, InMemoryQueue
-from brrr import Connection, Defer, DeferredCall, NotFoundError, Request, Response
+from brrr.local_app import LocalBrrr, local_app
 from brrr.pickle_codec import PickleCodec
 
 from .parametrize import names
