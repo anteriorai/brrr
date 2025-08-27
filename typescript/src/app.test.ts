@@ -1,12 +1,6 @@
 import { beforeEach, suite, test } from "node:test";
 import { strictEqual } from "node:assert";
-import {
-  type ActiveWorker,
-  AppConsumer,
-  AppWorker,
-  type Handlers,
-  taskFn,
-} from "./app.ts";
+import { type ActiveWorker, AppConsumer, AppWorker, type Handlers, taskFn, } from "./app.ts";
 import { Server } from "./connection.ts";
 import { InMemoryCache, InMemoryStore } from "./backends/in-memory.ts";
 import { NaiveJsonCodec } from "./naive-json-codec.ts";
@@ -210,28 +204,24 @@ await suite(import.meta.filename, async () => {
     return done;
   });
 
-  await test(
-    "topics separate app separate connection",
-    { only: true },
-    async () => {
-      const server1 = new Server(store, cache, emitter);
-      const server2 = new Server(store, cache, emitter);
-      const app1 = new AppWorker(codec, server1, {
-        one: taskFn(one),
-      });
-      const app2 = new AppWorker(codec, server2, { two });
+  await test("topics separate app separate connection", async () => {
+    const server1 = new Server(store, cache, emitter);
+    const server2 = new Server(store, cache, emitter);
+    const app1 = new AppWorker(codec, server1, {
+      one: taskFn(one),
+    });
+    const app2 = new AppWorker(codec, server2, { two });
 
-      server1.listen(subtopics.t1, app1.handle);
-      server2.listen(subtopics.t2, app2.handle);
+    server1.listen(subtopics.t1, app1.handle);
+    server2.listen(subtopics.t2, app2.handle);
 
-      const call = await codec.encodeCall("two", [7]);
+    const call = await codec.encodeCall("two", [7]);
 
-      const done = waitForDone(app2, call);
+    const done = waitForDone(app2, call);
 
-      await app2.schedule(two, subtopics.t2)(7);
-      return done;
-    },
-  );
+    await app2.schedule(two, subtopics.t2)(7);
+    return done;
+  });
 
   await test("topics same app", async () => {
     const app = new AppWorker(codec, server, {
@@ -321,34 +311,6 @@ await suite(import.meta.filename, async () => {
 
     deepStrictEqual(Object.fromEntries(calls), { one: 50, foo: 51 });
   });
-
-  // await test("app loop resumable", { only: true }, async () => {
-  //   let errors = 5;
-  //
-  //   class MyError extends Error {
-  //   }
-  //
-  //   async function foo(a: number): Promise<number> {
-  //     if (errors) {
-  //       errors--;
-  //       throw new MyError();
-  //     }
-  //     return a;
-  //   }
-  //
-  //   const app = new AppWorker(codec, server, { foo: taskFn(foo) });
-  //
-  //   const call = await codec.encodeCall("foo", [3])
-  //
-  //   server.listen(topic, app.handle)
-  //
-  //   const done = waitForDone(app, call, async () => {
-  //     strictEqual(errors, 0);
-  //   })
-  //
-  //   await app.schedule(foo, topic)(3);
-  //   return done
-  // });
 
   await test("app handler names", async () => {
     function foo(a: number): number {
