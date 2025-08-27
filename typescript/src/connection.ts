@@ -33,7 +33,7 @@ type RequestHandler = (
 export class Connection {
   public readonly cache: Cache;
   public readonly memory: Memory;
-  public readonly emitter;
+  public readonly emitter: Emitter;
   public readonly spawnLimit = 10_000;
 
   public constructor(store: Store, cache: Cache, emitter: Emitter) {
