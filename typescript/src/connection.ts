@@ -1,8 +1,8 @@
 import type { Call } from "./call.ts";
 import { type Cache, Memory, type Store } from "./store.ts";
-import { SpawnLimitError, } from "./errors.ts";
+import { SpawnLimitError } from "./errors.ts";
 import { randomUUID } from "node:crypto";
-import { EventEmitter } from "node:events";
+import type { Emitter } from "./emitter.ts";
 
 export interface DeferredCall {
   readonly topic: string | undefined;
@@ -33,19 +33,20 @@ type RequestHandler = (
 export class Connection {
   public readonly cache: Cache;
   public readonly memory: Memory;
-  public readonly emitter = new EventEmitter()
+  public readonly emitter;
   public readonly spawnLimit = 10_000;
 
-  public constructor(store: Store, cache: Cache) {
+  public constructor(store: Store, cache: Cache, emitter: Emitter) {
     this.cache = cache;
     this.memory = new Memory(store);
+    this.emitter = emitter;
   }
 
   public async putJob(topic: string, job: ScheduleMessage): Promise<void> {
     if ((await this.cache.incr(`brrr_count/${job.rootId}`)) > this.spawnLimit) {
       throw new SpawnLimitError(this.spawnLimit, job.rootId, job.callHash);
     }
-    this.emitter.emit(topic, `${rootId}/${callHash}`)
+    this.emitter.emit(topic, `${rootId}/${callHash}`);
   }
 
   public async scheduleRaw(
@@ -68,15 +69,15 @@ export class Connection {
 }
 
 export class Server extends Connection {
-  public constructor(store: Store, cache: Cache) {
-    super(store, cache);
+  public constructor(store: Store, cache: Cache, emitter: Emitter) {
+    super(store, cache, emitter);
   }
 
   public listen(topic: string, handler: RequestHandler) {
-    this.emitter.on(topic, async (callId: string) => {
+    this.emitter.on(topic, async (callId: string): Promise<void> => {
       const result = await this.handleMessage(handler, topic, callId);
       if (result) {
-        this.emitter.emit('done', result)
+        this.emitter.emit("done", result);
       }
     });
   }
@@ -100,7 +101,7 @@ export class Server extends Connection {
     const callHash = child.call.callHash;
     const shouldSchedule = await this.memory.addPendingReturns(
       callHash,
-      `${topic}/${parentKey}`
+      `${topic}/${parentKey}`,
     );
     if (shouldSchedule) {
       await this.putJob(child.topic || topic, callHash, rootId);
@@ -139,6 +140,6 @@ export class Server extends Connection {
         throw spawnLimitError;
       }
     });
-    return call
+    return call;
   }
 }

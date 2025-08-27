@@ -1,20 +1,11 @@
 import type { Call } from "./call.ts";
-import { BrrrTaskDoneEventSymbol } from "./symbol.ts";
 
-export interface Publisher {
-  emit(topic: string, callId: string): Promise<void>;
+export interface Emitter {
+  on(event: "done", listener: (call: Call) => void): this;
 
-  emitEventSymbol?(
-    event: typeof BrrrTaskDoneEventSymbol,
-    call: Call,
-  ): Promise<void>;
-}
+  on(event: string, listener: (callId: string) => void): this;
 
-export interface Subscriber {
-  on(topic: string, listener: (callId: string) => void): void;
+  emit(event: "done", call: Call): boolean;
 
-  onEventSymbol?(
-    event: typeof BrrrTaskDoneEventSymbol,
-    listener: (call: Call) => void,
-  ): void;
+  emit(event: string, callId: string): boolean;
 }
