@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+import functools
 from abc import abstractmethod
+from collections import UserDict
 from collections.abc import (
     Awaitable,
     Callable,
     Mapping,
     Sequence,
 )
-from collections import UserDict
-import functools
 from typing import Any, Concatenate, Protocol, overload
 
 from brrr.store import NotFoundError

@@ -1,6 +1,6 @@
-from collections import Counter
 import dataclasses
 import pickle
+from collections import Counter
 from typing import Any
 from unittest.mock import Mock, call
 
@@ -9,7 +9,6 @@ from brrr.app import ActiveWorker
 from brrr.call import Call
 from brrr.local_app import LocalBrrr
 from brrr.pickle_codec import PickleCodec
-
 
 TOPIC = "test"
 

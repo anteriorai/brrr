@@ -1,12 +1,12 @@
+import functools
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
-import functools
 from typing import Awaitable, Callable
 
 from .app import AppWorker, WrappedTask, WrappedTaskT
 from .backends.in_memory import InMemoryByteStore, InMemoryQueue
-from .connection import Server, serve
 from .codec import Codec
+from .connection import Server, serve
 
 
 class LocalApp:

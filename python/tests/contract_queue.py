@@ -1,9 +1,8 @@
-from collections.abc import AsyncIterator, Sequence
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 
 import pytest
-
 from brrr.queue import Queue, QueueIsEmpty
 
 
