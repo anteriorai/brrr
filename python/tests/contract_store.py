@@ -288,20 +288,52 @@ class MemoryContract(ByteStoreContract):
 
             await memory.with_pending_returns_remove("key", body)
 
-            assert await memory.add_pending_return("key", "a/b/p1")
-            assert await memory.add_pending_return("key", "c/b/p1")
-            assert not await memory.add_pending_return("key", "c/d/p2")
+            call_hash = "key"
+            base = "root/parent/topic"
+
+            # base case
+            assert await memory.add_pending_return(call_hash, base)
+            # same one, shouldn't schedule again
+            assert not await memory.add_pending_return(call_hash, base)
+            # different root, should schedule - it's a retry
+            assert await memory.add_pending_return(
+                call_hash, "different-root/parent/topic"
+            )
+            # new callHash, new PR, should schedule
+            assert await memory.add_pending_return("different-hash", base)
+            # continuation, shouldn't schedule again
+            assert not await memory.add_pending_return(
+                call_hash, "root/parent/different-topic"
+            )
+            assert not await memory.add_pending_return(
+                call_hash, "root/different-parent/topic"
+            )
+            assert not await memory.add_pending_return(
+                call_hash, "root/different-parent/different-topic"
+            )
 
             with pytest.raises(FakeError):
 
                 async def body(keys) -> None:
-                    assert set(keys) == {"a/b/p1", "c/b/p1", "c/d/p2"}
+                    assert set(keys) == {
+                        "root/parent/topic",
+                        "different-root/parent/topic",
+                        "root/different-parent/topic",
+                        "root/parent/different-topic",
+                        "root/different-parent/different-topic",
+                    }
                     raise FakeError()
 
                 await memory.with_pending_returns_remove("key", body)
 
             async def body2(keys) -> None:
-                assert set(keys) == {"a/b/p1", "c/b/p1", "c/d/p2"}
+                assert set(keys) == {
+                    "root/parent/topic",
+                    "different-root/parent/topic",
+                    "root/different-parent/topic",
+                    "root/parent/different-topic",
+                    "root/different-parent/different-topic",
+                }
 
             await memory.with_pending_returns_remove("key", body2)
 
