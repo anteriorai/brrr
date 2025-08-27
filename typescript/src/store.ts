@@ -2,7 +2,7 @@ import type { Call } from "./call.ts";
 import { bencoder } from "./bencode.ts";
 import { TextDecoder } from "node:util";
 import type { Encoding } from "node:crypto";
-import { NotFoundError } from "./errors.ts";
+import { CasRetryLimitReachedError, NotFoundError } from "./errors.ts";
 
 export interface PendingReturnsPayload {
   readonly scheduled_at: number | undefined;
@@ -166,6 +166,100 @@ export class Memory {
         callHash,
       },
       payload,
+    );
+  }
+
+  public async addPendingReturns(
+    callHash: string,
+    newReturn: string,
+  ): Promise<boolean> {
+    const memKey: MemKey = {
+      type: "pending_returns",
+      callHash,
+    };
+    let shouldSchedule = false;
+    await this.withCas(async () => {
+      let existingEncoded = await this.store.get(memKey);
+      let existing: PendingReturns;
+      if (existingEncoded) {
+        existing = PendingReturns.decode(existingEncoded);
+      } else {
+        existing = new PendingReturns(Math.floor(Date.now() / 1000), new Set());
+        existingEncoded = existing.encode();
+        if (!(await this.store.setNewValue(memKey, existingEncoded))) {
+          return false;
+        }
+        shouldSchedule = true;
+      }
+      shouldSchedule ||= existing.returns
+        .values()
+        .some((it) => this.isRepeatedCall(it, newReturn));
+      const newReturns = new PendingReturns(
+        existing.scheduledAt,
+        existing.returns.union(new Set([newReturn])),
+      );
+      return this.store.compareAndSet(
+        memKey,
+        newReturns.encode(),
+        existingEncoded,
+      );
+    });
+    return shouldSchedule;
+  }
+
+  public async withPendingReturnsRemove(
+    callHash: string,
+    f: (returns: ReadonlySet<string>) => Promise<void>,
+  ) {
+    const memKey: MemKey = {
+      type: "pending_returns",
+      callHash,
+    };
+    const handled = new Set<string>();
+    return this.withCas(async () => {
+      const pendingEncoded = await this.store.get(memKey);
+      if (!pendingEncoded) {
+        return true;
+      }
+      const toHandle =
+        PendingReturns.decode(pendingEncoded).returns.difference(handled);
+      await f(toHandle);
+      for (const it of toHandle) {
+        handled.add(it);
+      }
+      return this.store.compareAndDelete(memKey, pendingEncoded);
+    });
+  }
+
+  private async withCas(f: () => Promise<boolean>): Promise<void> {
+    for (let i = 0; i < Memory.casRetryLimit; i++) {
+      if (await f()) {
+        return;
+      }
+    }
+    throw new CasRetryLimitReachedError(Memory.casRetryLimit);
+  }
+
+  // TODO: migrate to bencode
+  private isRepeatedCall(newReturn: string, existingReturn: string): boolean {
+    const [newRoot, newParent, newTopic, ...newRest] = newReturn.split("/");
+    if (!newRoot || !newParent || !newTopic || newRest.length) {
+      throw new Error(`Invalid return address: ${newReturn}`);
+    }
+    const [existingRoot, existingParent, existingTopic, ...existingRest] =
+      existingReturn.split("/");
+    if (
+      !existingRoot ||
+      !existingParent ||
+      !existingTopic ||
+      existingRest.length
+    ) {
+      throw new Error(`Invalid return address: ${existingReturn}`);
+    }
+    return (
+      newRoot !== existingRoot &&
+      newParent === existingParent &&
+      newTopic === existingTopic
     );
   }
 }
