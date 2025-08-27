@@ -351,37 +351,28 @@ await suite(import.meta.filename, async () => {
     deepStrictEqual(Object.fromEntries(calls), { one: 50, foo: 51 });
   });
 
-  // await test("app loop resumable", async () => {
-  //   let errors = 5;
-  //
-  //   class MyError extends Error {
-  //   }
-  //
-  //   async function foo(a: number): Promise<number> {
-  //     if (errors) {
-  //       errors--;
-  //       throw new MyError();
-  //     }
-  //     return a;
-  //   }
-  //
-  //   const app = new AppWorker(codec, server, { foo: taskFn(foo) });
-  //
-  //   while (true) {
-  //     try {
-  //       await app.schedule(foo, topic)(3);
-  //       server.listen(topic, app.handle)
-  //       break;
-  //     } catch (err) {
-  //       if (err instanceof MyError) {
-  //         continue;
-  //       }
-  //       throw err;
-  //     }
-  //   }
-  //   strictEqual(errors, 0);
-  // });
-  //
+  await test("app loop resumable", {only: true}, async () => {
+    let errors = 5;
+
+    class MyError extends Error {
+    }
+
+    async function foo(a: number): Promise<number> {
+      if (errors) {
+        errors--;
+        throw new MyError();
+      }
+      return a;
+    }
+
+    const app = new AppWorker(codec, server, { foo: taskFn(foo) });
+
+    server.listen(topic, app.handle)
+    await app.schedule(foo, topic)(3);
+
+    strictEqual(errors, 0);
+  });
+
   await test("app handler names", async () => {
     function foo(a: number): number {
       return a * a;
@@ -399,9 +390,15 @@ await suite(import.meta.filename, async () => {
       "quux/bar": bar,
     });
     const localApp = new LocalApp(topic, server, worker);
+    localApp.run();
+
+    const call = await codec.encodeCall("quux/bar", [4])
+    const done = waitForDone(localApp.app, call, async () => {
+      strictEqual(await localApp.read("quux/zim")(4), 16);
+      strictEqual(await localApp.read(foo)(4), 16);
+    })
+
     await localApp.schedule("quux/bar")(4);
-    await localApp.run();
-    strictEqual(await localApp.read("quux/zim")(4), 16);
-    strictEqual(await localApp.read(foo)(4), 16);
+    return done
   });
 });
