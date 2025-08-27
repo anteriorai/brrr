@@ -476,6 +476,44 @@ async def test_app_loop_resumable() -> None:
     assert errors == 0
 
 
+async def test_app_loop_resumable_nested() -> None:
+    store = InMemoryByteStore()
+    queue = InMemoryQueue([TOPIC])
+    queue.flush()
+
+    errors = 5
+
+    class MyError(Exception):
+        pass
+
+    @brrr.handler_no_arg
+    async def bar(a: int) -> int:
+        nonlocal errors
+        if errors:
+            errors -= 1
+            raise MyError("retry")
+        return a
+
+    @brrr.handler
+    async def foo(app: ActiveWorker, a: int) -> int:
+        return await app.call(bar)(a)
+
+    async with brrr.serve(queue, store, store) as conn:
+        app = AppWorker(
+            handlers=dict(foo=foo, bar=bar), codec=PickleCodec(), connection=conn
+        )
+        while True:
+            try:
+                await app.schedule(foo, topic=TOPIC)(3)
+                await conn.loop(TOPIC, app.handle)
+                break
+            except MyError:
+                continue
+
+    await queue.join()
+    assert errors == 0
+
+
 async def test_app_handler_names() -> None:
     @brrr.handler_no_arg
     async def foo(a: int) -> int:

@@ -1,4 +1,3 @@
-import functools
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -289,27 +288,52 @@ class MemoryContract(ByteStoreContract):
 
             await memory.with_pending_returns_remove("key", body)
 
-            calls = set()
+            call_hash = "key"
+            base = "root/parent/topic"
 
-            async def callback(x) -> None:
-                calls.add(x)
-
-            await memory.add_pending_return("key", "p1", functools.partial(callback, 1))
-            await memory.add_pending_return("key", "p2", functools.partial(callback, 2))
-            await memory.add_pending_return("key", "p2", functools.partial(callback, 3))
-
-            assert calls == {1}
+            # base case
+            assert await memory.add_pending_return(call_hash, base)
+            # same one, shouldn't schedule again
+            assert not await memory.add_pending_return(call_hash, base)
+            # different root, should schedule - it's a retry
+            assert await memory.add_pending_return(
+                call_hash, "different-root/parent/topic"
+            )
+            # new callHash, new PR, should schedule
+            assert await memory.add_pending_return("different-hash", base)
+            # continuation, shouldn't schedule again
+            assert not await memory.add_pending_return(
+                call_hash, "root/parent/different-topic"
+            )
+            assert not await memory.add_pending_return(
+                call_hash, "root/different-parent/topic"
+            )
+            assert not await memory.add_pending_return(
+                call_hash, "root/different-parent/different-topic"
+            )
 
             with pytest.raises(FakeError):
 
                 async def body(keys) -> None:
-                    assert set(keys) == {"p1", "p2"}
+                    assert set(keys) == {
+                        "root/parent/topic",
+                        "different-root/parent/topic",
+                        "root/different-parent/topic",
+                        "root/parent/different-topic",
+                        "root/different-parent/different-topic",
+                    }
                     raise FakeError()
 
                 await memory.with_pending_returns_remove("key", body)
 
             async def body2(keys) -> None:
-                assert set(keys) == {"p1", "p2"}
+                assert set(keys) == {
+                    "root/parent/topic",
+                    "different-root/parent/topic",
+                    "root/different-parent/topic",
+                    "root/parent/different-topic",
+                    "root/different-parent/different-topic",
+                }
 
             await memory.with_pending_returns_remove("key", body2)
 
