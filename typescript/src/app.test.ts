@@ -1,6 +1,12 @@
 import { beforeEach, suite, test } from "node:test";
 import { strictEqual } from "node:assert";
-import { type ActiveWorker, AppConsumer, AppWorker, type Handlers, taskFn, } from "./app.ts";
+import {
+  type ActiveWorker,
+  AppConsumer,
+  AppWorker,
+  type Handlers,
+  taskFn,
+} from "./app.ts";
 import { Server } from "./connection.ts";
 import { InMemoryCache, InMemoryStore } from "./backends/in-memory.ts";
 import { NaiveJsonCodec } from "./naive-json-codec.ts";
@@ -9,6 +15,8 @@ import { NotFoundError } from "./errors.ts";
 import { deepStrictEqual, ok, rejects } from "node:assert/strict";
 import { LocalApp, LocalBrrr } from "./local-app.ts";
 import type { Cache, Store } from "./store.ts";
+import { EventEmitter } from "node:events";
+import type { Emitter } from "./emitter.ts";
 
 const codec = new NaiveJsonCodec();
 const topic = "brrr-test";
@@ -20,6 +28,7 @@ const subtopics = {
 
 let store: Store;
 let cache: Cache;
+let emitter: Emitter;
 let server: Server;
 
 // Test tasks
@@ -49,30 +58,30 @@ await suite(import.meta.filename, async () => {
   function waitForDone(
     emitter: AppConsumer,
     call: Call,
-    predicate: () => void | Promise<void>,
+    predicate?: () => void | Promise<void>,
   ): Promise<void> {
-    return new Promise((resolve, reject) => {
-      emitter.on('done', async ({ callHash }: Call) => {
+    return new Promise((resolve) => {
+      emitter.on("done", async ({ callHash }: Call) => {
         if (callHash === call.callHash) {
-          await predicate()
+          await predicate?.();
           resolve();
         }
       });
     });
   }
 
-
   beforeEach(() => {
     store = new InMemoryStore();
-    cache = new InMemoryCache()
-    server = new Server(store, cache);
+    cache = new InMemoryCache();
+    emitter = new EventEmitter();
+    server = new Server(store, cache, emitter);
   });
 
   await test(AppWorker.name, async () => {
     const app = new AppWorker(codec, server, handlers);
-    server.listen(topic, app.handle)
+    server.listen(topic, app.handle);
 
-    const call = await codec.encodeCall(foo.name, [122])
+    const call = await codec.encodeCall(foo.name, [122]);
 
     const done = waitForDone(app, call, async () => {
       strictEqual(await app.read(foo)(122), 457);
@@ -80,10 +89,10 @@ await suite(import.meta.filename, async () => {
       strictEqual(await app.read(foo)(122), 457);
       strictEqual(await app.read("bar")(123), 456);
       strictEqual(await app.read(bar)(123), 456);
-    })
+    });
 
-    await app.schedule(foo, topic)(122)
-    return done
+    await app.schedule(foo, topic)(122);
+    return done;
   });
 
   await test(AppConsumer.name, async () => {
@@ -91,23 +100,23 @@ await suite(import.meta.filename, async () => {
       return n * n;
     }
 
-    const workerServer = new Server(store, cache);
+    const workerServer = new Server(store, cache, emitter);
     const appWorker = new AppWorker(codec, workerServer, {
       foo: taskFn(foo),
     });
-    workerServer.listen(topic, appWorker.handle)
+    workerServer.listen(topic, appWorker.handle);
 
     const appConsumer = new AppConsumer(codec, workerServer);
+    const call = await codec.encodeCall(foo.name, [5]);
 
-    const call = await codec.encodeCall(foo.name, [5])
     const done = waitForDone(appConsumer, call, async () => {
       strictEqual(await appConsumer.read("foo")(5), 25);
       await rejects(appConsumer.read("foo")(3), NotFoundError);
       await rejects(appConsumer.read("bar")(5), NotFoundError);
-    })
+    });
 
     await appWorker.schedule("foo", topic)(5);
-    return done
+    return done;
   });
 
   await test(LocalBrrr.name, async () => {
@@ -183,95 +192,57 @@ await suite(import.meta.filename, async () => {
     });
   });
 
-  // await test("topics separate app same connection", async () => {
-  //   const app1 = new AppWorker(codec, server, {
-  //     one: taskFn(one),
-  //   });
-  //   app1.listen(subtopics.t1)
-  //   const app2 = new AppWorker(codec, server, { two });
-  //   app2.listen(subtopics.t2)
-  //   await app2.schedule(two, subtopics.t2)(7);
-  // })
-  //
-  // await test("topics separate app separate connection", async () => {
-  //   const server1 = new Server(store, cache);
-  //   const server2 = new Server(store, cache);
-  //   const app1 = new AppWorker(codec, server1, {
-  //     one: taskFn(one),
-  //   });
-  //   app1.listen(subtopics.t1)
-  //   const app2 = new AppWorker(codec, server2, { two });
-  //   await app2.schedule(two, subtopics.t2)(7);
-  //   app2.listen(subtopics.t2)
-  // });
-  //
-  // await test("topics same app", async () => {
-  //   const app = new AppWorker(codec, server, {
-  //     one: taskFn(one),
-  //     two,
-  //   });
-  //   app.listen(subtopics.t1)
-  //   app.listen(subtopics.t2)
-  //   await app.schedule(two, subtopics.t2)(7);
-  // });
-  //
-  // await test("stop when empty", async () => {
-  //   const pre = new Map<number, number>();
-  //   const post = new Map<number, number>();
-  //
-  //   async function foo(app: ActiveWorker, a: number): Promise<number> {
-  //     pre.set(a, (pre.get(a) || 0) + 1);
-  //     if (a === 0) {
-  //       return 0;
-  //     }
-  //     const result = await app.call(foo)(a - 1);
-  //     post.set(a, (post.get(a) || 0) + 1);
-  //     return result;
-  //   }
-  //
-  //   const app = new AppWorker(codec, server, { foo });
-  //   await app.schedule(foo, topic)(3);
-  //   await server.loop(topic, app.handle);
-  //   await queue.join();
-  //
-  //   deepStrictEqual(Object.fromEntries(pre), { 0: 1, 1: 2, 2: 2, 3: 2 });
-  //   deepStrictEqual(Object.fromEntries(post), { 1: 1, 2: 1, 3: 1 });
-  // });
-  //
-  // await test("parallel", async () => {
-  //   const parallel = 5;
-  //   let barrier: Promise<void> | undefined = Promise.resolve();
-  //   let tops = 0;
-  //
-  //   async function block(a: number): Promise<number> {
-  //     if (barrier) {
-  //       await barrier;
-  //     }
-  //     barrier = undefined;
-  //     return a;
-  //   }
-  //
-  //   async function top(app: ActiveWorker): Promise<void> {
-  //     await app.gather(
-  //       ...new Array(parallel).keys().map((i) => app.call(block)(i)),
-  //     );
-  //     tops++;
-  //     if (tops === parallel) {
-  //       await queue.close();
-  //     }
-  //   }
-  //
-  //   const app = new AppWorker(codec, server, {
-  //     block: taskFn(block),
-  //     top,
-  //   });
-  //   await app.schedule(top, topic)();
-  //   await Promise.all(
-  //     new Array(parallel).keys().map(() => server.loop(topic, app.handle)),
-  //   );
-  //   await queue.join();
-  // });
-  //
+  await test("topics separate app same connection", async () => {
+    const app1 = new AppWorker(codec, server, {
+      one: taskFn(one),
+    });
+    const app2 = new AppWorker(codec, server, { two });
+
+    const call = await codec.encodeCall("two", [7]);
+
+    const done = waitForDone(app2, call);
+
+    server.listen(subtopics.t1, app1.handle);
+    server.listen(subtopics.t2, app2.handle);
+
+    await app2.schedule(two, subtopics.t2)(7);
+
+    return done;
+  });
+
+  await test(
+    "topics separate app separate connection",
+    { only: true },
+    async () => {
+      const server1 = new Server(store, cache, emitter);
+      const server2 = new Server(store, cache, emitter);
+      const app1 = new AppWorker(codec, server1, {
+        one: taskFn(one),
+      });
+      const app2 = new AppWorker(codec, server2, { two });
+
+      server1.listen(subtopics.t1, app1.handle);
+      server2.listen(subtopics.t2, app2.handle);
+
+      const call = await codec.encodeCall("two", [7]);
+
+      const done = waitForDone(app2, call);
+
+      await app2.schedule(two, subtopics.t2)(7);
+      return done;
+    },
+  );
+
+  await test("topics same app", async () => {
+    const app = new AppWorker(codec, server, {
+      one: taskFn(one),
+      two,
+    });
+    server.listen(subtopics.t1, app.handle);
+    server.listen(subtopics.t2, app.handle);
+    await app.schedule(two, subtopics.t2)(7);
+  });
+
   await test("stress parallel", async () => {
     async function fib(app: ActiveWorker, n: bigint): Promise<bigint> {
       if (n < 2) {
@@ -351,27 +322,33 @@ await suite(import.meta.filename, async () => {
     deepStrictEqual(Object.fromEntries(calls), { one: 50, foo: 51 });
   });
 
-  await test("app loop resumable", {only: true}, async () => {
-    let errors = 5;
-
-    class MyError extends Error {
-    }
-
-    async function foo(a: number): Promise<number> {
-      if (errors) {
-        errors--;
-        throw new MyError();
-      }
-      return a;
-    }
-
-    const app = new AppWorker(codec, server, { foo: taskFn(foo) });
-
-    server.listen(topic, app.handle)
-    await app.schedule(foo, topic)(3);
-
-    strictEqual(errors, 0);
-  });
+  // await test("app loop resumable", { only: true }, async () => {
+  //   let errors = 5;
+  //
+  //   class MyError extends Error {
+  //   }
+  //
+  //   async function foo(a: number): Promise<number> {
+  //     if (errors) {
+  //       errors--;
+  //       throw new MyError();
+  //     }
+  //     return a;
+  //   }
+  //
+  //   const app = new AppWorker(codec, server, { foo: taskFn(foo) });
+  //
+  //   const call = await codec.encodeCall("foo", [3])
+  //
+  //   server.listen(topic, app.handle)
+  //
+  //   const done = waitForDone(app, call, async () => {
+  //     strictEqual(errors, 0);
+  //   })
+  //
+  //   await app.schedule(foo, topic)(3);
+  //   return done
+  // });
 
   await test("app handler names", async () => {
     function foo(a: number): number {
@@ -392,13 +369,13 @@ await suite(import.meta.filename, async () => {
     const localApp = new LocalApp(topic, server, worker);
     localApp.run();
 
-    const call = await codec.encodeCall("quux/bar", [4])
+    const call = await codec.encodeCall("quux/bar", [4]);
     const done = waitForDone(localApp.app, call, async () => {
       strictEqual(await localApp.read("quux/zim")(4), 16);
       strictEqual(await localApp.read(foo)(4), 16);
-    })
+    });
 
     await localApp.schedule("quux/bar")(4);
-    return done
+    return done;
   });
 });

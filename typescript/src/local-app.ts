@@ -10,6 +10,7 @@ import {
 import type { Codec } from "./codec.ts";
 import { InMemoryCache, InMemoryStore } from "./backends/in-memory.ts";
 import { NotFoundError } from "./errors.ts";
+import { EventEmitter } from "node:events";
 
 export class LocalApp {
   public readonly topic: string;
@@ -18,11 +19,7 @@ export class LocalApp {
 
   private hasRun = false;
 
-  public constructor(
-    topic: string,
-    server: Server,
-    app: AppWorker,
-  ) {
+  public constructor(topic: string, server: Server, app: AppWorker) {
     this.topic = topic;
     this.server = server;
     this.app = app;
@@ -45,7 +42,7 @@ export class LocalApp {
       throw new Error("LocalApp has already been run");
     }
     this.hasRun = true;
-    this.server.listen(this.topic, this.app.handle)
+    this.server.listen(this.topic, this.app.handle);
   }
 }
 
@@ -63,7 +60,8 @@ export class LocalBrrr {
   public run<A extends unknown[], R>(taskIdentifier: TaskIdentifier<A, R>) {
     const store = new InMemoryStore();
     const cache = new InMemoryCache();
-    const server = new Server(store, cache);
+    const emitter = new EventEmitter();
+    const server = new Server(store, cache, emitter);
     const worker = new AppWorker(this.codec, server, this.handlers);
     const localApp = new LocalApp(this.topic, server, worker);
     const taskName = taskIdentifierToName(taskIdentifier, this.handlers);
@@ -71,21 +69,21 @@ export class LocalBrrr {
       localApp.run();
       await localApp.schedule(taskName)(...args);
       const call = await this.codec.encodeCall(taskName, args);
-      return new Promise(resolve => {
-        localApp.app.on('done', async ({ callHash }) => {
+      return new Promise((resolve) => {
+        localApp.app.on("done", async ({ callHash }) => {
           if (callHash === call.callHash) {
             const payload = await server.readRaw(callHash);
             if (!payload) {
               throw new NotFoundError({
                 type: "value",
                 callHash,
-              })
+              });
             }
             const result = this.codec.decodeReturn(taskName, payload) as R;
             resolve(result);
           }
-        })
-      })
+        });
+      });
     };
   }
 }

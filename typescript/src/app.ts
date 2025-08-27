@@ -1,4 +1,10 @@
-import { type Connection, Defer, type DeferredCall, type Request, type Response, } from "./connection.ts";
+import {
+  type Connection,
+  Defer,
+  type DeferredCall,
+  type Request,
+  type Response,
+} from "./connection.ts";
 import type { Codec } from "./codec.ts";
 import { NotFoundError, TaskNotFoundError } from "./errors.ts";
 import type { Call } from "./call.ts";
@@ -8,9 +14,9 @@ export type Task<A extends unknown[] = any[], R = any> = (
 ) => R;
 
 export type StripLeadingActiveWorker<A extends unknown[]> = A extends [
-    ActiveWorker,
-    ...infer Rest,
-  ]
+  ActiveWorker,
+  ...infer Rest,
+]
   ? Rest
   : A;
 
@@ -73,7 +79,7 @@ export class AppConsumer {
     this.handlers = handlers;
   }
 
-  public on(event: 'done', callback: (call: Call) => void): void
+  public on(event: "done", callback: (call: Call) => void): void;
   public on(event: string, callback: (...args: any[]) => void): void {
     this.connection.emitter.on(event, callback);
   }
@@ -105,7 +111,7 @@ export class AppConsumer {
         throw new NotFoundError({
           type: "value",
           callHash: call.callHash,
-        })
+        });
       }
       return this.codec.decodeReturn(taskName, payload) as R;
     };
@@ -160,7 +166,7 @@ export class ActiveWorker {
       const call = await this.codec.encodeCall(taskName, args);
       const payload = await this.connection.memory.getValue(call.callHash);
       if (!payload) {
-        throw new Defer({ topic, call })
+        throw new Defer({ topic, call });
       }
       return this.codec.decodeReturn(taskName, payload) as R;
     };
