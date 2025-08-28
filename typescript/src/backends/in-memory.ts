@@ -84,6 +84,7 @@ export class InMemoryCache implements Cache {
 
 export class InMemoryEmitter implements Publisher, Subscriber {
   private readonly emitter = new EventEmitter();
+  private readonly eventEmitter = new EventEmitter();
 
   public on(
     event: typeof BrrrTaskDoneEventSymbol | string,
@@ -93,10 +94,25 @@ export class InMemoryEmitter implements Publisher, Subscriber {
     return this;
   }
 
+  public onEvent(
+    event: typeof BrrrTaskDoneEventSymbol,
+    listener: (call: Call) => void,
+  ): this {
+    this.eventEmitter.on(event, listener);
+    return this;
+  }
+
   public async emit(
     event: typeof BrrrTaskDoneEventSymbol | string,
     arg: Call | string,
   ): Promise<void> {
     this.emitter.emit(event, arg);
+  }
+
+  public async emitEvent(
+    event: typeof BrrrTaskDoneEventSymbol,
+    call: Call,
+  ): Promise<void> {
+    this.eventEmitter.emit(event, call);
   }
 }

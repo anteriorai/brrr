@@ -15,7 +15,6 @@ import {
 } from "./backends/in-memory.ts";
 import { NotFoundError } from "./errors.ts";
 import { BrrrTaskDoneEventSymbol } from "./symbol.ts";
-import type { Publisher, Subscriber } from "./emitter.ts";
 
 export class LocalApp {
   public readonly topic: string;
@@ -65,7 +64,7 @@ export class LocalBrrr {
   public run<A extends unknown[], R>(taskIdentifier: TaskIdentifier<A, R>) {
     const store = new InMemoryStore();
     const cache = new InMemoryCache();
-    const emitter: Publisher & Subscriber = new InMemoryEmitter();
+    const emitter = new InMemoryEmitter();
     const server = new SubscriberServer(store, cache, emitter);
     const worker = new AppWorker(this.codec, server, this.handlers);
     const localApp = new LocalApp(this.topic, server, worker);
@@ -75,7 +74,7 @@ export class LocalBrrr {
       await localApp.schedule(taskName)(...args);
       const call = await this.codec.encodeCall(taskName, args);
       return new Promise((resolve) => {
-        emitter.on(BrrrTaskDoneEventSymbol, async ({ callHash }) => {
+        emitter.onEvent(BrrrTaskDoneEventSymbol, async ({ callHash }) => {
           if (callHash === call.callHash) {
             const payload = await server.readRaw(callHash);
             if (!payload) {
