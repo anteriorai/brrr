@@ -4,10 +4,10 @@ import { cacheContractTest, storeContractTest } from "../store.test.ts";
 
 await suite(import.meta.filename, async () => {
   await test(InMemoryStore.name, async () => {
-    await storeContractTest(() => new InMemoryStore());
+    await storeContractTest(async () => new InMemoryStore());
   });
 
   await test(InMemoryCache.name, async () => {
-    await cacheContractTest(() => new InMemoryCache());
+    await cacheContractTest(async () => new InMemoryCache());
   });
 });
