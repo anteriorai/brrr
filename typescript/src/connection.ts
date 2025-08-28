@@ -84,7 +84,7 @@ export class Server extends Connection {
       }
       const call = await this.handleMessage(handler, topic, message);
       if (call) {
-        await this.emitter.emitEvent(BrrrTaskDoneEventSymbol, call);
+        await this.emitter.emitEventSymbol(BrrrTaskDoneEventSymbol, call);
       }
     }
   }
@@ -168,7 +168,7 @@ export class SubscriberServer extends Server {
     this.emitter.on(topic, async (callId: string): Promise<void> => {
       const result = await this.handleMessage(handler, topic, callId);
       if (result) {
-        await this.emitter.emitEvent(BrrrTaskDoneEventSymbol, result);
+        await this.emitter.emitEventSymbol(BrrrTaskDoneEventSymbol, result);
       }
     });
   }

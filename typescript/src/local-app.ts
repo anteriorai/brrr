@@ -74,7 +74,7 @@ export class LocalBrrr {
       await localApp.schedule(taskName)(...args);
       const call = await this.codec.encodeCall(taskName, args);
       return new Promise((resolve) => {
-        emitter.onEvent(BrrrTaskDoneEventSymbol, async ({ callHash }) => {
+        emitter.onEventSymbol(BrrrTaskDoneEventSymbol, async ({ callHash }) => {
           if (callHash === call.callHash) {
             const payload = await server.readRaw(callHash);
             if (!payload) {
