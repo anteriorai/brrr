@@ -131,7 +131,7 @@ export class Server extends Connection {
   }
 
   private async scheduleReturnCall(addr: string): Promise<void> {
-    const [topic, rootId, parentKey] = addr.split("/") as [
+    const [rootId, parentKey, topic] = addr.split("/") as [
       string,
       string,
       string,
@@ -149,7 +149,7 @@ export class Server extends Connection {
     const callHash = child.call.callHash;
     const shouldSchedule = await this.memory.addPendingReturns(
       callHash,
-      `${topic}/${parentKey}`,
+      `${parentKey}/${topic}`,
     );
     if (shouldSchedule) {
       await this.putJob(child.topic || topic, callHash, rootId);
