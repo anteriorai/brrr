@@ -208,6 +208,10 @@
                     inherit self;
                     dynamodb-module = self.nixosModules.dynamodb;
                   };
+                  typescriptIntegration = pkgs.callPackage ./nix/brrr-typescript-integration.test.nix {
+                    inherit self;
+                    dynamodb-module = self.nixosModules.dynamodb;
+                  };
                 }
                 // brrrpy.brrr.tests
                 // import ./nix/brrr-demo.test.nix {
@@ -290,16 +294,18 @@
                         # Lol
                         command = ''
                           (
-                                              : "''${AWS_DEFAULT_REGION=fake}"
-                                              export AWS_DEFAULT_REGION
-                                              : "''${AWS_ENDPOINT_URL=http://localhost:8000}"
-                                              export AWS_ENDPOINT_URL
-                                              : "''${AWS_ACCESS_KEY_ID=fake}"
-                                              export AWS_ACCESS_KEY_ID
-                                              : "''${AWS_SECRET_ACCESS_KEY=fake}"
-                                              export AWS_SECRET_ACCESS_KEY
-                                              exec pytest "$@"
-                                            )'';
+                            : "''${AWS_DEFAULT_REGION=fake}"
+                            export AWS_DEFAULT_REGION
+                            : "''${AWS_ENDPOINT_URL=http://localhost:8000}"
+                            export AWS_ENDPOINT_URL
+                            : "''${AWS_ACCESS_KEY_ID=fake}"
+                            export AWS_ACCESS_KEY_ID
+                            : "''${AWS_SECRET_ACCESS_KEY=fake}"
+                            export AWS_SECRET_ACCESS_KEY
+                            : "''${BRRR_TEST_REDIS_URL=redis://localhost:6379}"
+                            export BRRR_TEST_REDIS_URL
+                            exec pytest "$@"
+                          )'';
                       }
                       # Always build aarch64-linux
                       {
@@ -339,6 +345,25 @@
                         command = ''
                           npm run test
                         '';
+                      }
+                      {
+                        name = "brrr-test-all";
+                        category = "test";
+                        help = "Tests including dependencies, make sure to run brrr-demo-deps";
+                        command = ''
+                          (
+                            : "''${AWS_DEFAULT_REGION=fake}"
+                            export AWS_DEFAULT_REGION
+                            : "''${AWS_ENDPOINT_URL=http://localhost:8000}"
+                            export AWS_ENDPOINT_URL
+                            : "''${AWS_ACCESS_KEY_ID=fake}"
+                            export AWS_ACCESS_KEY_ID
+                            : "''${AWS_SECRET_ACCESS_KEY=fake}"
+                            export AWS_SECRET_ACCESS_KEY
+                            : "''${BRRR_TEST_REDIS_URL=redis://localhost:6379}"
+                            export BRRR_TEST_REDIS_URL
+                            exec npm run test:integration
+                          )'';
                       }
                     ] ++ sharedCommands;
                   };

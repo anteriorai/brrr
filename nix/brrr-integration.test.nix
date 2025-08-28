@@ -21,26 +21,14 @@
   dynamodb-module,
 }:
 
+let
+  common = import ./brrr-integration-common.nix { inherit dynamodb-module; };
+in
+
 pkgs.testers.runNixOSTest {
   name = "brrr-integration";
+  globalTimeout = common.globalTimeout;
 
-  nodes.datastores =
-    { config, pkgs, ... }:
-    {
-      imports = [ dynamodb-module ];
-      services.redis.servers.main = {
-        enable = true;
-        port = 6379;
-        openFirewall = true;
-        bind = null;
-        logLevel = "notice";
-        settings.protected-mode = "no";
-      };
-      services.dynamodb = {
-        enable = true;
-        openFirewall = true;
-      };
-    };
   nodes.tester =
     {
       lib,
@@ -52,13 +40,7 @@ pkgs.testers.runNixOSTest {
       test-brrr = pkgs.writeShellApplication {
         name = "test-brrr";
         runtimeInputs = [ self.packages.${pkgs.system}.brrr-venv-test ];
-        runtimeEnv = {
-          AWS_DEFAULT_REGION = "us-east-1";
-          AWS_ENDPOINT_URL = "http://datastores:8000";
-          AWS_ACCESS_KEY_ID = "fake";
-          AWS_SECRET_ACCESS_KEY = "fake";
-          BRRR_TEST_REDIS_URL = "redis://datastores:6379";
-        };
+        runtimeEnv = common.runtimeEnv;
         text = ''
           pytest ${self.packages.${pkgs.system}.brrr.src}
         '';
@@ -68,11 +50,9 @@ pkgs.testers.runNixOSTest {
       environment.systemPackages = [ test-brrr ];
     };
 
-  globalTimeout = 5 * 60;
-
-  testScript = ''
-    datastores.wait_for_unit("default.target")
-    tester.wait_for_unit("default.target")
-    tester.wait_until_succeeds("test-brrr")
-  '';
+  testScript =
+    common.testScript
+    + ''
+      tester.wait_until_succeeds("test-brrr-python")
+    '';
 }
