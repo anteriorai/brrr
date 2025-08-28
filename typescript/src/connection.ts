@@ -49,18 +49,13 @@ export class Connection {
     this.emitter.emit(topic, `${rootId}/${callHash}`);
   }
 
-  public async scheduleRaw(
-    topic: string,
-    callHash: string,
-    taskName: string,
-    payload: Uint8Array,
-  ): Promise<void> {
-    if (await this.memory.hasValue(callHash)) {
+  public async scheduleRaw(topic: string, call: Call): Promise<void> {
+    if (await this.memory.hasValue(call.callHash)) {
       return;
     }
-    await this.memory.setCall({ taskName, payload, callHash });
+    await this.memory.setCall(call);
     const rootId = randomUUID().replaceAll("-", "");
-    await this.putJob(topic, callHash, rootId);
+    await this.putJob(topic, call.callHash, rootId);
   }
 
   public async readRaw(callHash: string): Promise<Uint8Array | undefined> {
