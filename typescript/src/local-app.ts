@@ -11,6 +11,7 @@ import type { Codec } from "./codec.ts";
 import { InMemoryCache, InMemoryEmitter, InMemoryStore } from "./backends/in-memory.ts";
 import { NotFoundError } from "./errors.ts";
 import { EventEmitter } from "node:events";
+import { brrrDoneSymbol } from "./symbol.ts";
 
 export class LocalApp {
   public readonly topic: string;
@@ -70,7 +71,7 @@ export class LocalBrrr {
       await localApp.schedule(taskName)(...args);
       const call = await this.codec.encodeCall(taskName, args);
       return new Promise((resolve) => {
-        localApp.app.on("done", async ({ callHash }) => {
+        localApp.app.on(brrrDoneSymbol, async ({ callHash }) => {
           if (callHash === call.callHash) {
             const payload = await server.readRaw(callHash);
             if (!payload) {
