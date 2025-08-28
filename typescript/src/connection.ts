@@ -2,8 +2,8 @@ import type { Call } from "./call.ts";
 import { type Cache, Memory, type Store } from "./store.ts";
 import { SpawnLimitError } from "./errors.ts";
 import { randomUUID } from "node:crypto";
-import type { Emitter } from "./emitter.ts";
-import { BrrrTaskDoneEventSymbol } from "./symbol.ts";
+import type { Publisher, Subscriber } from "./emitter.ts";
+import { BrrrShutdownSymbol, BrrrTaskDoneEventSymbol } from "./symbol.ts";
 
 export interface DeferredCall {
   readonly topic: string | undefined;
@@ -34,10 +34,10 @@ type RequestHandler = (
 export class Connection {
   public readonly cache: Cache;
   public readonly memory: Memory;
-  public readonly emitter: Emitter;
+  public readonly emitter: Publisher;
   public readonly spawnLimit = 10_000;
 
-  public constructor(store: Store, cache: Cache, emitter: Emitter) {
+  public constructor(store: Store, cache: Cache, emitter: Publisher) {
     this.cache = cache;
     this.memory = new Memory(store);
     this.emitter = emitter;
@@ -65,17 +65,24 @@ export class Connection {
 }
 
 export class Server extends Connection {
-  public constructor(store: Store, cache: Cache, emitter: Emitter) {
+  public constructor(store: Store, cache: Cache, emitter: Publisher) {
     super(store, cache, emitter);
   }
 
-  public listen(topic: string, handler: RequestHandler) {
-    this.emitter.on(topic, async (callId: string): Promise<void> => {
-      const result = await this.handleMessage(handler, topic, callId);
-      if (result) {
-        await this.emitter.emit(BrrrTaskDoneEventSymbol, result);
+  public async loop(topic: string, handler: RequestHandler, getMessage: () => Promise<string | typeof BrrrShutdownSymbol | undefined>) {
+    while (true) {
+      const message = await getMessage()
+      if (!message) {
+        continue;
       }
-    });
+      if (message === BrrrShutdownSymbol) {
+        break;
+      }
+      const call = await this.handleMessage(handler, topic, message);
+      if (call) {
+        await this.emitter.emit(BrrrTaskDoneEventSymbol, call);
+      }
+    }
   }
 
   private async scheduleReturnCall(addr: string): Promise<void> {
@@ -104,7 +111,7 @@ export class Server extends Connection {
     }
   }
 
-  private async handleMessage(
+  protected async handleMessage(
     requestHandler: RequestHandler,
     topic: string,
     callId: string,
@@ -138,5 +145,23 @@ export class Server extends Connection {
       }
     });
     return call;
+  }
+}
+
+export class SubscriberServer extends Server {
+  public override readonly emitter: Publisher & Subscriber
+
+  public constructor(store: Store, cache: Cache, emitter: Publisher & Subscriber) {
+    super(store, cache, emitter);
+    this.emitter = emitter as Publisher & Subscriber;
+  }
+
+  public listen(topic: string, handler: RequestHandler) {
+    this.emitter.on(topic, async (callId: string): Promise<void> => {
+      const result = await this.handleMessage(handler, topic, callId);
+      if (result) {
+        await this.emitter.emit(BrrrTaskDoneEventSymbol, result);
+      }
+    });
   }
 }
