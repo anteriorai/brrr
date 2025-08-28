@@ -152,6 +152,9 @@
               inherit (inputs) package-lock2nix;
               inherit nodejs;
             };
+            integrationCommon = import ./nix/brrr-integration-common.nix {
+              dynamodb-module = self.nixosModules.dynamodb;
+            };
           in
           {
             config = {
@@ -207,10 +210,12 @@
                   pytestIntegration = pkgs.callPackage ./nix/brrr-integration.test.nix {
                     inherit self;
                     dynamodb-module = self.nixosModules.dynamodb;
+                    common = integrationCommon;
                   };
                   typescriptIntegration = pkgs.callPackage ./nix/brrr-typescript-integration.test.nix {
                     inherit self;
                     dynamodb-module = self.nixosModules.dynamodb;
+                    common = integrationCommon;
                   };
                 }
                 // brrrpy.brrr.tests

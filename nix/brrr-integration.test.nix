@@ -19,11 +19,8 @@
   self,
   pkgs,
   dynamodb-module,
+  common,
 }:
-
-let
-  common = import ./brrr-integration-common.nix { inherit dynamodb-module; };
-in
 
 pkgs.testers.runNixOSTest {
   name = "brrr-integration";
