@@ -84,34 +84,8 @@ export class Server extends Connection {
       }
       const call = await this.handleMessage(handler, topic, message);
       if (call) {
-        await this.emitter.emit(BrrrTaskDoneEventSymbol, call);
+        await this.emitter.emitEvent(BrrrTaskDoneEventSymbol, call);
       }
-    }
-  }
-
-  private async scheduleReturnCall(addr: string): Promise<void> {
-    const [topic, rootId, parentKey] = addr.split("/") as [
-      string,
-      string,
-      string,
-    ];
-    await this.putJob(topic, parentKey, rootId);
-  }
-
-  private async scheduleCallNested(
-    topic: string,
-    child: DeferredCall,
-    rootId: string,
-    parentKey: string,
-  ): Promise<void> {
-    await this.memory.setCall(child.call);
-    const callHash = child.call.callHash;
-    const shouldSchedule = await this.memory.addPendingReturns(
-      callHash,
-      `${topic}/${parentKey}`,
-    );
-    if (shouldSchedule) {
-      await this.putJob(child.topic || topic, callHash, rootId);
     }
   }
 
@@ -150,6 +124,32 @@ export class Server extends Connection {
     });
     return call;
   }
+
+  private async scheduleReturnCall(addr: string): Promise<void> {
+    const [topic, rootId, parentKey] = addr.split("/") as [
+      string,
+      string,
+      string,
+    ];
+    await this.putJob(topic, parentKey, rootId);
+  }
+
+  private async scheduleCallNested(
+    topic: string,
+    child: DeferredCall,
+    rootId: string,
+    parentKey: string,
+  ): Promise<void> {
+    await this.memory.setCall(child.call);
+    const callHash = child.call.callHash;
+    const shouldSchedule = await this.memory.addPendingReturns(
+      callHash,
+      `${topic}/${parentKey}`,
+    );
+    if (shouldSchedule) {
+      await this.putJob(child.topic || topic, callHash, rootId);
+    }
+  }
 }
 
 export class SubscriberServer extends Server {
@@ -168,7 +168,7 @@ export class SubscriberServer extends Server {
     this.emitter.on(topic, async (callId: string): Promise<void> => {
       const result = await this.handleMessage(handler, topic, callId);
       if (result) {
-        await this.emitter.emit(BrrrTaskDoneEventSymbol, result);
+        await this.emitter.emitEvent(BrrrTaskDoneEventSymbol, result);
       }
     });
   }

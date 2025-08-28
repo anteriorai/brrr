@@ -7,8 +7,7 @@ import {
 } from "./connection.ts";
 import type { Codec } from "./codec.ts";
 import { NotFoundError, TaskNotFoundError } from "./errors.ts";
-import type { Call } from "./call.ts";
-import { BrrrTaskDoneEventSymbol, BrrrTaskSymbol } from "./symbol.ts";
+import { BrrrTaskSymbol } from "./symbol.ts";
 
 export type Task<A extends unknown[] = any[], R = any> = ((
   ...args: [ActiveWorker, ...A]
