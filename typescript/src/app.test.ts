@@ -61,12 +61,15 @@ const handlers: Handlers = {
 await suite(import.meta.filename, async () => {
   function waitFor(call: Call, predicate?: () => Promise<void>): Promise<void> {
     return new Promise((resolve) => {
-      emitter.onEvent(BrrrTaskDoneEventSymbol, async ({ callHash }: Call) => {
-        if (callHash === call.callHash) {
-          await predicate?.();
-          resolve();
-        }
-      });
+      emitter.onEventSymbol(
+        BrrrTaskDoneEventSymbol,
+        async ({ callHash }: Call) => {
+          if (callHash === call.callHash) {
+            await predicate?.();
+            resolve();
+          }
+        },
+      );
     });
   }
 

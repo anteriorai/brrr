@@ -94,7 +94,7 @@ export class InMemoryEmitter implements Publisher, Subscriber {
     return this;
   }
 
-  public onEvent(
+  public onEventSymbol(
     event: typeof BrrrTaskDoneEventSymbol,
     listener: (call: Call) => void,
   ): this {
@@ -109,7 +109,7 @@ export class InMemoryEmitter implements Publisher, Subscriber {
     this.emitter.emit(event, arg);
   }
 
-  public async emitEvent(
+  public async emitEventSymbol(
     event: typeof BrrrTaskDoneEventSymbol,
     call: Call,
   ): Promise<void> {

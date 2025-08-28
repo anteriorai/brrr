@@ -4,7 +4,7 @@ import { BrrrTaskDoneEventSymbol } from "./symbol.ts";
 export abstract class Publisher {
   public abstract emit(topic: string, callId: string): Promise<void>;
 
-  public async emitEvent(
+  public async emitEventSymbol(
     event: typeof BrrrTaskDoneEventSymbol,
     call: Call,
   ): Promise<void> {}
@@ -13,7 +13,7 @@ export abstract class Publisher {
 export abstract class Subscriber {
   abstract on(topic: string, listener: (callId: string) => void): this;
 
-  public onEvent(
+  public onEventSymbol(
     event: typeof BrrrTaskDoneEventSymbol,
     listener: (call: Call) => void,
   ): this {
