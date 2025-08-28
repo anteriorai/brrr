@@ -9,9 +9,13 @@ import type { Codec } from "./codec.ts";
 import { NotFoundError, TaskNotFoundError } from "./errors.ts";
 import type { Call } from "./call.ts";
 
-export type Task<A extends unknown[] = any[], R = any> = (
+const brrrTaskSymbol = Symbol("brrr.task");
+
+export type Task<A extends unknown[] = any[], R = any> = ((
   ...args: [ActiveWorker, ...A]
-) => R;
+) => R) & {
+  [brrrTaskSymbol]?: (...args: A) => R;
+};
 
 export type StripLeadingActiveWorker<A extends unknown[]> = A extends [
   ActiveWorker,
@@ -30,34 +34,26 @@ export type TaskIdentifier<A extends unknown[], R> =
   | ((...args: A) => R | Promise<R>)
   | string;
 
-const taskIdentifierSymbol = Symbol("brrr.taskIdentifier");
-
-export function taskIdentifierToName<A extends unknown[], R>(
-  identifier: TaskIdentifier<A, R>,
+export function taskIdentifierToName(
+  identifier: TaskIdentifier<any[], any>,
   handlers: Handlers,
 ): string {
   if (typeof identifier === "string") {
     return identifier;
   }
   for (const [name, handler] of Object.entries(handlers)) {
-    if (
-      taskIdentifierSymbol in handler &&
-      handler[taskIdentifierSymbol] === identifier
-    ) {
-      return name;
-    }
-    if (handler === (identifier as unknown as Task)) {
+    if (handler[brrrTaskSymbol] === identifier || handler === identifier) {
       return name;
     }
   }
-  throw new TaskNotFoundError(`Task not found: ${identifier.name}`);
+  throw new TaskNotFoundError(identifier.name);
 }
 
 export function taskFn<A extends unknown[], R>(
   fn: (...args: A) => R,
 ): Task<A, R> {
   const task: Task<A, R> = (_: ActiveWorker, ...args: A): R => fn(...args);
-  return Object.defineProperty(task, taskIdentifierSymbol, {
+  return Object.defineProperty(task, brrrTaskSymbol, {
     value: fn,
     writable: false,
     configurable: false,
@@ -91,12 +87,7 @@ export class AppConsumer {
     const taskName = taskIdentifierToName(taskIdentifier, this.handlers);
     return async (...args: StripLeadingActiveWorker<A>) => {
       const call = await this.codec.encodeCall(taskName, args);
-      await this.connection.scheduleRaw(
-        topic,
-        call.callHash,
-        taskName,
-        call.payload,
-      );
+      await this.connection.scheduleRaw(topic, call);
     };
   }
 
