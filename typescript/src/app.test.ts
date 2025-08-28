@@ -8,7 +8,11 @@ import {
   taskFn,
 } from "./app.ts";
 import { Server } from "./connection.ts";
-import { InMemoryCache, InMemoryEmitter, InMemoryStore } from "./backends/in-memory.ts";
+import {
+  InMemoryCache,
+  InMemoryEmitter,
+  InMemoryStore,
+} from "./backends/in-memory.ts";
 import { NaiveJsonCodec } from "./naive-json-codec.ts";
 import type { Call } from "./call.ts";
 import { NotFoundError } from "./errors.ts";
@@ -55,11 +59,7 @@ const handlers: Handlers = {
 };
 
 await suite(import.meta.filename, async () => {
-  function waitForDone(
-    emitter: AppConsumer,
-    call: Call,
-    predicate?: () => void | Promise<void>,
-  ): Promise<void> {
+  function waitFor(call: Call, predicate?: () => Promise<void>): Promise<void> {
     return new Promise((resolve) => {
       emitter.on(BrrrTaskDoneEventSymbol, async ({ callHash }: Call) => {
         if (callHash === call.callHash) {
@@ -83,7 +83,7 @@ await suite(import.meta.filename, async () => {
 
     const call = await codec.encodeCall(foo.name, [122]);
 
-    const done = waitForDone(app, call, async () => {
+    const done = waitFor(call, async () => {
       strictEqual(await app.read(foo)(122), 457);
       strictEqual(await app.read("foo")(122), 457);
       strictEqual(await app.read(foo)(122), 457);
@@ -109,7 +109,7 @@ await suite(import.meta.filename, async () => {
     const appConsumer = new AppConsumer(codec, workerServer);
     const call = await codec.encodeCall(foo.name, [5]);
 
-    const done = waitForDone(appConsumer, call, async () => {
+    const done = waitFor(call, async () => {
       strictEqual(await appConsumer.read("foo")(5), 25);
       await rejects(appConsumer.read("foo")(3), NotFoundError);
       await rejects(appConsumer.read("bar")(5), NotFoundError);
@@ -200,7 +200,7 @@ await suite(import.meta.filename, async () => {
 
     const call = await codec.encodeCall("two", [7]);
 
-    const done = waitForDone(app2, call);
+    const done = waitFor(call);
 
     server.listen(subtopics.t1, app1.handle);
     server.listen(subtopics.t2, app2.handle);
@@ -223,7 +223,7 @@ await suite(import.meta.filename, async () => {
 
     const call = await codec.encodeCall("two", [7]);
 
-    const done = waitForDone(app2, call);
+    const done = waitFor(call);
 
     await app2.schedule(two, subtopics.t2)(7);
     return done;
@@ -338,7 +338,7 @@ await suite(import.meta.filename, async () => {
     localApp.run();
 
     const call = await codec.encodeCall("quux/bar", [4]);
-    const done = waitForDone(localApp.app, call, async () => {
+    const done = waitFor(call, async () => {
       strictEqual(await localApp.read("quux/zim")(4), 16);
       strictEqual(await localApp.read(foo)(4), 16);
     });

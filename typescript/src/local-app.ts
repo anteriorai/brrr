@@ -8,7 +8,11 @@ import {
   taskIdentifierToName,
 } from "./app.ts";
 import type { Codec } from "./codec.ts";
-import { InMemoryCache, InMemoryEmitter, InMemoryStore } from "./backends/in-memory.ts";
+import {
+  InMemoryCache,
+  InMemoryEmitter,
+  InMemoryStore,
+} from "./backends/in-memory.ts";
 import { NotFoundError } from "./errors.ts";
 import { BrrrTaskDoneEventSymbol } from "./symbol.ts";
 
