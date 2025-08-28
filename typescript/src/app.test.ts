@@ -341,9 +341,8 @@ await suite(import.meta.filename, async () => {
   });
 
   await suite("loop mode", async () => {
-    const queues: Record<string, (string | typeof BrrrShutdownSymbol)[]> = {
-      [topic]: [],
-    };
+    let queues: Record<string, (string | typeof BrrrShutdownSymbol)[]>
+    let server: Server
 
     class CustomPublisher extends Publisher {
       async emit(topic: string, callId: string | Call,): Promise<void> {
@@ -351,9 +350,10 @@ await suite(import.meta.filename, async () => {
       }
     }
 
-    let server: Server
-
     beforeEach(() => {
+      queues = {
+        [topic]: [],
+      };
       server = new Server(store, cache, new CustomPublisher());
     });
 
@@ -464,7 +464,7 @@ await suite(import.meta.filename, async () => {
       strictEqual(errors, 0)
     })
 
-    await test("spawn limit recoverable", { only: true }, async () => {
+    await test("spawn limit recoverable", async () => {
       function one(_: number): number {
         return 1
       }
@@ -476,6 +476,7 @@ await suite(import.meta.filename, async () => {
         return results.reduce((sum, val) => sum + val);
       }
 
+      const server = new Server(store, cache, new CustomPublisher());
       // override for test
       Object.defineProperty(server, 'spawnLimit', {
         value: 100
