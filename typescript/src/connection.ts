@@ -128,6 +128,7 @@ export class Server extends Connection {
         } catch (err) {
           if (err instanceof SpawnLimitError) {
             spawnLimitError = err;
+            continue;
           }
         }
       }
