@@ -1,5 +1,15 @@
-import { CreateTableCommand, DeleteTableCommand, type DynamoDBClient, } from "@aws-sdk/client-dynamodb";
-import { DeleteCommand, DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, } from "@aws-sdk/lib-dynamodb";
+import {
+  CreateTableCommand,
+  DeleteTableCommand,
+  type DynamoDBClient,
+} from "@aws-sdk/client-dynamodb";
+import {
+  DeleteCommand,
+  DynamoDBDocumentClient,
+  GetCommand,
+  PutCommand,
+  UpdateCommand,
+} from "@aws-sdk/lib-dynamodb";
 import type { MemKey, Store } from "../store.ts";
 import type { NativeAttributeValue } from "@aws-sdk/util-dynamodb";
 
@@ -68,13 +78,13 @@ export class Dynamo implements Store {
           ExpressionAttributeValues: { ":value": value },
         }),
       );
-      return true
+      return true;
     } catch (err) {
       if (
         err instanceof Error &&
         err?.name === "ConditionalCheckFailedException"
       ) {
-        return false
+        return false;
       }
       throw err;
     }
@@ -99,13 +109,13 @@ export class Dynamo implements Store {
           },
         }),
       );
-      return true
+      return true;
     } catch (err: unknown) {
       if (
         err instanceof Error &&
         err.name === "ConditionalCheckFailedException"
       ) {
-        return false
+        return false;
       }
       throw err;
     }
@@ -126,13 +136,13 @@ export class Dynamo implements Store {
           ExpressionAttributeValues: { ":expected": expected },
         }),
       );
-      return true
+      return true;
     } catch (err: unknown) {
       if (
         err instanceof Error &&
         err.name === "ConditionalCheckFailedException"
       ) {
-        return false
+        return false;
       }
       throw err;
     }
