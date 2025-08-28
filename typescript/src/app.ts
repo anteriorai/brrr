@@ -1,9 +1,14 @@
-import { type Connection, Defer, type DeferredCall, type Request, type Response, } from "./connection.ts";
+import {
+  type Connection,
+  Defer,
+  type DeferredCall,
+  type Request,
+  type Response,
+} from "./connection.ts";
 import type { Codec } from "./codec.ts";
 import { NotFoundError, TaskNotFoundError } from "./errors.ts";
 import type { Call } from "./call.ts";
 import { BrrrTaskDoneEventSymbol, BrrrTaskSymbol } from "./symbol.ts";
-
 
 export type Task<A extends unknown[] = any[], R = any> = ((
   ...args: [ActiveWorker, ...A]
@@ -12,9 +17,9 @@ export type Task<A extends unknown[] = any[], R = any> = ((
 };
 
 export type StripLeadingActiveWorker<A extends unknown[]> = A extends [
-    ActiveWorker,
-    ...infer Rest,
-  ]
+  ActiveWorker,
+  ...infer Rest,
+]
   ? Rest
   : A;
 
@@ -69,7 +74,10 @@ export class AppConsumer {
     this.handlers = handlers;
   }
 
-  public on(event: typeof BrrrTaskDoneEventSymbol, callback: (call: Call) => void): void {
+  public on(
+    event: typeof BrrrTaskDoneEventSymbol,
+    callback: (call: Call) => void,
+  ): void {
     this.connection.emitter.on(event, callback);
   }
 
