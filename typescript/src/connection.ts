@@ -78,21 +78,6 @@ export class Server extends Connection {
     });
   }
 
-  public loop(topic: string, get: () => Promise<string | undefined>, handler: RequestHandler) {
-    return new Promise(async (resolve) => {
-      while (true) {
-        const callId = await get()
-        if (!callId) {
-          continue
-        }
-        const result = await this.handleMessage(handler, topic, callId);
-        if (result) {
-          await this.emitter.emit(BrrrTaskDoneEventSymbol, result);
-        }
-      }
-    })
-  }
-
   private async scheduleReturnCall(addr: string): Promise<void> {
     const [topic, rootId, parentKey] = addr.split("/") as [
       string,
