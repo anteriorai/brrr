@@ -1,8 +1,18 @@
 import { beforeEach, suite, test } from "node:test";
 import { strictEqual } from "node:assert";
-import { type ActiveWorker, AppConsumer, AppWorker, type Handlers, taskFn, } from "./app.ts";
+import {
+  type ActiveWorker,
+  AppConsumer,
+  AppWorker,
+  type Handlers,
+  taskFn,
+} from "./app.ts";
 import { Server, SubscriberServer } from "./connection.ts";
-import { InMemoryCache, InMemoryEmitter, InMemoryStore, } from "./backends/in-memory.ts";
+import {
+  InMemoryCache,
+  InMemoryEmitter,
+  InMemoryStore,
+} from "./backends/in-memory.ts";
 import { NaiveJsonCodec } from "./naive-json-codec.ts";
 import type { Call } from "./call.ts";
 import { NotFoundError, SpawnLimitError } from "./errors.ts";
@@ -341,11 +351,11 @@ await suite(import.meta.filename, async () => {
   });
 
   await suite("loop mode", async () => {
-    let queues: Record<string, (string | typeof BrrrShutdownSymbol)[]>
-    let server: Server
+    let queues: Record<string, (string | typeof BrrrShutdownSymbol)[]>;
+    let server: Server;
 
     class CustomPublisher extends Publisher {
-      async emit(topic: string, callId: string | Call,): Promise<void> {
+      async emit(topic: string, callId: string | Call): Promise<void> {
         queues[topic]?.push(callId as string);
       }
     }
@@ -388,32 +398,34 @@ await suite(import.meta.filename, async () => {
         return undefined;
       });
 
-      ok(looped)
+      ok(looped);
     });
 
     await test("resumable loop", async () => {
-      class MyError extends Error {
-      }
+      class MyError extends Error {}
 
-      let errors = 5
+      let errors = 5;
 
       async function foo(a: number): Promise<number> {
         if (errors) {
           errors--;
-          throw new MyError()
+          throw new MyError();
         }
         queues[topic]?.push(BrrrShutdownSymbol);
-        return a
+        return a;
       }
 
-      const app = new AppWorker(codec, server, { ...handlers, foo: taskFn(foo) })
+      const app = new AppWorker(codec, server, {
+        ...handlers,
+        foo: taskFn(foo),
+      });
 
       while (true) {
         try {
-          await app.schedule(foo, topic)(3)
+          await app.schedule(foo, topic)(3);
           await server.loop(topic, app.handle, async () => {
             return queues[topic]?.pop();
-          })
+          });
           break;
         } catch (err) {
           if (err instanceof MyError) {
@@ -422,37 +434,40 @@ await suite(import.meta.filename, async () => {
           throw err;
         }
       }
-      strictEqual(errors, 0)
-    })
+      strictEqual(errors, 0);
+    });
 
     await test("resumable loop nested", async () => {
-      class MyError extends Error {
-      }
+      class MyError extends Error {}
 
-      let errors = 5
+      let errors = 5;
 
       function bar(a: number): number {
         if (errors) {
           errors--;
-          throw new MyError()
+          throw new MyError();
         }
-        return a
+        return a;
       }
 
       async function foo(app: ActiveWorker, a: number): Promise<number> {
-        const result = app.call(bar)(a)
+        const result = app.call(bar)(a);
         queues[topic]?.push(BrrrShutdownSymbol);
-        return result
+        return result;
       }
 
-      const app = new AppWorker(codec, server, { ...handlers, foo, bar: taskFn(bar) })
+      const app = new AppWorker(codec, server, {
+        ...handlers,
+        foo,
+        bar: taskFn(bar),
+      });
 
       while (true) {
         try {
-          await app.schedule(foo, topic)(3)
+          await app.schedule(foo, topic)(3);
           await server.loop(topic, app.handle, async () => {
             return queues[topic]?.pop();
-          })
+          });
           break;
         } catch (err) {
           if (err instanceof MyError) {
@@ -461,12 +476,12 @@ await suite(import.meta.filename, async () => {
           throw err;
         }
       }
-      strictEqual(errors, 0)
-    })
+      strictEqual(errors, 0);
+    });
 
     await test("spawn limit recoverable", async () => {
       function one(_: number): number {
-        return 1
+        return 1;
       }
 
       async function foo(app: ActiveWorker, a: number): Promise<number> {
@@ -478,37 +493,37 @@ await suite(import.meta.filename, async () => {
 
       const server = new Server(store, cache, new CustomPublisher());
       // override for test
-      Object.defineProperty(server, 'spawnLimit', {
-        value: 100
-      })
-      const n = server.spawnLimit + 1
-      let spawnLimitEncountered = false
-      const app = new AppWorker(codec, server, { one: taskFn(one), foo, },);
+      Object.defineProperty(server, "spawnLimit", {
+        value: 100,
+      });
+      const n = server.spawnLimit + 1;
+      let spawnLimitEncountered = false;
+      const app = new AppWorker(codec, server, { one: taskFn(one), foo });
       while (true) {
         // reset cache
-        Object.defineProperty(cache, 'cache', {
-          value: new Map()
-        })
+        Object.defineProperty(cache, "cache", {
+          value: new Map(),
+        });
         try {
-          await app.schedule(foo, topic)(n)
+          await app.schedule(foo, topic)(n);
           await server.loop(topic, app.handle, async () => {
-            const item = queues[topic]?.shift()
+            const item = queues[topic]?.shift();
             if (!item) {
-              return BrrrShutdownSymbol
+              return BrrrShutdownSymbol;
             }
             return item;
-          })
+          });
           break;
         } catch (err) {
           if (err instanceof SpawnLimitError) {
-            spawnLimitEncountered = true
-            continue
+            spawnLimitEncountered = true;
+            continue;
           }
-          throw err
+          throw err;
         }
       }
-      ok(spawnLimitEncountered)
-      strictEqual(await app.read(foo)(n), n)
-    })
-  })
+      ok(spawnLimitEncountered);
+      strictEqual(await app.read(foo)(n), n);
+    });
+  });
 });
