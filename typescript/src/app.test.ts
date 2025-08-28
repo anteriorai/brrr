@@ -360,6 +360,14 @@ await suite(import.meta.filename, async () => {
       }
     }
 
+    async function flusher() {
+      const item = queues[topic]?.shift();
+      if (!item) {
+        return BrrrShutdownSymbol;
+      }
+      return item;
+    }
+
     beforeEach(() => {
       queues = {
         [topic]: [],
@@ -369,9 +377,7 @@ await suite(import.meta.filename, async () => {
 
     await test("basic loop", async () => {
       async function foo(app: ActiveWorker, a: number) {
-        const result = (await app.call(bar, topic)(a + 1)) + 1;
-        queues[topic]?.push(BrrrShutdownSymbol);
-        return result;
+        return (await app.call(bar, topic)(a + 1)) + 1;
       }
 
       const server = new Server(store, cache, new CustomPublisher());
@@ -379,9 +385,7 @@ await suite(import.meta.filename, async () => {
 
       await app.schedule(foo, topic)(122);
 
-      await server.loop(topic, app.handle, async () => {
-        return queues[topic]?.pop();
-      });
+      await server.loop(topic, app.handle, flusher);
 
       strictEqual(await app.read(foo)(122), 457);
     });
@@ -451,9 +455,7 @@ await suite(import.meta.filename, async () => {
       }
 
       async function foo(app: ActiveWorker, a: number): Promise<number> {
-        const result = app.call(bar)(a);
-        queues[topic]?.push(BrrrShutdownSymbol);
-        return result;
+        return app.call(bar)(a);
       }
 
       const app = new AppWorker(codec, server, {
@@ -465,9 +467,7 @@ await suite(import.meta.filename, async () => {
       while (true) {
         try {
           await app.schedule(foo, topic)(3);
-          await server.loop(topic, app.handle, async () => {
-            return queues[topic]?.pop();
-          });
+          await server.loop(topic, app.handle, flusher);
           break;
         } catch (err) {
           if (err instanceof MyError) {
@@ -506,13 +506,7 @@ await suite(import.meta.filename, async () => {
         });
         try {
           await app.schedule(foo, topic)(n);
-          await server.loop(topic, app.handle, async () => {
-            const item = queues[topic]?.shift();
-            if (!item) {
-              return BrrrShutdownSymbol;
-            }
-            return item;
-          });
+          await server.loop(topic, app.handle, flusher);
           break;
         } catch (err) {
           if (err instanceof SpawnLimitError) {
