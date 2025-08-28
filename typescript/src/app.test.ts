@@ -1,26 +1,16 @@
 import { beforeEach, suite, test } from "node:test";
 import { strictEqual } from "node:assert";
-import {
-  type ActiveWorker,
-  AppConsumer,
-  AppWorker,
-  type Handlers,
-  taskFn,
-} from "./app.ts";
-import { Server } from "./connection.ts";
-import {
-  InMemoryCache,
-  InMemoryEmitter,
-  InMemoryStore,
-} from "./backends/in-memory.ts";
+import { type ActiveWorker, AppConsumer, AppWorker, type Handlers, taskFn, } from "./app.ts";
+import { SubscriberServer, Server } from "./connection.ts";
+import { InMemoryCache, InMemoryEmitter, InMemoryStore, } from "./backends/in-memory.ts";
 import { NaiveJsonCodec } from "./naive-json-codec.ts";
 import type { Call } from "./call.ts";
 import { NotFoundError } from "./errors.ts";
 import { deepStrictEqual, ok, rejects } from "node:assert/strict";
 import { LocalApp, LocalBrrr } from "./local-app.ts";
 import type { Cache, Store } from "./store.ts";
-import type { Emitter } from "./emitter.ts";
-import { BrrrTaskDoneEventSymbol } from "./symbol.ts";
+import type { Publisher, Subscriber } from "./emitter.ts";
+import { BrrrShutdownSymbol, BrrrTaskDoneEventSymbol } from "./symbol.ts";
 
 const codec = new NaiveJsonCodec();
 const topic = "brrr-test";
@@ -32,8 +22,8 @@ const subtopics = {
 
 let store: Store;
 let cache: Cache;
-let emitter: Emitter;
-let server: Server;
+let emitter: Publisher & Subscriber;
+let server: SubscriberServer;
 
 // Test tasks
 function bar(a: number) {
@@ -74,7 +64,7 @@ await suite(import.meta.filename, async () => {
     store = new InMemoryStore();
     cache = new InMemoryCache();
     emitter = new InMemoryEmitter();
-    server = new Server(store, cache, emitter);
+    server = new SubscriberServer(store, cache, emitter);
   });
 
   await test(AppWorker.name, async () => {
@@ -100,7 +90,7 @@ await suite(import.meta.filename, async () => {
       return n * n;
     }
 
-    const workerServer = new Server(store, cache, emitter);
+    const workerServer = new SubscriberServer(store, cache, emitter);
     const appWorker = new AppWorker(codec, workerServer, {
       foo: taskFn(foo),
     });
@@ -211,8 +201,8 @@ await suite(import.meta.filename, async () => {
   });
 
   await test("topics separate app separate connection", async () => {
-    const server1 = new Server(store, cache, emitter);
-    const server2 = new Server(store, cache, emitter);
+    const server1 = new SubscriberServer(store, cache, emitter);
+    const server2 = new SubscriberServer(store, cache, emitter);
     const app1 = new AppWorker(codec, server1, {
       one: taskFn(one),
     });
@@ -346,4 +336,36 @@ await suite(import.meta.filename, async () => {
     await localApp.schedule("quux/bar")(4);
     return done;
   });
+
+  await test("loop", async () => {
+    const queues: Record<string, (string | typeof BrrrShutdownSymbol)[]> = {
+      [topic]: []
+    }
+
+    const publisher: Publisher = {
+      async emit(topic: string | typeof BrrrTaskDoneEventSymbol, callId: string | Call): Promise<void> {
+        if (typeof topic === 'string') {
+          queues[topic]?.push(callId as string)
+        }
+      }
+    };
+
+    async function foo(app: ActiveWorker, a: number) {
+      const result = (await app.call(bar, topic)(a + 1)) + 1;
+      queues[topic]?.push(BrrrShutdownSymbol)
+      return result
+    }
+
+    const server = new Server(store, cache, publisher);
+    const app = new AppWorker(codec, server, { foo, bar: taskFn(bar) });
+
+
+    await app.schedule(foo, topic)(122);
+
+    await server.loop(topic, app.handle, async () => {
+      return queues[topic]?.pop()
+    })
+
+    strictEqual(await app.read(foo)(122), 457);
+  })
 });

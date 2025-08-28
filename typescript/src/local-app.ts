@@ -1,4 +1,4 @@
-import { Server } from "./connection.ts";
+import { SubscriberServer } from "./connection.ts";
 import {
   AppWorker,
   type Handlers,
@@ -15,15 +15,16 @@ import {
 } from "./backends/in-memory.ts";
 import { NotFoundError } from "./errors.ts";
 import { BrrrTaskDoneEventSymbol } from "./symbol.ts";
+import type { Publisher, Subscriber } from "./emitter.ts";
 
 export class LocalApp {
   public readonly topic: string;
-  public readonly server: Server;
+  public readonly server: SubscriberServer;
   public readonly app: AppWorker;
 
   private hasRun = false;
 
-  public constructor(topic: string, server: Server, app: AppWorker) {
+  public constructor(topic: string, server: SubscriberServer, app: AppWorker) {
     this.topic = topic;
     this.server = server;
     this.app = app;
@@ -64,8 +65,8 @@ export class LocalBrrr {
   public run<A extends unknown[], R>(taskIdentifier: TaskIdentifier<A, R>) {
     const store = new InMemoryStore();
     const cache = new InMemoryCache();
-    const emitter = new InMemoryEmitter();
-    const server = new Server(store, cache, emitter);
+    const emitter: Publisher & Subscriber = new InMemoryEmitter()
+    const server = new SubscriberServer(store, cache, emitter);
     const worker = new AppWorker(this.codec, server, this.handlers);
     const localApp = new LocalApp(this.topic, server, worker);
     const taskName = taskIdentifierToName(taskIdentifier, this.handlers);
@@ -74,7 +75,7 @@ export class LocalBrrr {
       await localApp.schedule(taskName)(...args);
       const call = await this.codec.encodeCall(taskName, args);
       return new Promise((resolve) => {
-        localApp.app.on(BrrrTaskDoneEventSymbol, async ({ callHash }) => {
+        emitter.on(BrrrTaskDoneEventSymbol, async ({ callHash }) => {
           if (callHash === call.callHash) {
             const payload = await server.readRaw(callHash);
             if (!payload) {

@@ -1,5 +1,5 @@
 import type { Cache, MemKey, Store } from "../store.ts";
-import type { Emitter } from "../emitter.ts";
+import type { Publisher, Subscriber } from "../emitter.ts";
 import { EventEmitter } from "node:events";
 import type { Call } from "../call.ts";
 import { BrrrTaskDoneEventSymbol } from "../symbol.ts";
@@ -82,7 +82,7 @@ export class InMemoryCache implements Cache {
   }
 }
 
-export class InMemoryEmitter implements Emitter {
+export class InMemoryEmitter implements Publisher, Subscriber {
   private readonly emitter = new EventEmitter();
 
   public on(
