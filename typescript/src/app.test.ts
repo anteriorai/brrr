@@ -1,8 +1,18 @@
 import { beforeEach, suite, test } from "node:test";
 import { strictEqual } from "node:assert";
-import { type ActiveWorker, AppConsumer, AppWorker, type Handlers, taskFn, } from "./app.ts";
+import {
+  type ActiveWorker,
+  AppConsumer,
+  AppWorker,
+  type Handlers,
+  taskFn,
+} from "./app.ts";
 import { SubscriberServer, Server } from "./connection.ts";
-import { InMemoryCache, InMemoryEmitter, InMemoryStore, } from "./backends/in-memory.ts";
+import {
+  InMemoryCache,
+  InMemoryEmitter,
+  InMemoryStore,
+} from "./backends/in-memory.ts";
 import { NaiveJsonCodec } from "./naive-json-codec.ts";
 import type { Call } from "./call.ts";
 import { NotFoundError } from "./errors.ts";
@@ -339,33 +349,35 @@ await suite(import.meta.filename, async () => {
 
   await test("loop", async () => {
     const queues: Record<string, (string | typeof BrrrShutdownSymbol)[]> = {
-      [topic]: []
-    }
+      [topic]: [],
+    };
 
     const publisher: Publisher = {
-      async emit(topic: string | typeof BrrrTaskDoneEventSymbol, callId: string | Call): Promise<void> {
-        if (typeof topic === 'string') {
-          queues[topic]?.push(callId as string)
+      async emit(
+        topic: string | typeof BrrrTaskDoneEventSymbol,
+        callId: string | Call,
+      ): Promise<void> {
+        if (typeof topic === "string") {
+          queues[topic]?.push(callId as string);
         }
-      }
+      },
     };
 
     async function foo(app: ActiveWorker, a: number) {
       const result = (await app.call(bar, topic)(a + 1)) + 1;
-      queues[topic]?.push(BrrrShutdownSymbol)
-      return result
+      queues[topic]?.push(BrrrShutdownSymbol);
+      return result;
     }
 
     const server = new Server(store, cache, publisher);
     const app = new AppWorker(codec, server, { foo, bar: taskFn(bar) });
 
-
     await app.schedule(foo, topic)(122);
 
     await server.loop(topic, app.handle, async () => {
-      return queues[topic]?.pop()
-    })
+      return queues[topic]?.pop();
+    });
 
     strictEqual(await app.read(foo)(122), 457);
-  })
+  });
 });

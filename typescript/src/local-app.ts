@@ -65,7 +65,7 @@ export class LocalBrrr {
   public run<A extends unknown[], R>(taskIdentifier: TaskIdentifier<A, R>) {
     const store = new InMemoryStore();
     const cache = new InMemoryCache();
-    const emitter: Publisher & Subscriber = new InMemoryEmitter()
+    const emitter: Publisher & Subscriber = new InMemoryEmitter();
     const server = new SubscriberServer(store, cache, emitter);
     const worker = new AppWorker(this.codec, server, this.handlers);
     const localApp = new LocalApp(this.topic, server, worker);

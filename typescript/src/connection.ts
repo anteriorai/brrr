@@ -73,9 +73,13 @@ export class Server extends Connection {
     super(store, cache, emitter);
   }
 
-  public async loop(topic: string, handler: RequestHandler, getMessage: () => Promise<string | typeof BrrrShutdownSymbol | undefined>) {
+  public async loop(
+    topic: string,
+    handler: RequestHandler,
+    getMessage: () => Promise<string | typeof BrrrShutdownSymbol | undefined>,
+  ) {
     while (true) {
-      const message = await getMessage()
+      const message = await getMessage();
       if (!message) {
         continue;
       }
@@ -154,9 +158,13 @@ export class Server extends Connection {
 }
 
 export class SubscriberServer extends Server {
-  public override readonly emitter: Publisher & Subscriber
+  public override readonly emitter: Publisher & Subscriber;
 
-  public constructor(store: Store, cache: Cache, emitter: Publisher & Subscriber) {
+  public constructor(
+    store: Store,
+    cache: Cache,
+    emitter: Publisher & Subscriber,
+  ) {
     super(store, cache, emitter);
     this.emitter = emitter as Publisher & Subscriber;
   }
