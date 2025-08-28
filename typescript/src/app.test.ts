@@ -16,6 +16,7 @@ import { deepStrictEqual, ok, rejects } from "node:assert/strict";
 import { LocalApp, LocalBrrr } from "./local-app.ts";
 import type { Cache, Store } from "./store.ts";
 import type { Emitter } from "./emitter.ts";
+import { brrrDoneSymbol } from "./symbol.ts";
 
 const codec = new NaiveJsonCodec();
 const topic = "brrr-test";
@@ -60,7 +61,7 @@ await suite(import.meta.filename, async () => {
     predicate?: () => void | Promise<void>,
   ): Promise<void> {
     return new Promise((resolve) => {
-      emitter.on("done", async ({ callHash }: Call) => {
+      emitter.on(brrrDoneSymbol, async ({ callHash }: Call) => {
         if (callHash === call.callHash) {
           await predicate?.();
           resolve();

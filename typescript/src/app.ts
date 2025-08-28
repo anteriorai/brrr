@@ -2,8 +2,8 @@ import { type Connection, Defer, type DeferredCall, type Request, type Response,
 import type { Codec } from "./codec.ts";
 import { NotFoundError, TaskNotFoundError } from "./errors.ts";
 import type { Call } from "./call.ts";
+import { brrrDoneSymbol, brrrTaskSymbol } from "./symbol.ts";
 
-const brrrTaskSymbol = Symbol("brrr.task");
 
 export type Task<A extends unknown[] = any[], R = any> = ((
   ...args: [ActiveWorker, ...A]
@@ -69,8 +69,7 @@ export class AppConsumer {
     this.handlers = handlers;
   }
 
-  public on(event: "done", callback: (call: Call) => void): void;
-  public on(event: string, callback: (...args: any[]) => void): void {
+  public on(event: typeof brrrDoneSymbol, callback: (call: Call) => void): void {
     this.connection.emitter.on(event, callback);
   }
 
