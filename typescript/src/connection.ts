@@ -3,6 +3,7 @@ import { type Cache, Memory, type Store } from "./store.ts";
 import { SpawnLimitError } from "./errors.ts";
 import { randomUUID } from "node:crypto";
 import type { Emitter } from "./emitter.ts";
+import { brrrDoneSymbol } from "./symbol.ts";
 
 export interface DeferredCall {
   readonly topic: string | undefined;
@@ -72,9 +73,24 @@ export class Server extends Connection {
     this.emitter.on(topic, async (callId: string): Promise<void> => {
       const result = await this.handleMessage(handler, topic, callId);
       if (result) {
-        await this.emitter.emit("done", result);
+        await this.emitter.emit(brrrDoneSymbol, result);
       }
     });
+  }
+
+  public loop(topic: string, get: () => Promise<string | undefined>, handler: RequestHandler) {
+    return new Promise(async (resolve) => {
+      while (true) {
+        const callId = await get()
+        if (!callId) {
+          continue
+        }
+        const result = await this.handleMessage(handler, topic, callId);
+        if (result) {
+          await this.emitter.emit(brrrDoneSymbol, result);
+        }
+      }
+    })
   }
 
   private async scheduleReturnCall(addr: string): Promise<void> {
