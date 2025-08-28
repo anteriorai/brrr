@@ -166,7 +166,7 @@ export class SubscriberServer extends Server {
     emitter: Publisher & Subscriber,
   ) {
     super(store, cache, emitter);
-    this.emitter = emitter as Publisher & Subscriber;
+    this.emitter = emitter;
   }
 
   public listen(topic: string, handler: RequestHandler) {
