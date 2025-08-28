@@ -1,21 +1,11 @@
 import { beforeEach, suite, test } from "node:test";
 import { strictEqual } from "node:assert";
-import {
-  type ActiveWorker,
-  AppConsumer,
-  AppWorker,
-  type Handlers,
-  taskFn,
-} from "./app.ts";
+import { type ActiveWorker, AppConsumer, AppWorker, type Handlers, taskFn, } from "./app.ts";
 import { Server, SubscriberServer } from "./connection.ts";
-import {
-  InMemoryCache,
-  InMemoryEmitter,
-  InMemoryStore,
-} from "./backends/in-memory.ts";
+import { InMemoryCache, InMemoryEmitter, InMemoryStore, } from "./backends/in-memory.ts";
 import { NaiveJsonCodec } from "./naive-json-codec.ts";
 import type { Call } from "./call.ts";
-import { NotFoundError } from "./errors.ts";
+import { NotFoundError, SpawnLimitError } from "./errors.ts";
 import { deepStrictEqual, ok, rejects } from "node:assert/strict";
 import { LocalApp, LocalBrrr } from "./local-app.ts";
 import type { Cache, Store } from "./store.ts";
@@ -350,37 +340,171 @@ await suite(import.meta.filename, async () => {
     return done;
   });
 
-  await test("loop", async () => {
+  await suite("loop mode", async () => {
     const queues: Record<string, (string | typeof BrrrShutdownSymbol)[]> = {
       [topic]: [],
     };
 
     class CustomPublisher extends Publisher {
-      async emit(
-        topic: string | typeof BrrrTaskDoneEventSymbol,
-        callId: string | Call,
-      ): Promise<void> {
-        if (typeof topic === "string") {
-          queues[topic]?.push(callId as string);
-        }
+      async emit(topic: string, callId: string | Call,): Promise<void> {
+        queues[topic]?.push(callId as string);
       }
     }
 
-    async function foo(app: ActiveWorker, a: number) {
-      const result = (await app.call(bar, topic)(a + 1)) + 1;
-      queues[topic]?.push(BrrrShutdownSymbol);
-      return result;
-    }
+    let server: Server
 
-    const server = new Server(store, cache, new CustomPublisher());
-    const app = new AppWorker(codec, server, { foo, bar: taskFn(bar) });
-
-    await app.schedule(foo, topic)(122);
-
-    await server.loop(topic, app.handle, async () => {
-      return queues[topic]?.pop();
+    beforeEach(() => {
+      server = new Server(store, cache, new CustomPublisher());
     });
 
-    strictEqual(await app.read(foo)(122), 457);
-  });
+    await test("basic loop", async () => {
+      async function foo(app: ActiveWorker, a: number) {
+        const result = (await app.call(bar, topic)(a + 1)) + 1;
+        queues[topic]?.push(BrrrShutdownSymbol);
+        return result;
+      }
+
+      const server = new Server(store, cache, new CustomPublisher());
+      const app = new AppWorker(codec, server, { ...handlers, foo });
+
+      await app.schedule(foo, topic)(122);
+
+      await server.loop(topic, app.handle, async () => {
+        return queues[topic]?.pop();
+      });
+
+      strictEqual(await app.read(foo)(122), 457);
+    });
+
+    await test("loop with no tasks", async () => {
+      const app = new AppWorker(codec, server, handlers);
+
+      let looped = false;
+      await server.loop(topic, app.handle, async () => {
+        if (looped) {
+          return BrrrShutdownSymbol;
+        }
+        looped = true;
+        return undefined;
+      });
+
+      ok(looped)
+    });
+
+    await test("resumable loop", async () => {
+      class MyError extends Error {
+      }
+
+      let errors = 5
+
+      async function foo(a: number): Promise<number> {
+        if (errors) {
+          errors--;
+          throw new MyError()
+        }
+        queues[topic]?.push(BrrrShutdownSymbol);
+        return a
+      }
+
+      const app = new AppWorker(codec, server, { ...handlers, foo: taskFn(foo) })
+
+      while (true) {
+        try {
+          await app.schedule(foo, topic)(3)
+          await server.loop(topic, app.handle, async () => {
+            return queues[topic]?.pop();
+          })
+          break;
+        } catch (err) {
+          if (err instanceof MyError) {
+            continue;
+          }
+          throw err;
+        }
+      }
+      strictEqual(errors, 0)
+    })
+
+    await test("resumable loop nested", async () => {
+      class MyError extends Error {
+      }
+
+      let errors = 5
+
+      function bar(a: number): number {
+        if (errors) {
+          errors--;
+          throw new MyError()
+        }
+        return a
+      }
+
+      async function foo(app: ActiveWorker, a: number): Promise<number> {
+        const result = app.call(bar)(a)
+        queues[topic]?.push(BrrrShutdownSymbol);
+        return result
+      }
+
+      const app = new AppWorker(codec, server, { ...handlers, foo, bar: taskFn(bar) })
+
+      while (true) {
+        try {
+          await app.schedule(foo, topic)(3)
+          await server.loop(topic, app.handle, async () => {
+            return queues[topic]?.pop();
+          })
+          break;
+        } catch (err) {
+          if (err instanceof MyError) {
+            continue;
+          }
+          throw err;
+        }
+      }
+      strictEqual(errors, 0)
+    })
+
+    await test("spawn limit recoverable", { only: true }, async () => {
+      function one(_: number): number {
+        return 1
+      }
+
+      async function foo(app: ActiveWorker, a: number): Promise<number> {
+        const results = await app.gather(
+          ...new Array(a).keys().map((i) => app.call(one)(i)),
+        );
+        return results.reduce((sum, val) => sum + val);
+      }
+
+      // override for test
+      Object.defineProperty(server, 'spawnLimit', {
+        value: 100
+      })
+      const n = server.spawnLimit + 1
+      let spawnLimitEncountered = false
+      const app = new AppWorker(codec, server, { one: taskFn(one), foo, },);
+      while (true) {
+        // reset cache
+        Object.defineProperty(cache, 'cache', {
+          value: new Map()
+        })
+        try {
+          await app.schedule(foo, topic)(n)
+          await server.loop(topic, app.handle, async () => {
+            console.log('NOCOMMIT looping', queues[topic]?.length)
+            return queues[topic]?.pop();
+          })
+          break;
+        } catch (err) {
+          if (err instanceof SpawnLimitError) {
+            spawnLimitEncountered = true
+            continue
+          }
+          throw err
+        }
+      }
+      ok(spawnLimitEncountered)
+      strictEqual(await app.read(foo)(n), n)
+    })
+  })
 });
