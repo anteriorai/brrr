@@ -83,14 +83,20 @@ export class InMemoryCache implements Cache {
 }
 
 export class InMemoryEmitter implements Emitter {
-  private readonly emitter = new EventEmitter()
+  private readonly emitter = new EventEmitter();
 
-  public on(event: typeof BrrrTaskDoneEventSymbol | string, listener: ((call: Call) => void) | ((callId: string) => void)): this {
+  public on(
+    event: typeof BrrrTaskDoneEventSymbol | string,
+    listener: ((call: Call) => void) | ((callId: string) => void),
+  ): this {
     this.emitter.on(event, listener);
     return this;
   }
 
-  public async emit(event: typeof BrrrTaskDoneEventSymbol | string, arg: Call | string): Promise<void> {
+  public async emit(
+    event: typeof BrrrTaskDoneEventSymbol | string,
+    arg: Call | string,
+  ): Promise<void> {
     this.emitter.emit(event, arg);
   }
 }
