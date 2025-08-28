@@ -2,7 +2,7 @@ import type { Cache, MemKey, Store } from "../store.ts";
 import type { Emitter } from "../emitter.ts";
 import { EventEmitter } from "node:events";
 import type { Call } from "../call.ts";
-import { brrrDoneSymbol } from "../symbol.ts";
+import { BrrrTaskDoneEventSymbol } from "../symbol.ts";
 
 export class InMemoryStore implements Store {
   private store = new Map<string, Uint8Array>();
@@ -85,12 +85,12 @@ export class InMemoryCache implements Cache {
 export class InMemoryEmitter implements Emitter {
   private readonly emitter = new EventEmitter()
 
-  public on(event: typeof brrrDoneSymbol | string, listener: ((call: Call) => void) | ((callId: string) => void)): this {
+  public on(event: typeof BrrrTaskDoneEventSymbol | string, listener: ((call: Call) => void) | ((callId: string) => void)): this {
     this.emitter.on(event, listener);
     return this;
   }
 
-  public async emit(event: typeof brrrDoneSymbol | string, arg: Call | string): Promise<void> {
+  public async emit(event: typeof BrrrTaskDoneEventSymbol | string, arg: Call | string): Promise<void> {
     this.emitter.emit(event, arg);
   }
 }

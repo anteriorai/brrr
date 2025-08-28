@@ -2,13 +2,13 @@ import { type Connection, Defer, type DeferredCall, type Request, type Response,
 import type { Codec } from "./codec.ts";
 import { NotFoundError, TaskNotFoundError } from "./errors.ts";
 import type { Call } from "./call.ts";
-import { brrrDoneSymbol, brrrTaskSymbol } from "./symbol.ts";
+import { BrrrTaskDoneEventSymbol, BrrrTaskSymbol } from "./symbol.ts";
 
 
 export type Task<A extends unknown[] = any[], R = any> = ((
   ...args: [ActiveWorker, ...A]
 ) => R) & {
-  readonly [brrrTaskSymbol]?: (...args: A) => R;
+  readonly [BrrrTaskSymbol]?: (...args: A) => R;
 };
 
 export type StripLeadingActiveWorker<A extends unknown[]> = A extends [
@@ -36,7 +36,7 @@ export function taskIdentifierToName(
     return identifier;
   }
   for (const [name, handler] of Object.entries(handlers)) {
-    if (handler[brrrTaskSymbol] === identifier || handler === identifier) {
+    if (handler[BrrrTaskSymbol] === identifier || handler === identifier) {
       return name;
     }
   }
@@ -47,8 +47,8 @@ export function taskFn<A extends unknown[], R>(
   fn: (...args: A) => R,
 ): Task<A, R> {
   const task: Task<A, R> = (_: ActiveWorker, ...args: A): R => fn(...args);
-  return Object.defineProperty(task, brrrTaskSymbol, {
-    value: fn satisfies Task<A, R>[typeof brrrTaskSymbol],
+  return Object.defineProperty(task, BrrrTaskSymbol, {
+    value: fn satisfies Task<A, R>[typeof BrrrTaskSymbol],
     writable: false,
     configurable: false,
   });
@@ -69,7 +69,7 @@ export class AppConsumer {
     this.handlers = handlers;
   }
 
-  public on(event: typeof brrrDoneSymbol, callback: (call: Call) => void): void {
+  public on(event: typeof BrrrTaskDoneEventSymbol, callback: (call: Call) => void): void {
     this.connection.emitter.on(event, callback);
   }
 
