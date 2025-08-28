@@ -1,3 +1,3 @@
-export const brrrTaskSymbol = Symbol("brrr.task");
+export const BrrrTaskSymbol = Symbol("brrr.task");
 
-export const brrrDoneSymbol = Symbol("brrr.done");
+export const BrrrTaskDoneEventSymbol = Symbol("brrr.done");
