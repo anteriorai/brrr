@@ -8,7 +8,7 @@ import {
   taskIdentifierToName,
 } from "./app.ts";
 import type { Codec } from "./codec.ts";
-import { InMemoryCache, InMemoryStore } from "./backends/in-memory.ts";
+import { InMemoryCache, InMemoryEmitter, InMemoryStore } from "./backends/in-memory.ts";
 import { NotFoundError } from "./errors.ts";
 import { EventEmitter } from "node:events";
 
@@ -60,7 +60,7 @@ export class LocalBrrr {
   public run<A extends unknown[], R>(taskIdentifier: TaskIdentifier<A, R>) {
     const store = new InMemoryStore();
     const cache = new InMemoryCache();
-    const emitter = new EventEmitter();
+    const emitter = new InMemoryEmitter();
     const server = new Server(store, cache, emitter);
     const worker = new AppWorker(this.codec, server, this.handlers);
     const localApp = new LocalApp(this.topic, server, worker);
