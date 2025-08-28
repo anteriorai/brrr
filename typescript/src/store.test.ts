@@ -258,7 +258,10 @@ await suite(import.meta.filename, async () => {
   });
 });
 
-export async function storeContractTest(factory: () => Store) {
+export async function storeContractTest(
+  factory: () => Promise<Store>,
+  afterEachFn: () => void | Promise<void> = () => {},
+) {
   await suite("store-contract", async () => {
     let store: Store;
 
@@ -275,9 +278,11 @@ export async function storeContractTest(factory: () => Store) {
     } as const;
 
     beforeEach(async () => {
-      store = factory();
+      store = await factory();
       await store.set(fixture.key, fixture.value);
     });
+
+    afterEach(afterEachFn);
 
     await test("Basic get", async () => {
       const retrieved = await store.get(fixture.key);
@@ -333,13 +338,18 @@ export async function storeContractTest(factory: () => Store) {
   });
 }
 
-export async function cacheContractTest(factory: () => Cache) {
+export async function cacheContractTest(
+  factory: () => Promise<Cache>,
+  afterEachFn: () => void | Promise<void> = () => {},
+) {
   await suite("cache-contract", async () => {
     let cache: Cache;
 
-    beforeEach(() => {
-      cache = factory();
+    beforeEach(async () => {
+      cache = await factory();
     });
+
+    afterEach(afterEachFn);
 
     await test("Basic incr", async () => {
       const key = "test-incr-key";

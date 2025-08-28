@@ -1,6 +1,11 @@
-import { type RedisClientType, type RedisFunctions, type RedisModules, type RedisScripts, } from "redis";
+import {
+  type RedisClientType,
+  type RedisFunctions,
+  type RedisModules,
+  type RedisScripts,
+} from "redis";
 import type { Cache } from "../store.ts";
-import { InvalidMessageError, } from "../errors.ts";
+import { InvalidMessageError } from "../errors.ts";
 import { bencoder } from "../bencode.ts";
 import type { Encoding } from "node:crypto";
 
@@ -9,7 +14,7 @@ type RedisPayload = [number, number, string];
 export class Redis implements Cache {
   public static readonly encoding = "utf-8" satisfies Encoding;
 
-  public readonly timeout: number = 10_000
+  public readonly timeout: number = 10_000;
   public readonly client: RedisClientType<
     RedisModules,
     RedisFunctions,
@@ -22,13 +27,15 @@ export class Redis implements Cache {
     this.client = client;
   }
 
-  public async connect(): Promise<RedisClientType<RedisModules, RedisFunctions, RedisScripts, 3, {}>> {
-    return this.client.connect()
+  public async connect(): Promise<
+    RedisClientType<RedisModules, RedisFunctions, RedisScripts, 3, {}>
+  > {
+    return this.client.connect();
   }
 
   public async push(topic: string, message: string): Promise<void> {
     if (!this.client.isOpen) {
-      return
+      return;
     }
     const element = bencoder
       .encode([

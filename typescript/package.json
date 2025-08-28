@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc",
     "test": "node --test 'src/**/*.test.ts'",
-    "test:watch": "node --test --watch 'src/**/*.test.ts'"
+    "test:watch": "node --test --watch 'src/**/*.test.ts'",
+    "test:integration": "node --test 'src/**/*.test-integration.ts'"
   },
   "repository": "https://github.com/cohelm/brrr",
   "engines": {
