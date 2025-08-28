@@ -74,13 +74,6 @@ export class AppConsumer {
     this.handlers = handlers;
   }
 
-  public on(
-    event: typeof BrrrTaskDoneEventSymbol,
-    callback: (call: Call) => void,
-  ): void {
-    this.connection.emitter.on(event, callback);
-  }
-
   public schedule<A extends unknown[], R>(
     taskIdentifier: TaskIdentifier<A, R>,
     topic: string,
