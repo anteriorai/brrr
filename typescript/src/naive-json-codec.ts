@@ -20,6 +20,22 @@ export class NaiveJsonCodec implements Codec {
   private static readonly encoder = new TextEncoder();
   private static readonly decoder = new TextDecoder();
 
+  private static sortObjectKeys<T>(unordered: T): T {
+    if (!unordered || typeof unordered !== "object") {
+      return unordered;
+    }
+    if (Array.isArray(unordered)) {
+      return unordered.map(NaiveJsonCodec.sortObjectKeys) as T;
+    }
+    const entries = Object.keys(unordered)
+      .sort()
+      .map((key) => [
+        key,
+        NaiveJsonCodec.sortObjectKeys(unordered[key as keyof typeof unordered]),
+      ]);
+    return Object.fromEntries(entries);
+  }
+
   public async decodeReturn(_: string, payload: Uint8Array): Promise<unknown> {
     const decoded = NaiveJsonCodec.decoder.decode(payload);
     return parse(decoded);
@@ -55,21 +71,5 @@ export class NaiveJsonCodec implements Codec {
     return createHash(NaiveJsonCodec.algorithm)
       .update(data)
       .digest(NaiveJsonCodec.binaryToTextEncoding);
-  }
-
-  private static sortObjectKeys<T>(unordered: T): T {
-    if (!unordered || typeof unordered !== "object") {
-      return unordered;
-    }
-    if (Array.isArray(unordered)) {
-      return unordered.map(NaiveJsonCodec.sortObjectKeys) as T;
-    }
-    const entries = Object.keys(unordered)
-      .sort()
-      .map((key) => [
-        key,
-        NaiveJsonCodec.sortObjectKeys(unordered[key as keyof typeof unordered]),
-      ]);
-    return Object.fromEntries(entries);
   }
 }

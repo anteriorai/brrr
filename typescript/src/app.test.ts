@@ -7,7 +7,7 @@ import {
   type Handlers,
   taskFn,
 } from "./app.ts";
-import { SubscriberServer, Server } from "./connection.ts";
+import { Server, SubscriberServer } from "./connection.ts";
 import {
   InMemoryCache,
   InMemoryEmitter,
@@ -19,7 +19,7 @@ import { NotFoundError } from "./errors.ts";
 import { deepStrictEqual, ok, rejects } from "node:assert/strict";
 import { LocalApp, LocalBrrr } from "./local-app.ts";
 import type { Cache, Store } from "./store.ts";
-import type { Publisher, Subscriber } from "./emitter.ts";
+import { Publisher, Subscriber } from "./emitter.ts";
 import { BrrrShutdownSymbol, BrrrTaskDoneEventSymbol } from "./symbol.ts";
 
 const codec = new NaiveJsonCodec();
@@ -61,7 +61,7 @@ const handlers: Handlers = {
 await suite(import.meta.filename, async () => {
   function waitFor(call: Call, predicate?: () => Promise<void>): Promise<void> {
     return new Promise((resolve) => {
-      emitter.on(BrrrTaskDoneEventSymbol, async ({ callHash }: Call) => {
+      emitter.onEvent(BrrrTaskDoneEventSymbol, async ({ callHash }: Call) => {
         if (callHash === call.callHash) {
           await predicate?.();
           resolve();
@@ -352,7 +352,7 @@ await suite(import.meta.filename, async () => {
       [topic]: [],
     };
 
-    const publisher: Publisher = {
+    class CustomPublisher extends Publisher {
       async emit(
         topic: string | typeof BrrrTaskDoneEventSymbol,
         callId: string | Call,
@@ -360,8 +360,8 @@ await suite(import.meta.filename, async () => {
         if (typeof topic === "string") {
           queues[topic]?.push(callId as string);
         }
-      },
-    };
+      }
+    }
 
     async function foo(app: ActiveWorker, a: number) {
       const result = (await app.call(bar, topic)(a + 1)) + 1;
@@ -369,7 +369,7 @@ await suite(import.meta.filename, async () => {
       return result;
     }
 
-    const server = new Server(store, cache, publisher);
+    const server = new Server(store, cache, new CustomPublisher());
     const app = new AppWorker(codec, server, { foo, bar: taskFn(bar) });
 
     await app.schedule(foo, topic)(122);
