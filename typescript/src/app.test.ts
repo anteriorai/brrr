@@ -491,8 +491,11 @@ await suite(import.meta.filename, async () => {
         try {
           await app.schedule(foo, topic)(n)
           await server.loop(topic, app.handle, async () => {
-            console.log('NOCOMMIT looping', queues[topic]?.length)
-            return queues[topic]?.pop();
+            const item = queues[topic]?.shift()
+            if (!item) {
+              return BrrrShutdownSymbol
+            }
+            return item;
           })
           break;
         } catch (err) {
