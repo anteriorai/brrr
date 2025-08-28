@@ -5,7 +5,7 @@ export interface Emitter {
 
   on(event: string, listener: (callId: string) => void): this;
 
-  emit(event: "done", call: Call): boolean;
+  emit(event: "done", call: Call): Promise<void>;
 
-  emit(event: string, callId: string): boolean;
+  emit(event: string, callId: string): Promise<void>;
 }

@@ -8,14 +8,13 @@ import {
   taskFn,
 } from "./app.ts";
 import { Server } from "./connection.ts";
-import { InMemoryCache, InMemoryStore } from "./backends/in-memory.ts";
+import { InMemoryCache, InMemoryEmitter, InMemoryStore } from "./backends/in-memory.ts";
 import { NaiveJsonCodec } from "./naive-json-codec.ts";
 import type { Call } from "./call.ts";
 import { NotFoundError } from "./errors.ts";
 import { deepStrictEqual, ok, rejects } from "node:assert/strict";
 import { LocalApp, LocalBrrr } from "./local-app.ts";
 import type { Cache, Store } from "./store.ts";
-import { EventEmitter } from "node:events";
 import type { Emitter } from "./emitter.ts";
 
 const codec = new NaiveJsonCodec();
@@ -73,7 +72,7 @@ await suite(import.meta.filename, async () => {
   beforeEach(() => {
     store = new InMemoryStore();
     cache = new InMemoryCache();
-    emitter = new EventEmitter();
+    emitter = new InMemoryEmitter();
     server = new Server(store, cache, emitter);
   });
 

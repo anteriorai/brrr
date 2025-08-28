@@ -1,4 +1,7 @@
 import type { Cache, MemKey, Store } from "../store.ts";
+import type { Emitter } from "../emitter.ts";
+import { EventEmitter } from "node:events";
+import type { Call } from "../call.ts";
 
 export class InMemoryStore implements Store {
   private store = new Map<string, Uint8Array>();
@@ -75,5 +78,18 @@ export class InMemoryCache implements Cache {
     const next = (this.cache.get(key) ?? 0) + 1;
     this.cache.set(key, next);
     return next;
+  }
+}
+
+export class InMemoryEmitter implements Emitter {
+  private readonly emitter = new EventEmitter()
+
+  public on(event: "done" | string, listener: ((call: Call) => void) | ((callId: string) => void)): this {
+    this.emitter.on(event, listener);
+    return this;
+  }
+
+  public async emit(event: string, arg: Call | string): Promise<void> {
+    this.emitter.emit(event, arg);
   }
 }

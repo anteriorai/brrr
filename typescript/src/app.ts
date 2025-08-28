@@ -1,10 +1,4 @@
-import {
-  type Connection,
-  Defer,
-  type DeferredCall,
-  type Request,
-  type Response,
-} from "./connection.ts";
+import { type Connection, Defer, type DeferredCall, type Request, type Response, } from "./connection.ts";
 import type { Codec } from "./codec.ts";
 import { NotFoundError, TaskNotFoundError } from "./errors.ts";
 import type { Call } from "./call.ts";
@@ -14,13 +8,13 @@ const brrrTaskSymbol = Symbol("brrr.task");
 export type Task<A extends unknown[] = any[], R = any> = ((
   ...args: [ActiveWorker, ...A]
 ) => R) & {
-  [brrrTaskSymbol]?: (...args: A) => R;
+  readonly [brrrTaskSymbol]?: (...args: A) => R;
 };
 
 export type StripLeadingActiveWorker<A extends unknown[]> = A extends [
-  ActiveWorker,
-  ...infer Rest,
-]
+    ActiveWorker,
+    ...infer Rest,
+  ]
   ? Rest
   : A;
 
@@ -54,7 +48,7 @@ export function taskFn<A extends unknown[], R>(
 ): Task<A, R> {
   const task: Task<A, R> = (_: ActiveWorker, ...args: A): R => fn(...args);
   return Object.defineProperty(task, brrrTaskSymbol, {
-    value: fn,
+    value: fn satisfies Task<A, R>[typeof brrrTaskSymbol],
     writable: false,
     configurable: false,
   });

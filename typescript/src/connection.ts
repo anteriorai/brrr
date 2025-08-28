@@ -50,7 +50,7 @@ export class Connection {
     if ((await this.cache.incr(`brrr_count/${rootId}`)) > this.spawnLimit) {
       throw new SpawnLimitError(this.spawnLimit, rootId, callHash);
     }
-    this.emitter.emit(topic, `${rootId}/${callHash}`);
+    await this.emitter.emit(topic, `${rootId}/${callHash}`);
   }
 
   public async scheduleRaw(topic: string, call: Call): Promise<void> {
@@ -76,7 +76,7 @@ export class Server extends Connection {
     this.emitter.on(topic, async (callId: string): Promise<void> => {
       const result = await this.handleMessage(handler, topic, callId);
       if (result) {
-        this.emitter.emit("done", result);
+        await this.emitter.emit("done", result);
       }
     });
   }
