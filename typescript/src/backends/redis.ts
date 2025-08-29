@@ -8,43 +8,38 @@ import type { Cache } from "../store.ts";
 import { InvalidMessageError } from "../errors.ts";
 import { bencoder } from "../bencode.ts";
 import type { Encoding } from "node:crypto";
+import { TextEncoder } from "node:util";
 
 type RedisPayload = [number, number, string];
 
 export class Redis implements Cache {
+  public static readonly encoder = new TextEncoder();
   public static readonly encoding = "utf-8" satisfies Encoding;
 
-  public readonly timeout: number = 10_000;
+  public readonly timeout: number;
   public readonly client: RedisClientType<
     RedisModules,
     RedisFunctions,
     RedisScripts,
-    3,
-    {}
+    3
   >;
 
-  public constructor(client: typeof this.client) {
+  public constructor(client: typeof this.client, timeout: number = 20) {
     this.client = client;
+    this.timeout = timeout;
   }
 
-  public async connect(): Promise<
-    RedisClientType<RedisModules, RedisFunctions, RedisScripts, 3, {}>
-  > {
-    return this.client.connect();
+  public async connect(): Promise<void> {
+    await this.client.connect();
   }
 
   public async push(topic: string, message: string): Promise<void> {
-    if (!this.client.isOpen) {
-      return;
-    }
-    const element = bencoder
-      .encode([
-        1,
-        Math.floor(Date.now() / 1000),
-        message,
-      ] satisfies RedisPayload)
-      .toString();
-    await this.client.rPush(topic, element);
+    const element = bencoder.encode([
+      1,
+      Math.floor(Date.now() / 1000),
+      message,
+    ] satisfies RedisPayload);
+    await this.client.rPush(topic, Buffer.from(element));
   }
 
   public async pop(topic: string): Promise<string | undefined> {
@@ -52,11 +47,11 @@ export class Redis implements Cache {
     if (!response) {
       return;
     }
-    const data = Uint8Array.from(response.element);
-    const chunks = bencoder.decode(data, Redis.encoding) as RedisPayload;
+    const buffer = Redis.encoder.encode(response.element);
+    const chunks = bencoder.decode(buffer, Redis.encoding) as RedisPayload;
     if (
       chunks[0] !== 1 ||
-      Number.isInteger(chunks[1]) ||
+      !Number.isInteger(chunks[1]) ||
       typeof chunks[2] !== "string"
     ) {
       throw new InvalidMessageError();
@@ -69,6 +64,6 @@ export class Redis implements Cache {
   }
 
   public async close(): Promise<void> {
-    await this.client.quit();
+    this.client.destroy();
   }
 }
