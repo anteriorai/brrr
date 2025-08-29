@@ -86,27 +86,19 @@ export class InMemoryEmitter implements Publisher, Subscriber {
   private readonly emitter = new EventEmitter();
   private readonly eventEmitter = new EventEmitter();
 
-  public on(
-    event: typeof BrrrTaskDoneEventSymbol | string,
-    listener: ((call: Call) => void) | ((callId: string) => void),
-  ): this {
-    this.emitter.on(event, listener);
-    return this;
+  public on(topic: string, listener: (callId: string) => void): void {
+    this.emitter.on(topic, listener);
   }
 
   public onEventSymbol(
     event: typeof BrrrTaskDoneEventSymbol,
     listener: (call: Call) => void,
-  ): this {
+  ): void {
     this.eventEmitter.on(event, listener);
-    return this;
   }
 
-  public async emit(
-    event: typeof BrrrTaskDoneEventSymbol | string,
-    arg: Call | string,
-  ): Promise<void> {
-    this.emitter.emit(event, arg);
+  public async emit(topic: string, callId: string): Promise<void> {
+    this.emitter.emit(topic, callId);
   }
 
   public async emitEventSymbol(
