@@ -209,12 +209,10 @@
                 {
                   pytestIntegration = pkgs.callPackage ./nix/brrr-integration.test.nix {
                     inherit self;
-                    dynamodb-module = self.nixosModules.dynamodb;
                     common = integrationCommon;
                   };
                   typescriptIntegration = pkgs.callPackage ./nix/brrr-typescript-integration.test.nix {
                     inherit self;
-                    dynamodb-module = self.nixosModules.dynamodb;
                     common = integrationCommon;
                   };
                 }

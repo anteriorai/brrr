@@ -18,7 +18,6 @@
 {
   self,
   pkgs,
-  dynamodb-module,
   common,
 }:
 
