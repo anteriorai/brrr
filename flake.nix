@@ -106,9 +106,13 @@
                       enable = true;
                       args = [ "-disableTelemetry" ];
                     };
-                    brrr-demo.worker = {
+                    brrr-demo.worker-py = {
                       package = self.packages.${pkgs.system}.brrr-demo;
                       args = [ "brrr_worker" ];
+                      environment = demoEnv;
+                    };
+                    brrr-demo.worker-ts = {
+                      package = self.packages.${pkgs.system}.brrr-demo-ts;
                       environment = demoEnv;
                     };
                     brrr-demo.server = {
@@ -167,7 +171,8 @@
                 ];
                 cli.options.no-server = true;
                 services.brrr-demo.server.enable = true;
-                services.brrr-demo.worker.enable = true;
+                services.brrr-demo.worker-py.enable = true;
+                services.brrr-demo.worker-ts.enable = true;
               };
               process-compose.deps = {
                 imports = [
@@ -176,7 +181,8 @@
                 ];
                 cli.options.no-server = true;
                 services.brrr-demo.server.enable = false;
-                services.brrr-demo.worker.enable = false;
+                services.brrr-demo.worker-py.enable = false;
+                services.brrr-demo.worker-ts.enable = false;
               };
               treefmt = import ./nix/treefmt.nix;
               packages = {
@@ -198,6 +204,7 @@
                   # the interpreter for the demo script.
                   meta.mainProgram = "brrr_demo.py";
                 };
+                brrr-demo-ts = brrrts.brrr-ts.overrideAttrs { meta.mainProgram = "brrr-demo"; };
                 # Best-effort package for convenience, zero guarantees, could
                 # disappear at any time.
                 nix-flake-check-changed = pkgs.callPackage ./nix-flake-check-changed/package.nix { };
