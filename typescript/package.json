@@ -3,9 +3,6 @@
   "version": "0.1.1-dev",
   "description": "Horizontally scalable workflow scheduling with pluggable backends",
   "type": "module",
-  "bin": {
-    "brrr-demo": "demo/index.ts"
-  },
   "files": ["dist"],
   "exports": {
     ".": {
