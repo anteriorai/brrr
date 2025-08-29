@@ -1,7 +1,7 @@
 { dynamodb-module }:
 
 {
-  nodes.datastores =
+  datastores =
     { config, pkgs, ... }:
     {
       imports = [ dynamodb-module ];
