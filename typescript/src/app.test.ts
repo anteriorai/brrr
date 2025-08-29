@@ -7,7 +7,14 @@ import {
   type Handlers,
   taskFn,
 } from "./app.ts";
-import { Server, SubscriberServer } from "./connection.ts";
+import {
+  type Connection,
+  Defer,
+  type Request,
+  type Response,
+  Server,
+  SubscriberServer,
+} from "./connection.ts";
 import {
   InMemoryCache,
   InMemoryEmitter,
@@ -477,6 +484,47 @@ await suite(import.meta.filename, async () => {
         }
       }
       strictEqual(errors, 0);
+    });
+
+    await test("app subclass", async () => {
+      function bar(a: number): number {
+        return a + 1;
+      }
+
+      function baz(a: number) {
+        return a + 10;
+      }
+
+      async function foo(app: ActiveWorker, a: number): Promise<number> {
+        return app.call(bar)(a);
+      }
+
+      class MyAppWorker extends AppWorker {
+        public readonly myHandle = async (
+          request: Request,
+          connection: Connection,
+        ): Promise<Response | Defer> => {
+          const response = await this.handle(request, connection);
+          if (response instanceof Defer) {
+            for (const deferredCall of response.calls) {
+              Object.defineProperty(deferredCall.call, "taskName", {
+                value: "baz",
+              });
+            }
+            return new Defer(...response.calls);
+          }
+          return response;
+        };
+      }
+
+      const app = new MyAppWorker(codec, server, {
+        foo,
+        bar: taskFn(bar),
+        baz: taskFn(baz),
+      });
+      await app.schedule(foo, topic)(4);
+      await server.loop(topic, app.myHandle, flusher);
+      strictEqual(await app.read(foo)(4), 14);
     });
 
     await suite("spawn limit", async () => {
