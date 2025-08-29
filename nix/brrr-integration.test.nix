@@ -18,37 +18,40 @@
 {
   self,
   pkgs,
-  common,
+  integrationCommon,
 }:
 
 pkgs.testers.runNixOSTest {
   name = "brrr-integration";
-  globalTimeout = common.globalTimeout;
+  globalTimeout = integrationCommon.globalTimeout;
 
-  nodes.tester =
-    {
-      lib,
-      config,
-      pkgs,
-      ...
-    }:
-    let
-      test-brrr = pkgs.writeShellApplication {
-        name = "test-brrr";
-        runtimeInputs = [ self.packages.${pkgs.system}.brrr-venv-test ];
-        runtimeEnv = common.runtimeEnv;
-        text = ''
-          pytest ${self.packages.${pkgs.system}.brrr.src}
-        '';
+  nodes = {
+    inherit (integrationCommon.nodes) datastores;
+    tester =
+      {
+        lib,
+        config,
+        pkgs,
+        ...
+      }:
+      let
+        test-brrr = pkgs.writeShellApplication {
+          name = "test-brrr";
+          runtimeInputs = [ self.packages.${pkgs.system}.brrr-venv-test ];
+          runtimeEnv = integrationCommon.runtimeEnv;
+          text = ''
+            pytest ${self.packages.${pkgs.system}.brrr.src}
+          '';
+        };
+      in
+      {
+        environment.systemPackages = [ test-brrr ];
       };
-    in
-    {
-      environment.systemPackages = [ test-brrr ];
-    };
+  };
 
   testScript =
-    common.testScript
+    integrationCommon.testScript
     + ''
-      tester.wait_until_succeeds("test-brrr-python")
+      tester.wait_until_succeeds("test-brrr")
     '';
 }

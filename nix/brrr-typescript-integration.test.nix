@@ -1,37 +1,43 @@
 {
   self,
   pkgs,
-  common,
+  integrationCommon,
 }:
 
 pkgs.testers.runNixOSTest {
   name = "brrr-typescript-integration";
-  globalTimeout = common.globalTimeout;
+  globalTimeout = integrationCommon.globalTimeout;
 
-  nodes.tester =
-    {
-      lib,
-      config,
-      pkgs,
-      ...
-    }:
-    let
-      test-brrr = pkgs.writeShellApplication {
-        name = "test-brrr-typescript";
-        runtimeInputs = [ self.packages.${pkgs.system}.brrr-ts ];
-        runtimeEnv = common.runtimeEnv;
-        text = ''
-          cd ${self.packages.${pkgs.system}.brrr-ts.src}
-          npm run test:integration
-        '';
+  nodes = {
+    inherit (integrationCommon.nodes) datastores;
+    tester =
+      {
+        lib,
+        config,
+        pkgs,
+        ...
+      }:
+      let
+        test-brrr-typescript = pkgs.writeShellApplication {
+          name = "test-brrr-typescript";
+          runtimeInputs = [
+            self.packages.${pkgs.system}.brrr-ts
+            pkgs.nodejs_24
+          ];
+          runtimeEnv = integrationCommon.runtimeEnv;
+          text = ''
+            cd ${self.packages.${pkgs.system}.brrr-ts}
+            NODE_PRESERVE_SYMLINKS=1 npm run test:integration
+          '';
+        };
+      in
+      {
+        environment.systemPackages = [ test-brrr-typescript ];
       };
-    in
-    {
-      environment.systemPackages = [ test-brrr ];
-    };
+  };
 
   testScript =
-    common.testScript
+    integrationCommon.testScript
     + ''
       tester.wait_until_succeeds("test-brrr-typescript")
     '';

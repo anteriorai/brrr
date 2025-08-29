@@ -208,12 +208,10 @@
               checks =
                 {
                   pytestIntegration = pkgs.callPackage ./nix/brrr-integration.test.nix {
-                    inherit self;
-                    common = integrationCommon;
+                    inherit self integrationCommon;
                   };
                   typescriptIntegration = pkgs.callPackage ./nix/brrr-typescript-integration.test.nix {
-                    inherit self;
-                    common = integrationCommon;
+                    inherit self integrationCommon;
                   };
                 }
                 // brrrpy.brrr.tests
