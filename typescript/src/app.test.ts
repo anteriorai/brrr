@@ -19,7 +19,7 @@ import { NotFoundError, SpawnLimitError } from "./errors.ts";
 import { deepStrictEqual, ok, rejects } from "node:assert/strict";
 import { LocalApp, LocalBrrr } from "./local-app.ts";
 import type { Cache, Store } from "./store.ts";
-import { Publisher, Subscriber } from "./emitter.ts";
+import type { Publisher, Subscriber } from "./emitter.ts";
 import { BrrrShutdownSymbol, BrrrTaskDoneEventSymbol } from "./symbol.ts";
 
 const codec = new NaiveJsonCodec();
@@ -61,7 +61,7 @@ const handlers: Handlers = {
 await suite(import.meta.filename, async () => {
   function waitFor(call: Call, predicate?: () => Promise<void>): Promise<void> {
     return new Promise((resolve) => {
-      emitter.onEventSymbol(
+      emitter.onEventSymbol?.(
         BrrrTaskDoneEventSymbol,
         async ({ callHash }: Call) => {
           if (callHash === call.callHash) {
@@ -354,11 +354,11 @@ await suite(import.meta.filename, async () => {
     let queues: Record<string, (string | typeof BrrrShutdownSymbol)[]>;
     let server: Server;
 
-    class CustomPublisher extends Publisher {
+    const publisher: Publisher = {
       async emit(topic: string, callId: string | Call): Promise<void> {
         queues[topic]?.push(callId as string);
-      }
-    }
+      },
+    };
 
     async function flusher() {
       const item = queues[topic]?.shift();
@@ -372,7 +372,7 @@ await suite(import.meta.filename, async () => {
       queues = {
         [topic]: [],
       };
-      server = new Server(store, cache, new CustomPublisher());
+      server = new Server(store, cache, publisher);
     });
 
     await test("basic loop", async () => {
@@ -380,7 +380,7 @@ await suite(import.meta.filename, async () => {
         return (await app.call(bar, topic)(a + 1)) + 1;
       }
 
-      const server = new Server(store, cache, new CustomPublisher());
+      const server = new Server(store, cache, publisher);
       const app = new AppWorker(codec, server, { ...handlers, foo });
 
       await app.schedule(foo, topic)(122);
@@ -491,7 +491,7 @@ await suite(import.meta.filename, async () => {
         return results.reduce((sum, val) => sum + val);
       }
 
-      const server = new Server(store, cache, new CustomPublisher());
+      const server = new Server(store, cache, publisher);
       // override for test
       Object.defineProperty(server, "spawnLimit", {
         value: 100,
