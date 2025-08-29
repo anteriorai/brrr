@@ -479,45 +479,158 @@ await suite(import.meta.filename, async () => {
       strictEqual(errors, 0);
     });
 
-    await test("spawn limit recoverable", async () => {
-      function one(_: number): number {
-        return 1;
-      }
+    await suite("spawn limit", async () => {
+      await test("spawn limit depth", async () => {
+        let n = 0;
 
-      async function foo(app: ActiveWorker, a: number): Promise<number> {
-        const results = await app.gather(
-          ...new Array(a).keys().map((i) => app.call(one)(i)),
-        );
-        return results.reduce((sum, val) => sum + val);
-      }
-
-      const server = new Server(store, cache, publisher);
-      // override for test
-      Object.defineProperty(server, "spawnLimit", {
-        value: 100,
-      });
-      const n = server.spawnLimit + 1;
-      let spawnLimitEncountered = false;
-      const app = new AppWorker(codec, server, { one: taskFn(one), foo });
-      while (true) {
-        // reset cache
-        Object.defineProperty(cache, "cache", {
-          value: new Map(),
-        });
-        try {
-          await app.schedule(foo, topic)(n);
-          await server.loop(topic, app.handle, flusher);
-          break;
-        } catch (err) {
-          if (err instanceof SpawnLimitError) {
-            spawnLimitEncountered = true;
-            continue;
+        async function foo(app: ActiveWorker, a: number): Promise<number> {
+          n++;
+          if (a === 0) {
+            return 0;
           }
-          throw err;
+          return app.call(foo)(a - 1);
         }
-      }
-      ok(spawnLimitEncountered);
-      strictEqual(await app.read(foo)(n), n);
+
+        const server = new Server(store, cache, publisher);
+        // override for test
+        Object.defineProperty(server, "spawnLimit", {
+          value: 100,
+        });
+
+        const app = new AppWorker(codec, server, { foo });
+        await app.schedule(foo, topic)(server.spawnLimit + 3);
+
+        await rejects(server.loop(topic, app.handle, flusher));
+        strictEqual(n, server.spawnLimit);
+      });
+
+      await test("spawn limit recoverable", async () => {
+        function one(_: number): number {
+          return 1;
+        }
+
+        async function foo(app: ActiveWorker, a: number): Promise<number> {
+          const results = await app.gather(
+            ...new Array(a).keys().map((i) => app.call(one)(i)),
+          );
+          return results.reduce((sum, val) => sum + val);
+        }
+
+        const server = new Server(store, cache, publisher);
+        // override for test
+        Object.defineProperty(server, "spawnLimit", {
+          value: 100,
+        });
+        const n = server.spawnLimit + 1;
+        let spawnLimitEncountered = false;
+        const app = new AppWorker(codec, server, { one: taskFn(one), foo });
+        while (true) {
+          // reset cache
+          Object.defineProperty(cache, "cache", {
+            value: new Map(),
+          });
+          try {
+            await app.schedule(foo, topic)(n);
+            await server.loop(topic, app.handle, flusher);
+            break;
+          } catch (err) {
+            if (err instanceof SpawnLimitError) {
+              spawnLimitEncountered = true;
+              continue;
+            }
+            throw err;
+          }
+        }
+        ok(spawnLimitEncountered);
+        strictEqual(await app.read(foo)(n), n);
+      });
+
+      await test("spawn limit breadth mapped", async () => {
+        const calls = new Map<string, number>();
+
+        function one(_: number): number {
+          calls.set("one", (calls.get("one") || 0) + 1);
+          return 1;
+        }
+
+        async function foo(app: ActiveWorker, a: number): Promise<number> {
+          calls.set("foo", (calls.get("foo") || 0) + 1);
+          const results = await app.gather(
+            ...new Array(a).keys().map((i) => app.call(one)(i)),
+          );
+          return results.reduce((sum, val) => sum + val);
+        }
+
+        const app = new AppWorker(codec, server, { one: taskFn(one), foo });
+        await app.schedule(foo, topic)(server.spawnLimit + 4);
+
+        await rejects(server.loop(topic, app.handle, flusher), SpawnLimitError);
+        strictEqual(calls.get(foo.name), 1);
+      });
+
+      await test("spawn limit breadth manual", async () => {
+        const calls = new Map<string, number>();
+
+        function one(_: number): number {
+          calls.set("one", (calls.get("one") || 0) + 1);
+          return 1;
+        }
+
+        async function foo(app: ActiveWorker, a: number): Promise<number> {
+          calls.set("foo", (calls.get("foo") || 0) + 1);
+          let total = 0;
+          for (let i = 0; i < a; i++) {
+            total += await app.call(one)(i);
+          }
+          return total;
+        }
+
+        // override for test
+        const server = new Server(store, cache, publisher);
+        Object.defineProperty(server, "spawnLimit", {
+          value: 100,
+        });
+
+        const app = new AppWorker(codec, server, { foo, one: taskFn(one) });
+        await app.schedule(foo, topic)(server.spawnLimit + 3);
+
+        await rejects(server.loop(topic, app.handle, flusher));
+        deepStrictEqual(Object.fromEntries(calls), {
+          one: server.spawnLimit / 2,
+          foo: server.spawnLimit / 2,
+        });
+      });
+
+      await test("spawn limit cached", { only: true }, async () => {
+        let n = 0;
+        let final = undefined;
+
+        function same(a: number): number {
+          n++;
+          return a;
+        }
+
+        async function foo(app: ActiveWorker, a: number): Promise<number> {
+          const results = await app.gather(
+            ...new Array(a).fill(1).map((i) => app.call(same)(i)),
+          );
+          const val = results.reduce((sum, val) => sum + val);
+          final = val;
+          return val;
+        }
+
+        const server = new Server(store, cache, publisher);
+        Object.defineProperty(server, "spawnLimit", {
+          value: 100,
+        });
+
+        const app = new AppWorker(codec, server, { foo, same: taskFn(same) });
+        await app.schedule(foo, topic)(server.spawnLimit + 5);
+
+        await server.loop(topic, app.handle, flusher);
+        strictEqual(n, 1);
+        strictEqual(final, server.spawnLimit + 5);
+      });
     });
   });
 });
