@@ -6,6 +6,17 @@
   "bin": {
     "brrr-demo": "demo/index.ts"
   },
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./testing": {
+      "import": "./dist/testing.js",
+      "types": "./dist/testing.d.ts"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "test": "node --test 'src/**/*.test.ts'",
