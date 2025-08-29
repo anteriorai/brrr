@@ -10,7 +10,7 @@ import { bencoder } from "../bencode.ts";
 import type { Encoding } from "node:crypto";
 import { TextEncoder } from "node:util";
 
-type RedisPayload = [number, number, string];
+type RedisPayload = [1, number, string];
 
 export class Redis implements Cache {
   public static readonly encoder = new TextEncoder();
