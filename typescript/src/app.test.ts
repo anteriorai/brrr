@@ -601,7 +601,7 @@ await suite(import.meta.filename, async () => {
         });
       });
 
-      await test("spawn limit cached", { only: true }, async () => {
+      await test("spawn limit cached", async () => {
         let n = 0;
         let final = undefined;
 
