@@ -22,11 +22,10 @@
 }:
 
 pkgs.testers.runNixOSTest {
+  inherit (integrationCommon) globalTimeout;
   name = "brrr-integration";
-  globalTimeout = integrationCommon.globalTimeout;
-
   nodes = {
-    inherit (integrationCommon.nodes) datastores;
+    inherit (integrationCommon) datastores;
     tester =
       {
         lib,
