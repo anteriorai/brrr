@@ -277,6 +277,27 @@ await suite(import.meta.filename, async () => {
     );
   });
 
+  await test("weird names", async () => {
+    const topic = "//':\"~`\\";
+    const taskName = "`'\"\\/~$!@:";
+
+    function double(x: number): number {
+      return x * 2;
+    }
+
+    const app = new AppWorker(codec, server, {
+      [taskName]: taskFn(double),
+    });
+    server.listen(topic, app.handle);
+
+    const call = await codec.encodeCall(taskName, [7]);
+
+    await app.schedule(taskName, topic)(7);
+
+    await waitFor(call);
+    strictEqual(await app.read(taskName)(7), 14);
+  });
+
   await test("debounce child", async () => {
     const calls = new Map<number, number>();
 
