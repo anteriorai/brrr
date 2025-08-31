@@ -1,4 +1,8 @@
 import type { Cache, MemKey, Store } from "../store.ts";
+import type { Publisher, Subscriber } from "../emitter.ts";
+import { EventEmitter } from "node:events";
+import type { Call } from "../call.ts";
+import { BrrrTaskDoneEventSymbol } from "../symbol.ts";
 
 export class InMemoryStore implements Store {
   private store = new Map<string, Uint8Array>();
@@ -75,5 +79,32 @@ export class InMemoryCache implements Cache {
     const next = (this.cache.get(key) ?? 0) + 1;
     this.cache.set(key, next);
     return next;
+  }
+}
+
+export class InMemoryEmitter implements Publisher, Subscriber {
+  private readonly emitter = new EventEmitter();
+  private readonly eventEmitter = new EventEmitter();
+
+  public on(topic: string, listener: (callId: string) => void): void {
+    this.emitter.on(topic, listener);
+  }
+
+  public onEventSymbol(
+    event: typeof BrrrTaskDoneEventSymbol,
+    listener: (call: Call) => void,
+  ): void {
+    this.eventEmitter.on(event, listener);
+  }
+
+  public async emit(topic: string, callId: string): Promise<void> {
+    this.emitter.emit(topic, callId);
+  }
+
+  public async emitEventSymbol(
+    event: typeof BrrrTaskDoneEventSymbol,
+    call: Call,
+  ): Promise<void> {
+    this.eventEmitter.emit(event, call);
   }
 }
