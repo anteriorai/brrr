@@ -63,6 +63,10 @@ export class Redis implements Cache {
     return this.client.incr(key);
   }
 
+  public destroy(): void {
+    this.client.destroy();
+  }
+
   public async close(): Promise<void> {
     await this.client.close();
   }
