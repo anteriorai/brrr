@@ -2,6 +2,7 @@ import {
   afterEach,
   before,
   beforeEach,
+  type HookFn,
   mock,
   type MockTimersOptions,
   suite,
@@ -260,7 +261,7 @@ await suite(import.meta.filename, async () => {
 
 export async function storeContractTest(
   factory: () => Store | Promise<Store>,
-  afterEachFn: () => void | Promise<void> = () => {},
+  afterEachFn?: HookFn,
 ) {
   await suite("store-contract", async () => {
     let store: Store;
@@ -340,7 +341,7 @@ export async function storeContractTest(
 
 export async function cacheContractTest(
   factory: () => Cache | Promise<Cache>,
-  afterEachFn: () => void | Promise<void> = () => {},
+  afterEachFn?: HookFn,
 ) {
   await suite("cache-contract", async () => {
     let cache: Cache;
