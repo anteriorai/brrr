@@ -1,8 +1,9 @@
-import type {
-  RedisClientPoolType,
-  RedisFunctions,
-  RedisModules,
-  RedisScripts,
+import {
+  type RedisClientPoolType,
+  type RedisFunctions,
+  type RedisModules,
+  type RedisScripts,
+  RESP_TYPES,
 } from "redis";
 import type { Cache } from "../store.ts";
 import { InvalidMessageError } from "../errors.ts";
@@ -13,7 +14,6 @@ import { TextEncoder } from "node:util";
 type RedisPayload = [1, number, string];
 
 export class Redis implements Cache {
-  public static readonly encoder = new TextEncoder();
   public static readonly encoding = "utf-8" satisfies Encoding;
 
   public readonly timeout: number;
@@ -43,12 +43,18 @@ export class Redis implements Cache {
   }
 
   public async pop(topic: string): Promise<string | undefined> {
-    const response = await this.client.blPop(topic, this.timeout);
+    const response = await this.client
+      .withTypeMapping({
+        [RESP_TYPES.BLOB_STRING]: Buffer,
+      })
+      .blPop(topic, this.timeout);
     if (!response) {
       return;
     }
-    const buffer = Redis.encoder.encode(response.element);
-    const chunks = bencoder.decode(buffer, Redis.encoding) as RedisPayload;
+    const chunks = bencoder.decode(
+      response.element,
+      Redis.encoding,
+    ) as RedisPayload;
     if (
       chunks[0] !== 1 ||
       !Number.isInteger(chunks[1]) ||
