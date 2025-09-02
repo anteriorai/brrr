@@ -28,7 +28,7 @@ await suite(import.meta.filename, async () => {
 
   async function closeRedis() {
     await client.flushAll();
-    await redis.close();
+    redis.destroy();
   }
 
   await cacheContractTest(createRedis, closeRedis);
@@ -55,7 +55,7 @@ await suite(import.meta.filename, async () => {
       }
     });
 
-    await test("pop before push", { only: true }, async () => {
+    await test("pop before push", async () => {
       const popped = redis.pop(topic);
       await redis.push(topic, message);
       strictEqual(await popped, message);
