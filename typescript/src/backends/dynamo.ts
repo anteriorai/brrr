@@ -23,24 +23,24 @@ export class Dynamo implements Store {
   }
 
   public async has(key: MemKey): Promise<boolean> {
-    const response = await this.client.send(
+    const { Item } = await this.client.send(
       new GetCommand({
         TableName: this.tableName,
         Key: this.key(key),
         ProjectionExpression: "pk",
       }),
     );
-    return !!response.Item;
+    return !!Item;
   }
 
   public async get(key: MemKey): Promise<Uint8Array | undefined> {
-    const response = await this.client.send(
+    const { Item } = await this.client.send(
       new GetCommand({
         TableName: this.tableName,
         Key: this.key(key),
       }),
     );
-    return response.Item?.value;
+    return Item?.value;
   }
 
   public async set(key: MemKey, value: Uint8Array): Promise<void> {
@@ -56,14 +56,14 @@ export class Dynamo implements Store {
   }
 
   public async delete(key: MemKey): Promise<boolean> {
-    const response = await this.client.send(
+    const { Attributes } = await this.client.send(
       new DeleteCommand({
         TableName: this.tableName,
         Key: this.key(key),
         ReturnValues: "ALL_OLD",
       }),
     );
-    return !!response.Attributes;
+    return !!Attributes;
   }
 
   public async setNewValue(key: MemKey, value: Uint8Array): Promise<boolean> {

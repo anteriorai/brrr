@@ -1,22 +1,20 @@
 import type { Call } from "./call.ts";
 import { BrrrTaskDoneEventSymbol } from "./symbol.ts";
 
-export abstract class Publisher {
-  public abstract emit(topic: string, callId: string): Promise<void>;
+export interface Publisher {
+  emit(topic: string, callId: string): Promise<void>;
 
-  public async emitEventSymbol(
+  emitEventSymbol?(
     event: typeof BrrrTaskDoneEventSymbol,
     call: Call,
-  ): Promise<void> {}
+  ): Promise<void>;
 }
 
-export abstract class Subscriber {
-  abstract on(topic: string, listener: (callId: string) => void): this;
+export interface Subscriber {
+  on(topic: string, listener: (callId: string) => void): void;
 
-  public onEventSymbol(
+  onEventSymbol?(
     event: typeof BrrrTaskDoneEventSymbol,
     listener: (call: Call) => void,
-  ): this {
-    return this;
-  }
+  ): void;
 }
