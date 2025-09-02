@@ -259,7 +259,7 @@ await suite(import.meta.filename, async () => {
 });
 
 export async function storeContractTest(
-  factory: () => Promise<Store>,
+  factory: () => Store | Promise<Store>,
   afterEachFn: () => void | Promise<void> = () => {},
 ) {
   await suite("store-contract", async () => {
@@ -339,7 +339,7 @@ export async function storeContractTest(
 }
 
 export async function cacheContractTest(
-  factory: () => Promise<Cache>,
+  factory: () => Cache | Promise<Cache>,
   afterEachFn: () => void | Promise<void> = () => {},
 ) {
   await suite("cache-contract", async () => {
