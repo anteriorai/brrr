@@ -1,8 +1,8 @@
-import {
-  type RedisClientType,
-  type RedisFunctions,
-  type RedisModules,
-  type RedisScripts,
+import type {
+  RedisClientPoolType,
+  RedisFunctions,
+  RedisModules,
+  RedisScripts,
 } from "redis";
 import type { Cache } from "../store.ts";
 import { InvalidMessageError } from "../errors.ts";
@@ -17,7 +17,7 @@ export class Redis implements Cache {
   public static readonly encoding = "utf-8" satisfies Encoding;
 
   public readonly timeout: number;
-  public readonly client: RedisClientType<
+  public readonly client: RedisClientPoolType<
     RedisModules,
     RedisFunctions,
     RedisScripts,
@@ -64,6 +64,6 @@ export class Redis implements Cache {
   }
 
   public async close(): Promise<void> {
-    this.client.destroy();
+    await this.client.close();
   }
 }
