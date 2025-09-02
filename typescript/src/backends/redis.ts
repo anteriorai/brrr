@@ -9,7 +9,6 @@ import type { Cache } from "../store.ts";
 import { InvalidMessageError } from "../errors.ts";
 import { bencoder } from "../bencode.ts";
 import type { Encoding } from "node:crypto";
-import { TextEncoder } from "node:util";
 
 type RedisPayload = [1, number, string];
 
