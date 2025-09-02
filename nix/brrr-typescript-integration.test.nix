@@ -19,6 +19,10 @@ pkgs.testers.runNixOSTest {
       let
         test-brrr-typescript = pkgs.writeShellApplication {
           name = "test-brrr-typescript";
+          runtimeInputs = [
+            self.packages.${pkgs.system}.brrr-ts
+            pkgs.nodejs_24
+          ];
           runtimeEnv = integrationCommon.runtimeEnv;
           text = ''
             cd ${self.packages.${pkgs.system}.brrr-ts}
