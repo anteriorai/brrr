@@ -2,16 +2,21 @@ import { afterEach, beforeEach, suite, test } from "node:test";
 import { cacheContractTest } from "../store.test.ts";
 import { ok, strictEqual } from "node:assert/strict";
 import { env } from "node:process";
-import { createClient } from "redis";
+import { createClientPool } from "redis";
 import { Redis } from "./redis.ts";
 
 await suite(import.meta.filename, async () => {
   ok(env.BRRR_TEST_REDIS_URL);
 
-  const client = createClient({
-    RESP: 3,
-    url: env.BRRR_TEST_REDIS_URL,
-  });
+  const client = createClientPool(
+    {
+      RESP: 3,
+      url: env.BRRR_TEST_REDIS_URL,
+    },
+    {
+      cleanupDelay: 0,
+    },
+  );
 
   let redis: Redis;
 
@@ -48,6 +53,12 @@ await suite(import.meta.filename, async () => {
       for (const message of messages) {
         strictEqual(await redis.pop(topic), message);
       }
+    });
+
+    await test("pop before push", { only: true }, async () => {
+      const popped = redis.pop(topic);
+      await redis.push(topic, message);
+      strictEqual(await popped, message);
     });
   });
 });

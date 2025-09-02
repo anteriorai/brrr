@@ -363,7 +363,7 @@
                             export AWS_SECRET_ACCESS_KEY
                             : "''${BRRR_TEST_REDIS_URL=redis://localhost:6379}"
                             export BRRR_TEST_REDIS_URL
-                            exec npm run test:integration
+                            npm run test:integration
                           )'';
                       }
                     ] ++ sharedCommands;
