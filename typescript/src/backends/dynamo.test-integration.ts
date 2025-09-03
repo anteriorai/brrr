@@ -17,10 +17,6 @@ await suite(import.meta.filename, async () => {
 
   let dynamo: Dynamo;
 
-  await test("NOCOOMIT MUST FAIL", async () => {
-    strictEqual(true, false);
-  });
-
   await storeContractTest(
     async () => {
       dynamo = new Dynamo(client, randomUUID());
