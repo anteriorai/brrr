@@ -2,6 +2,6 @@
 
 set -euo pipefail
 
-cd "@brrrTsDir@"
+cd "$(dirname "$0")"
 
 node --test 'src/**/*.test-integration.ts'
