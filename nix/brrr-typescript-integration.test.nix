@@ -1,7 +1,7 @@
-{ self
-, pkgs
-, integrationCommon
-,
+{
+  self,
+  pkgs,
+  integrationCommon,
 }:
 
 pkgs.testers.runNixOSTest {
@@ -10,10 +10,11 @@ pkgs.testers.runNixOSTest {
   nodes = {
     inherit (integrationCommon) datastores;
     tester =
-      { lib
-      , config
-      , pkgs
-      , ...
+      {
+        lib,
+        config,
+        pkgs,
+        ...
       }:
       let
         brrr-test-integration = self.packages.${pkgs.system}.brrr-ts;
