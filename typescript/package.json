@@ -3,6 +3,9 @@
   "version": "0.1.1-dev",
   "description": "Horizontally scalable workflow scheduling with pluggable backends",
   "type": "module",
+  "bin": {
+    "brrr-test-integration": "brrr-test-integration"
+  },
   "scripts": {
     "build": "tsc",
     "test": "node --test 'src/**/*.test.ts'",
