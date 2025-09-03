@@ -353,8 +353,8 @@
                         help = "Tests including dependencies, make sure to run brrr-demo-deps";
                         command = ''
                           (
-                            : "''${AWS_DEFAULT_REGION=fake}"
-                            export AWS_DEFAULT_REGION
+                            : "''${AWS_REGION=fake}"
+                            export AWS_REGION
                             : "''${AWS_ENDPOINT_URL=http://localhost:8000}"
                             export AWS_ENDPOINT_URL
                             : "''${AWS_ACCESS_KEY_ID=fake}"
