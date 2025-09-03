@@ -1,7 +1,7 @@
-{
-  self,
-  pkgs,
-  integrationCommon,
+{ self
+, pkgs
+, integrationCommon
+,
 }:
 
 pkgs.testers.runNixOSTest {
@@ -10,25 +10,33 @@ pkgs.testers.runNixOSTest {
   nodes = {
     inherit (integrationCommon) datastores;
     tester =
-      {
-        lib,
-        config,
-        pkgs,
-        ...
+      { lib
+      , config
+      , pkgs
+      , ...
       }:
       let
-        brrr-test-integration = self.packages.${pkgs.system}.brrr-ts.overrideAttrs {
-          meta.mainProgram = "brrr-test-integration";
-        };
+        brrr-test-integration = self.packages.${pkgs.system}.brrr-ts;
       in
       {
-        environment.systemPackages = [ brrr-test-integration ];
+        systemd.services.brrr-test-integration = {
+          serviceConfig = {
+            Type = "oneshot";
+            Restart = "no";
+            RemainAfterExit = "yes";
+            ExecStart = "${brrr-test-integration}/bin/brrr-test-integration";
+          };
+          environment = integrationCommon.runtimeEnv;
+          enable = true;
+          wants = [ "multi-user.target" ];
+        };
       };
   };
 
   testScript =
     integrationCommon.testScript
     + ''
-      tester.wait_until_succeeds("brrr-test-integration")
+      tester.systemctl("start --no-block brrr-test-integration.service")
+      tester.wait_for_unit("brrr-test-integration.service")
     '';
 }

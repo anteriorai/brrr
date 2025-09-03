@@ -12,8 +12,9 @@ let
     }).mkNpmModule
       {
         src = ./.;
+        buildInputs = [ nodejs ];
         postFixup = ''
-          substituteInPlace "$out/brrr-test-integration" --subst-var-by brrrTsDir ${./.}
+          substituteInPlace "$out/brrr-test-integration" --subst-var-by brrrTsDir $out
         '';
       };
 in
