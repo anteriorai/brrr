@@ -15,7 +15,6 @@ type RedisPayload = [1, number, string];
 export class Redis implements Cache {
   public static readonly encoding = "utf-8" satisfies Encoding;
 
-  public readonly timeout: number;
   public readonly client: RedisClientPoolType<
     RedisModules,
     RedisFunctions,
@@ -23,9 +22,8 @@ export class Redis implements Cache {
     3
   >;
 
-  public constructor(client: typeof this.client, timeout: number = 20) {
+  public constructor(client: typeof this.client) {
     this.client = client;
-    this.timeout = timeout;
   }
 
   public async connect(): Promise<void> {
@@ -41,12 +39,15 @@ export class Redis implements Cache {
     await this.client.rPush(topic, Buffer.from(element));
   }
 
-  public async pop(topic: string): Promise<string | undefined> {
+  public async pop(
+    topic: string,
+    timeout: number = 20,
+  ): Promise<string | undefined> {
     const response = await this.client
       .withTypeMapping({
         [RESP_TYPES.BLOB_STRING]: Buffer,
       })
-      .blPop(topic, this.timeout);
+      .blPop(topic, timeout);
     if (!response) {
       return;
     }
