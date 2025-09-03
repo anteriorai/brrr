@@ -10,7 +10,12 @@ let
       # Overriding the Node.js version to support running TS natively.
       inherit nodejs;
     }).mkNpmModule
-      { src = ./.; };
+      {
+        src = ./.;
+        postFixup = ''
+          substituteInPlace "$out/brrr-test-integration" --subst-var-by brrrTsDir ${./.}
+        '';
+      };
 in
 {
   inherit brrr-ts;

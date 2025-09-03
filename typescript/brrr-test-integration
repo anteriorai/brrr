@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+cd "@brrrTsDir@"
+
+node --test 'src/**/*.test-integration.ts'
