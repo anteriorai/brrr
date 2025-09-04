@@ -3,8 +3,22 @@
   "version": "0.1.1-dev",
   "description": "Horizontally scalable workflow scheduling with pluggable backends",
   "type": "module",
+  "files": [
+    "dist"
+  ],
   "bin": {
+    "brrr-demo": "demo/cli.ts",
     "brrr-test-integration": "brrr-test-integration"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./testing": {
+      "import": "./dist/testing.js",
+      "types": "./dist/testing.d.ts"
+    }
   },
   "scripts": {
     "build": "tsc",
