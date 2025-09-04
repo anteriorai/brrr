@@ -1,7 +1,9 @@
 import {
+  ConditionalCheckFailedException,
   CreateTableCommand,
   DeleteTableCommand,
   type DynamoDBClient,
+  ResourceInUseException,
 } from "@aws-sdk/client-dynamodb";
 import {
   DeleteCommand,
@@ -79,11 +81,8 @@ export class Dynamo implements Store {
         }),
       );
       return true;
-    } catch (err) {
-      if (
-        err instanceof Error &&
-        err?.name === "ConditionalCheckFailedException"
-      ) {
+    } catch (err: unknown) {
+      if (err instanceof ConditionalCheckFailedException) {
         return false;
       }
       throw err;
@@ -111,10 +110,7 @@ export class Dynamo implements Store {
       );
       return true;
     } catch (err: unknown) {
-      if (
-        err instanceof Error &&
-        err.name === "ConditionalCheckFailedException"
-      ) {
+      if (err instanceof ConditionalCheckFailedException) {
         return false;
       }
       throw err;
@@ -138,10 +134,7 @@ export class Dynamo implements Store {
       );
       return true;
     } catch (err: unknown) {
-      if (
-        err instanceof Error &&
-        err.name === "ConditionalCheckFailedException"
-      ) {
+      if (err instanceof ConditionalCheckFailedException) {
         return false;
       }
       throw err;
@@ -149,23 +142,30 @@ export class Dynamo implements Store {
   }
 
   public async createTable(): Promise<void> {
-    await this.client.send(
-      new CreateTableCommand({
-        TableName: this.tableName,
-        KeySchema: [
-          { AttributeName: "pk", KeyType: "HASH" },
-          { AttributeName: "sk", KeyType: "RANGE" },
-        ],
-        AttributeDefinitions: [
-          { AttributeName: "pk", AttributeType: "S" },
-          { AttributeName: "sk", AttributeType: "S" },
-        ],
-        ProvisionedThroughput: {
-          ReadCapacityUnits: 5,
-          WriteCapacityUnits: 5,
-        },
-      }),
-    );
+    try {
+      await this.client.send(
+        new CreateTableCommand({
+          TableName: this.tableName,
+          KeySchema: [
+            { AttributeName: "pk", KeyType: "HASH" },
+            { AttributeName: "sk", KeyType: "RANGE" },
+          ],
+          AttributeDefinitions: [
+            { AttributeName: "pk", AttributeType: "S" },
+            { AttributeName: "sk", AttributeType: "S" },
+          ],
+          ProvisionedThroughput: {
+            ReadCapacityUnits: 5,
+            WriteCapacityUnits: 5,
+          },
+        }),
+      );
+    } catch (err: unknown) {
+      if (err instanceof ResourceInUseException) {
+        return;
+      }
+      throw err;
+    }
   }
 
   public async deleteTable(): Promise<void> {
