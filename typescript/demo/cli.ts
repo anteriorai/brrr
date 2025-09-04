@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import {
+  ActiveWorker,
   AppWorker,
   type Call,
   type Codec,
@@ -77,8 +78,33 @@ class JsonKwargsCodec implements Codec {
 const dynamo = await createDynamo();
 const redis = await createRedis();
 
-function sum(arg: { values: number[] }): number {
-  return arg.values.reduce((a, b) => a + b);
+function sum({ values }: { values: number[] }): number {
+  return values.reduce((a, b) => a + b);
+}
+
+/**
+ * Lucus number: L(n) = F(n-1) + F(n+1)
+ * https://en.wikipedia.org/wiki/Lucas_number
+ */
+async function lucas(
+  app: ActiveWorker,
+  { n, salt }: { n: number; salt: string | null },
+): Promise<number> {
+  if (n < 2) {
+    return 2 - n;
+  }
+  return app.call(sum)({
+    values: await app.gather(
+      app.call<[{ n: number; salt: string | null }], number>(
+        "fib",
+        "brrr-demo-main",
+      )({ n: n - 1, salt }),
+      app.call<[{ n: number; salt: string | null }], number>(
+        "fib",
+        "brrr-demo-main",
+      )({ n: n + 1, salt }),
+    ),
+  });
 }
 
 const server = new Server(dynamo, redis, {
@@ -89,6 +115,7 @@ const server = new Server(dynamo, redis, {
 
 const app = new AppWorker(new JsonKwargsCodec(), server, {
   sum: taskFn(sum),
+  lucas,
 });
 
 const topic = "brrr-ts-demo-main";

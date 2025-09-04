@@ -48,6 +48,13 @@ async def hello(greetee: str):
 
 
 @brrr.handler
+async def lucas_and_print(app: ActiveWorker, n: str, salt=None):
+    lucas = await app.call("lucas", topic="brrr-ts-demo-main")(n=int(n), salt=salt)
+    print(f"lucas({n}) = {lucas}", flush=True)
+    return lucas
+
+
+@brrr.handler
 async def fib(app: ActiveWorker, n: int, salt=None):
     match n:
         case 0 | 1:
@@ -152,6 +159,7 @@ async def with_brrr(
             app = AppWorker(
                 handlers=dict(
                     fib_and_print=fib_and_print,
+                    lucas_and_print=lucas_and_print,
                     hello=hello,
                     fib=fib,
                 ),
