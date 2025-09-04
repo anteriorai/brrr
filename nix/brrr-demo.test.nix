@@ -85,6 +85,7 @@ let
         # Server initializes the stores
         server.wait_for_unit("default.target")
         worker.wait_for_unit("default.target")
+        tsworker.wait_for_unit("default.target")
         tester.wait_for_unit("default.target")
         server.wait_for_open_port(8080)
         tester.wait_until_succeeds("curl --fail -sSL -X POST 'http://server:8080/hello?greetee=Jim'")
@@ -129,6 +130,22 @@ let
           };
         };
       };
+    tsworker =
+      { config, pkgs, ... }:
+      {
+        imports = [ self.nixosModules.brrr-demo ];
+        services.brrr-demo = {
+          enable = true;
+          package = self.packages.${pkgs.system}.brrr-demo-ts;
+          environment = {
+            BRRR_DEMO_REDIS_URL = "redis://datastores:6379";
+            AWS_REGION = "foo";
+            AWS_ENDPOINT_URL = "http://datastores:8000";
+            AWS_ACCESS_KEY_ID = "foo";
+            AWS_SECRET_ACCESS_KEY = "bar";
+          };
+        };
+      };
   };
   docker = {
     server =
@@ -165,6 +182,24 @@ let
           environment = {
             BRRR_DEMO_REDIS_URL = "redis://datastores:6379";
             AWS_DEFAULT_REGION = "foo";
+            AWS_ENDPOINT_URL = "http://datastores:8000";
+            AWS_ACCESS_KEY_ID = "foo";
+            AWS_SECRET_ACCESS_KEY = "bar";
+          };
+        };
+      };
+    tsworker =
+      { config, pkgs, ... }:
+      {
+        virtualisation.oci-containers.backend = "docker";
+        virtualisation.oci-containers.containers.brrr-ts = {
+          extraOptions = [ "--network=host" ];
+          image = "brrr-demo-ts:latest";
+          imageFile = self.packages.${pkgs.system}.docker-ts;
+          cmd = [ ];
+          environment = {
+            BRRR_DEMO_REDIS_URL = "redis://datastores:6379";
+            AWS_REGION = "foo";
             AWS_ENDPOINT_URL = "http://datastores:8000";
             AWS_ACCESS_KEY_ID = "foo";
             AWS_SECRET_ACCESS_KEY = "bar";
