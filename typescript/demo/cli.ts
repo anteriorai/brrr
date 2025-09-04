@@ -21,15 +21,10 @@ async function createDynamo(): Promise<Dynamo> {
 }
 
 async function createRedis(): Promise<Redis> {
-  const client = createClientPool(
-    {
-      RESP: 3,
-      ...(env.BRRR_DEMO_REDIS_URL && { url: env.BRRR_DEMO_REDIS_URL }),
-    },
-    {
-      cleanupDelay: 0,
-    },
-  );
+  const client = createClientPool({
+    RESP: 3,
+    ...(env.BRRR_DEMO_REDIS_URL && { url: env.BRRR_DEMO_REDIS_URL }),
+  });
   return new Redis(client);
 }
 
@@ -61,7 +56,6 @@ class JsonKwargsCodec implements Codec {
     task: (...args: A) => Promise<R>,
   ): Promise<Uint8Array> {
     const decoded = JsonKwargsCodec.decoder.decode(call.payload);
-    console.log(decoded);
     const args: A = JSON.parse(decoded);
     const result = await task(...args);
     const resultJson = JSON.stringify(result);
