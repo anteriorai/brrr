@@ -82,27 +82,21 @@ function sum({ values }: { values: number[] }): number {
   return values.reduce((a, b) => a + b);
 }
 
+// fib and lucas share the same arg type
+type Arg = { n: number; salt: string | null };
+
 /**
  * Lucus number: L(n) = F(n-1) + F(n+1)
  * https://en.wikipedia.org/wiki/Lucas_number
  */
-async function lucas(
-  app: ActiveWorker,
-  { n, salt }: { n: number; salt: string | null },
-): Promise<number> {
+async function lucas(app: ActiveWorker, { n, salt }: Arg): Promise<number> {
   if (n < 2) {
     return 2 - n;
   }
   return app.call(sum)({
     values: await app.gather(
-      app.call<[{ n: number; salt: string | null }], number>(
-        "fib",
-        "brrr-demo-main",
-      )({ n: n - 1, salt }),
-      app.call<[{ n: number; salt: string | null }], number>(
-        "fib",
-        "brrr-demo-main",
-      )({ n: n + 1, salt }),
+      app.call<[Arg], number>("fib", "brrr-demo-main")({ n: n - 1, salt }),
+      app.call<[Arg], number>("fib", "brrr-demo-main")({ n: n + 1, salt }),
     ),
   });
 }
