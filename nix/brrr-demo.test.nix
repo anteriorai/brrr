@@ -62,6 +62,9 @@ let
                 json="$(curl --fail -sSL "http://server:8080/fib_and_print?n=78&salt=abcd")"
                 val="$(<<<"$json" jq '. == {status: "ok", result: 8944394323791464}')"
                 [[ "$val" == true ]]
+                json="$(curl --fail -sSL "http://server:8080/lucas_and_print?n=76&salt=abcd")"
+                val="$(<<<"$json" jq '. == {status: "ok", result: 7639424778862807}')"
+                [[ "$val" == true ]]
               '';
             };
           in
@@ -77,8 +80,8 @@ let
 
       globalTimeout = 10 * 60;
 
-      # Chose a big number (78) to ensure debouncing works.
-      # fib(78) = 8944394323791464 is the largest Fibonacci number under JavaScript's Number.MAX_SAFE_INTEGER
+      # Chose a big number to ensure debouncing works.
+      # fib(78) = 8944394323791464 and lucas(76) = 7639424778862807 are the largest numbers under JavaScript's Number.MAX_SAFE_INTEGER
       testScript = ''
         # Start first because it's a dependency
         datastores.wait_for_unit("default.target")
@@ -90,6 +93,7 @@ let
         server.wait_for_open_port(8080)
         tester.wait_until_succeeds("curl --fail -sSL -X POST 'http://server:8080/hello?greetee=Jim'")
         tester.wait_until_succeeds("curl --fail -sSL -X POST 'http://server:8080/fib_and_print?n=78&salt=abcd'")
+        tester.wait_until_succeeds("curl --fail -sSL -X POST 'http://server:8080/lucas_and_print?n=76&salt=abcd'")
         tester.wait_until_succeeds("test-brrr-demo")
       '';
     };
