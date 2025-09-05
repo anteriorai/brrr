@@ -2,7 +2,8 @@
 import {
   ActiveWorker,
   AppWorker,
-  Dynamo, NaiveJsonCodec,
+  Dynamo,
+  NaiveJsonCodec,
   Redis,
   Server,
   taskFn,
@@ -58,7 +59,7 @@ const server = new Server(dynamo, redis, {
   },
 });
 
-const codec = new NaiveJsonCodec()
+const codec = new NaiveJsonCodec();
 
 const app = new AppWorker(codec, server, {
   sum: taskFn(sum),
