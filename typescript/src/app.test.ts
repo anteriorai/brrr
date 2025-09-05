@@ -250,22 +250,23 @@ await suite(import.meta.filename, async () => {
   });
 
   await test("stress parallel", async () => {
-    async function fib(app: ActiveWorker, n: bigint): Promise<bigint> {
+    async function fib(app: ActiveWorker, sn: string): Promise<string> {
+      const n = BigInt(sn);
       if (n < 2) {
-        return n;
+        return n.toString();
       }
       const [a, b] = await app.gather(
-        app.call(fib)(n - 1n),
-        app.call(fib)(n - 2n),
+        app.call(fib)((n - 1n).toString()),
+        app.call(fib)((n - 2n).toString()),
       );
       return a + b;
     }
 
     async function top(app: ActiveWorker): Promise<void> {
-      const n = await app.call(fib)(1000n);
+      const n = await app.call(fib)("1000n");
       deepStrictEqual(
         n,
-        43466557686937456435688527675040625802564660517371780402481729089536555417949051890403879840079255169295922593080322634775209689623239873322471161642996440906533187938298969649928516003704476137795166849228875n,
+        "43466557686937456435688527675040625802564660517371780402481729089536555417949051890403879840079255169295922593080322634775209689623239873322471161642996440906533187938298969649928516003704476137795166849228875n",
       );
     }
 

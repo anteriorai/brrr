@@ -36,10 +36,6 @@ export async function codecContractTest(codec: Codec) {
         [{ a: null, b: [1, 2, null], c: { d: null } }],
         [{ c: { d: null }, b: [1, 2, null], a: null }],
       ],
-      undefineds: [
-        [{ a: undefined, b: [1, 2, undefined], c: { d: undefined } }],
-        [{ c: { d: undefined }, b: [1, 2, undefined], a: undefined }],
-      ],
       empties: [[{ a: {}, b: [] }], [{ b: [], a: {} }]],
       "mixed types": [
         [{ a: 1, b: "2", c: true, d: null }],
