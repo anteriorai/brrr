@@ -38,7 +38,7 @@ function sum({ values }: { values: number[] }): number {
 type Arg = { n: number; salt: string | null };
 
 /**
- * Lucus number: lucas(n) = fib(n - 1) + fib(n + 1)
+ * Lucas number: lucas(n) = fib(n - 1) + fib(n + 1)
  * https://en.wikipedia.org/wiki/Lucas_number
  */
 async function lucas(app: ActiveWorker, { n, salt }: Arg): Promise<number> {
