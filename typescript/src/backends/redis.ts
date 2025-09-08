@@ -41,26 +41,34 @@ export class Redis implements Cache {
 
   public async pop(
     topic: string,
-    timeout: number = 20,
+    timeoutMs: number = 20_000,
   ): Promise<string | undefined> {
     const response = await this.client
       .withTypeMapping({
         [RESP_TYPES.BLOB_STRING]: Buffer,
       })
-      .blPop(topic, timeout);
+      .blPop(topic, timeoutMs / 1000);
     if (!response) {
       return;
     }
-    const chunks = bencoder.decode(
-      response.element,
-      Redis.encoding,
-    ) as RedisPayload;
-    if (
-      chunks[0] !== 1 ||
-      !Number.isInteger(chunks[1]) ||
-      typeof chunks[2] !== "string"
-    ) {
-      throw new InvalidMessageError();
+    return this.decodeMessage(response.element);
+  }
+
+  private decodeMessage(data: Uint8Array): string | undefined {
+    const chunks = bencoder.decode(data, Redis.encoding) as RedisPayload;
+    if (chunks.length !== 3) {
+      throw new InvalidMessageError(
+        `Message length expected to be 3, got ${chunks.length}`,
+      );
+    }
+    if (chunks[0] !== 1) {
+      throw new InvalidMessageError(`Version mismatch`);
+    }
+    if (!Number.isInteger(chunks[1])) {
+      throw new InvalidMessageError(`Timestamp is not an integer`);
+    }
+    if (typeof chunks[2] !== "string") {
+      throw new InvalidMessageError("Message content is not string");
     }
     return chunks[2];
   }

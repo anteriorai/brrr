@@ -9,8 +9,8 @@ abstract class BrrrError extends Error {
 }
 
 export class InvalidMessageError extends BrrrError {
-  public constructor() {
-    super("Recieved invalid message");
+  public constructor(reason: string) {
+    super(`Recieved invalid message: ${reason}`);
   }
 }
 
