@@ -183,15 +183,15 @@ export class ActiveWorker {
   public async gather<T>(...promises: Promise<T>[]): Promise<Awaited<T>[]> {
     const deferredCalls: DeferredCall[] = [];
     const values: Awaited<T>[] = [];
-    for (const settled of await Promise.allSettled(promises)) {
-      if (settled.status === "fulfilled") {
-        values.push(settled.value);
-        continue;
+    for (const promise of promises) {
+      try {
+        values.push(await promise);
+      } catch (err) {
+        if (!(err instanceof Defer)) {
+          throw err;
+        }
+        deferredCalls.push(...err.calls);
       }
-      if (!(settled.reason instanceof Defer)) {
-        throw settled.reason;
-      }
-      deferredCalls.push(...settled.reason.calls);
     }
     if (deferredCalls.length) {
       throw new Defer(...deferredCalls);
