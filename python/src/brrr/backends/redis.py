@@ -41,11 +41,14 @@ class RedisQueue(Queue, Cache):
 
     def _is_retryable(self, e: BaseException) -> bool:
         """
-        Retry only for the two transient errors we have seen in production: -
-        RedisConnectionError: connection dropped by server while blocking -
-        RedisResponseError: server-side UNBLOCK of a blocking operation
+        Retry only for the two transient errors we have seen in production:
+        - ConnectionError: connection dropped by server while blocking
+        https://app.datadoghq.com/error-tracking/issue/9353d9a4-8d89-11f0-937a-da7ad0900002
 
-        Intentionally keeping this narrow to avoid masking logic errors.
+        - RedisResponseError: server-side UNBLOCK of a blocking operation
+        https://app.datadoghq.com/error-tracking/issue/db47b470-4d96-11f0-b361-da7ad0900002
+
+        Intentionally keeping this list limited to avoid masking logic errors
         -po 2025-09-09
         """
         return isinstance(e, (RedisConnectionError, RedisResponseError))
@@ -62,7 +65,7 @@ class RedisQueue(Queue, Cache):
         pool = getattr(self.client, "connection_pool", None)
         if pool is not None:
             try:
-                coro = pool.disconnect()  # type: ignore[no-untyped-call]
+                coro = pool.disconnect()
                 if asyncio.iscoroutine(coro):
                     await coro
             except Exception:
@@ -117,7 +120,7 @@ class RedisQueue(Queue, Cache):
                 await self._force_disconnect()
                 if time.monotonic() >= deadline:
                     # give up and surface the last error
-                    raise last_error  # type: ignore[misc]
+                    raise last_error
                 await asyncio.sleep(sleep_secs)
 
     async def get_info(self, topic: str):
