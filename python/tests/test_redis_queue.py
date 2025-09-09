@@ -13,10 +13,10 @@ from brrr.queue import Queue
 from redis.exceptions import (
     ConnectionError as RedisConnectionError,
 )
+from redis.exceptions import DataError
 from redis.exceptions import (
     ResponseError as RedisResponseError,
 )
-from redis.exceptions import DataError
 
 from tests.contract_queue import QueueContract
 

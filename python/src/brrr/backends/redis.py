@@ -9,6 +9,8 @@ import bencodepy
 import bencodepy.exceptions
 from redis.exceptions import (
     ConnectionError as RedisConnectionError,
+)
+from redis.exceptions import (
     ResponseError as RedisResponseError,
 )
 
