@@ -62,10 +62,10 @@ export class Redis implements Cache {
       );
     }
     if (chunks[0] !== 1) {
-      throw new InvalidMessageError(`Version mismatch`);
+      throw new InvalidMessageError("Version mismatch");
     }
     if (!Number.isInteger(chunks[1])) {
-      throw new InvalidMessageError(`Timestamp is not an integer`);
+      throw new InvalidMessageError("Timestamp is not an integer");
     }
     if (typeof chunks[2] !== "string") {
       throw new InvalidMessageError("Message content is not string");
