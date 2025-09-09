@@ -308,9 +308,9 @@ export async function storeContractTest(
     });
 
     await test("Basic delete", async () => {
-      await store.delete(fixture.key);
+      ok(await store.delete(fixture.key));
       strictEqual(await store.get(fixture.key), undefined);
-      strictEqual(await store.delete(fixture.otherKey), false);
+      ok(!(await store.delete(fixture.otherKey)));
     });
 
     await test("Basic setNewValue", async () => {
