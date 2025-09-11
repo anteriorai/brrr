@@ -303,13 +303,13 @@ class MemoryContract(ByteStoreContract):
             assert await memory.add_pending_return("different-hash", base)
             # continuation, shouldn't schedule again
             assert not await memory.add_pending_return(
-                call_hash, "root/parent/different-topic"
+                call_hash, "root/parent/different-topic/with-slash"
             )
             assert not await memory.add_pending_return(
                 call_hash, "root/different-parent/topic"
             )
             assert not await memory.add_pending_return(
-                call_hash, "root/different-parent/different-topic"
+                call_hash, "root/different-parent/different-topic/with-slash"
             )
 
             with pytest.raises(FakeError):
@@ -319,8 +319,8 @@ class MemoryContract(ByteStoreContract):
                         "root/parent/topic",
                         "different-root/parent/topic",
                         "root/different-parent/topic",
-                        "root/parent/different-topic",
-                        "root/different-parent/different-topic",
+                        "root/parent/different-topic/with-slash",
+                        "root/different-parent/different-topic/with-slash",
                     }
                     raise FakeError()
 
@@ -331,8 +331,8 @@ class MemoryContract(ByteStoreContract):
                     "root/parent/topic",
                     "different-root/parent/topic",
                     "root/different-parent/topic",
-                    "root/parent/different-topic",
-                    "root/different-parent/different-topic",
+                    "root/parent/different-topic/with-slash",
+                    "root/different-parent/different-topic/with-slash",
                 }
 
             await memory.with_pending_returns_remove("key", body2)
