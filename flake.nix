@@ -202,18 +202,17 @@
                 # disappear at any time.
                 nix-flake-check-changed = pkgs.callPackage ./nix-flake-check-changed/package.nix { };
               };
-              checks =
-                {
-                  pytestIntegration = pkgs.callPackage ./nix/brrr-integration.test.nix {
-                    inherit self;
-                    dynamodb-module = self.nixosModules.dynamodb;
-                  };
-                }
-                // brrrpy.brrr.tests
-                // import ./nix/brrr-demo.test.nix {
-                  inherit self pkgs;
+              checks = {
+                pytestIntegration = pkgs.callPackage ./nix/brrr-integration.test.nix {
+                  inherit self;
                   dynamodb-module = self.nixosModules.dynamodb;
                 };
+              }
+              // brrrpy.brrr.tests
+              // import ./nix/brrr-demo.test.nix {
+                inherit self pkgs;
+                dynamodb-module = self.nixosModules.dynamodb;
+              };
               devshells =
                 let
                   sharedCommands = [
@@ -230,19 +229,18 @@
                 {
                   default = {
                     packages = devPackages ++ [ self'.packages.python ];
-                    motd =
-                      ''
-                        This is the generic devshell for brrr development.  Use this to fix
-                        problems in the Python lockfile and to access generic tooling.
+                    motd = ''
+                      This is the generic devshell for brrr development.  Use this to fix
+                      problems in the Python lockfile and to access generic tooling.
 
-                        Available tools:
-                      ''
-                      + lib.concatLines (map (x: "  - ${x.pname or x.name}") devPackages)
-                      + ''
+                      Available tools:
+                    ''
+                    + lib.concatLines (map (x: "  - ${x.pname or x.name}") devPackages)
+                    + ''
 
-                        For Python-specific development, use: nix develop .#python
-                        For TypeScript-specific development, use: nix develop .#typescript
-                      '';
+                      For Python-specific development, use: nix develop .#python
+                      For TypeScript-specific development, use: nix develop .#typescript
+                    '';
                     env = [
                       {
                         name = "PYTHONPATH";
@@ -327,7 +325,8 @@
                           nix run .#demo
                         '';
                       }
-                    ] ++ sharedCommands;
+                    ]
+                    ++ sharedCommands;
                   };
                   typescript = {
                     packages = devPackages;
@@ -340,7 +339,8 @@
                           npm run test
                         '';
                       }
-                    ] ++ sharedCommands;
+                    ]
+                    ++ sharedCommands;
                   };
                 };
             };

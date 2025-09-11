@@ -90,7 +90,8 @@ let
                   touch $out
                 '';
               };
-            } // (old.passthru.tests or { });
+            }
+            // (old.passthru.tests or { });
           };
         });
       })
