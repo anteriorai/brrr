@@ -15,10 +15,11 @@
 # These are all the pytest tests, with the required database dependencies spun
 # up.
 
-{
-  self,
-  pkgs,
-  integrationCommon,
+{ self
+, pkgs
+, integrationCommon
+, lib
+,
 }:
 
 pkgs.testers.runNixOSTest {
@@ -27,30 +28,33 @@ pkgs.testers.runNixOSTest {
   nodes = {
     inherit (integrationCommon) datastores;
     tester =
-      {
-        lib,
-        config,
-        pkgs,
-        ...
-      }:
+      { pkgs, ... }:
       let
-        test-brrr = pkgs.writeShellApplication {
-          name = "test-brrr";
-          runtimeInputs = [ self.packages.${pkgs.system}.brrr-venv-test ];
-          runtimeEnv = integrationCommon.runtimeEnv;
-          text = ''
-            pytest ${self.packages.${pkgs.system}.brrr.src}
-          '';
-        };
+        run-integration-test = pkgs.writeShellScriptBin "brrr-test-integration" ''
+          set -euo pipefail
+          ${self.packages.${pkgs.system}.brrr-venv-test}/bin/pytest ${self.packages.${pkgs.system}.brrr.src}
+        '';
       in
       {
-        environment.systemPackages = [ test-brrr ];
+        systemd.services.brrr-test-integration =
+          {
+            serviceConfig = {
+              Type = "oneshot";
+              Restart = "no";
+              RemainAfterExit = "yes";
+              ExecStart = lib.getExe run-integration-test;
+            };
+            environment = integrationCommon.runtimeEnv;
+            enable = true;
+            wants = [ "multi-user.target" ];
+          };
       };
   };
 
   testScript =
     integrationCommon.testScript
     + ''
-      tester.wait_until_succeeds("test-brrr")
+      tester.systemctl("start --no-block brrr-test-integration.service")
+      tester.wait_for_unit("brrr-test-integration.service")
     '';
 }
