@@ -296,8 +296,8 @@ class Memory:
         """
 
         def _is_repeated_call(existing_return: str):
-            new_root, new_parent, new_topic = new_return.split("/")
-            ext_root, ext_parent, ext_topic = existing_return.split("/")
+            new_root, new_parent, new_topic = new_return.split("/", 2)
+            ext_root, ext_parent, ext_topic = existing_return.split("/", 2)
             return (
                 ext_root != new_root
                 and ext_parent == new_parent
