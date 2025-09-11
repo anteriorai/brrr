@@ -206,15 +206,8 @@
                 nix-flake-check-changed = pkgs.callPackage ./nix-flake-check-changed/package.nix { };
               };
               checks =
-                {
-                  pytestIntegration = pkgs.callPackage ./nix/brrr-integration.test.nix {
-                    inherit self integrationCommon;
-                  };
-                  typescriptIntegration = pkgs.callPackage ./nix/brrr-typescript-integration.test.nix {
-                    inherit self integrationCommon;
-                  };
-                }
-                // brrrpy.brrr.tests
+                brrrpy.brrr.tests
+                // import ./nix/brrr-integration.test.nix { inherit self pkgs; }
                 // import ./nix/brrr-demo.test.nix {
                   inherit self pkgs;
                   dynamodb-module = self.nixosModules.dynamodb;

@@ -15,46 +15,75 @@
 # These are all the pytest tests, with the required database dependencies spun
 # up.
 
-{ self
-, pkgs
-, integrationCommon
-, lib
-,
-}:
+{ pkgs, self }:
 
-pkgs.testers.runNixOSTest {
-  inherit (integrationCommon) globalTimeout;
-  name = "brrr-integration";
-  nodes = {
-    inherit (integrationCommon) datastores;
-    tester =
-      { pkgs, ... }:
-      let
-        run-integration-test = pkgs.writeShellScriptBin "brrr-test-integration" ''
-          set -euo pipefail
-          ${self.packages.${pkgs.system}.brrr-venv-test}/bin/pytest ${self.packages.${pkgs.system}.brrr.src}
-        '';
-      in
-      {
-        systemd.services.brrr-test-integration =
+let
+  mkTest =
+    { name, bin }:
+    pkgs.testers.runNixOSTest {
+      inherit name;
+      globalTimeout = 5 * 60;
+      nodes = {
+        datastores =
+          { config, pkgs, ... }:
           {
-            serviceConfig = {
-              Type = "oneshot";
-              Restart = "no";
-              RemainAfterExit = "yes";
-              ExecStart = lib.getExe run-integration-test;
+            imports = [ self.nixosModules.dynamodb ];
+            services.redis.servers.main = {
+              enable = true;
+              port = 6379;
+              openFirewall = true;
+              bind = null;
+              logLevel = "debug";
+              settings.protected-mode = "no";
             };
-            environment = integrationCommon.runtimeEnv;
-            enable = true;
-            wants = [ "multi-user.target" ];
+            services.dynamodb = {
+              enable = true;
+              openFirewall = true;
+            };
+          };
+        tester =
+          { pkgs, ... }:
+          {
+            systemd.services.brrr-test-integration = {
+              serviceConfig = {
+                Type = "oneshot";
+                Restart = "no";
+                RemainAfterExit = "yes";
+                ExecStart = bin;
+              };
+              environment = {
+                AWS_DEFAULT_REGION = "us-east-1";
+                AWS_REGION = "us-east-1";
+                AWS_ENDPOINT_URL = "http://datastores:8000";
+                AWS_ACCESS_KEY_ID = "fake";
+                AWS_SECRET_ACCESS_KEY = "fake";
+                BRRR_TEST_REDIS_URL = "redis://datastores:6379";
+              };
+              enable = true;
+              wants = [ "multi-user.target" ];
+            };
           };
       };
+      testScript = ''
+        datastores.wait_for_unit("default.target")
+        tester.wait_for_unit("default.target")
+        tester.systemctl("start --no-block brrr-test-integration.service")
+        tester.wait_for_unit("brrr-test-integration.service")
+      '';
+    };
+in
+{
+  brrr-py-test-integration = mkTest {
+    name = "brrr-py-test-integration";
+    bin = pkgs.lib.getExe (
+      pkgs.writeShellScriptBin "brrr-py-test-integration" ''
+        set -euo pipefail
+        ${self.packages.${pkgs.system}.brrr-venv-test}/bin/pytest ${self.packages.${pkgs.system}.brrr.src}
+      ''
+    );
   };
-
-  testScript =
-    integrationCommon.testScript
-    + ''
-      tester.systemctl("start --no-block brrr-test-integration.service")
-      tester.wait_for_unit("brrr-test-integration.service")
-    '';
+  brrr-ts-test-integration = mkTest {
+    name = "brrr-ts-test-integration";
+    bin = "${self.packages.${pkgs.system}.brrr-ts}/bin/brrr-test-integration";
+  };
 }
