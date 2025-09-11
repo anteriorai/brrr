@@ -259,12 +259,12 @@ await suite(import.meta.filename, async () => {
   });
 });
 
-export async function storeContractTest(
-  factory: () => Store | Promise<Store>,
-  afterEachFn?: HookFn,
+export async function storeContractTest<T extends Store>(
+  constructor: () => T | Promise<T>,
+  desctuctor?: (store: T) => void | Promise<void>,
 ) {
   await suite("store-contract", async () => {
-    let store: Store;
+    let store: T;
 
     const fixture = {
       key: {
@@ -279,11 +279,13 @@ export async function storeContractTest(
     } as const;
 
     beforeEach(async () => {
-      store = await factory();
+      store = await constructor();
       await store.set(fixture.key, fixture.value);
     });
 
-    afterEach(afterEachFn);
+    afterEach(async () => {
+      await desctuctor?.(store);
+    });
 
     await test("Basic get", async () => {
       const retrieved = await store.get(fixture.key);
@@ -339,18 +341,20 @@ export async function storeContractTest(
   });
 }
 
-export async function cacheContractTest(
-  factory: () => Cache | Promise<Cache>,
-  afterEachFn?: HookFn,
+export async function cacheContractTest<T extends Cache>(
+  constructor: () => T | Promise<T>,
+  desctuctor?: (cache: T) => void | Promise<void>,
 ) {
   await suite("cache-contract", async () => {
-    let cache: Cache;
+    let cache: T;
 
     beforeEach(async () => {
-      cache = await factory();
+      cache = await constructor();
     });
 
-    afterEach(afterEachFn);
+    afterEach(async () => {
+      await desctuctor?.(cache);
+    });
 
     await test("Basic incr", async () => {
       const key = "test-incr-key";
