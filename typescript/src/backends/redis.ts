@@ -12,7 +12,7 @@ import type { Encoding } from "node:crypto";
 
 type RedisPayload = [1, number, string];
 
-export class Redis implements Cache {
+export class Redis implements Cache, AsyncDisposable {
   public static readonly encoding = "utf-8" satisfies Encoding;
 
   public readonly client: RedisClientPoolType<
@@ -83,5 +83,10 @@ export class Redis implements Cache {
 
   public async close(): Promise<void> {
     await this.client.close();
+  }
+
+  public async [Symbol.asyncDispose]() {
+    await this.client.flushAll();
+    this.destroy();
   }
 }
