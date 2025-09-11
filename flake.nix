@@ -231,6 +231,21 @@
                       '';
                     }
                   ];
+                  sharedEnvs = {
+                    AWS_ENDPOINT_URL = "http://localhost:8000";
+                    AWS_ACCESS_KEY_ID = "fake";
+                    AWS_SECRET_ACCESS_KEY = "fake";
+                    BRRR_TEST_REDIS_URL = "redis://localhost:6379";
+                  };
+                  mkEnvs = (
+                    envs:
+                    lib.concatStringsSep "\n" (
+                      lib.mapAttrsToList (name: value: ''
+                        : "''${${name}=${value}}"
+                        export ${name}
+                      '') envs
+                    )
+                  );
                 in
                 {
                   default = {
@@ -294,16 +309,7 @@
                         # Lol
                         command = ''
                           (
-                            : "''${AWS_DEFAULT_REGION=fake}"
-                            export AWS_DEFAULT_REGION
-                            : "''${AWS_ENDPOINT_URL=http://localhost:8000}"
-                            export AWS_ENDPOINT_URL
-                            : "''${AWS_ACCESS_KEY_ID=fake}"
-                            export AWS_ACCESS_KEY_ID
-                            : "''${AWS_SECRET_ACCESS_KEY=fake}"
-                            export AWS_SECRET_ACCESS_KEY
-                            : "''${BRRR_TEST_REDIS_URL=redis://localhost:6379}"
-                            export BRRR_TEST_REDIS_URL
+                            ${mkEnvs (sharedEnvs // { AWS_DEFAULT_REGION = "fake"; })}
                             exec pytest "$@"
                           )'';
                       }
@@ -353,16 +359,7 @@
                         help = "Tests including dependencies, make sure to run brrr-demo-deps";
                         command = ''
                           (
-                            : "''${AWS_REGION=fake}"
-                            export AWS_REGION
-                            : "''${AWS_ENDPOINT_URL=http://localhost:8000}"
-                            export AWS_ENDPOINT_URL
-                            : "''${AWS_ACCESS_KEY_ID=fake}"
-                            export AWS_ACCESS_KEY_ID
-                            : "''${AWS_SECRET_ACCESS_KEY=fake}"
-                            export AWS_SECRET_ACCESS_KEY
-                            : "''${BRRR_TEST_REDIS_URL=redis://localhost:6379}"
-                            export BRRR_TEST_REDIS_URL
+                            ${mkEnvs (sharedEnvs // { AWS_REGION = "fake"; })}
                             npm run test:integration
                           )'';
                       }
