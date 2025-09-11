@@ -50,12 +50,13 @@ let
             };
           in
           {
-            environment.systemPackages =
-              [ test-script ]
-              ++ (with pkgs; [
-                curl
-                jq
-              ]);
+            environment.systemPackages = [
+              test-script
+            ]
+            ++ (with pkgs; [
+              curl
+              jq
+            ]);
           };
       };
 

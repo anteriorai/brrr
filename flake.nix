@@ -254,19 +254,18 @@
                 {
                   default = {
                     packages = devPackages ++ [ self'.packages.python ];
-                    motd =
-                      ''
-                        This is the generic devshell for brrr development.  Use this to fix
-                        problems in the Python lockfile and to access generic tooling.
+                    motd = ''
+                      This is the generic devshell for brrr development.  Use this to fix
+                      problems in the Python lockfile and to access generic tooling.
 
-                        Available tools:
-                      ''
-                      + lib.concatLines (map (x: "  - ${x.pname or x.name}") devPackages)
-                      + ''
+                      Available tools:
+                    ''
+                    + lib.concatLines (map (x: "  - ${x.pname or x.name}") devPackages)
+                    + ''
 
-                        For Python-specific development, use: nix develop .#python
-                        For TypeScript-specific development, use: nix develop .#typescript
-                      '';
+                      For Python-specific development, use: nix develop .#python
+                      For TypeScript-specific development, use: nix develop .#typescript
+                    '';
                     env = [
                       {
                         name = "PYTHONPATH";
@@ -344,7 +343,8 @@
                           nix run .#demo
                         '';
                       }
-                    ] ++ sharedCommands;
+                    ]
+                    ++ sharedCommands;
                   };
                   typescript = {
                     packages = devPackages;
@@ -367,7 +367,8 @@
                             npm run test:integration
                           )'';
                       }
-                    ] ++ sharedCommands;
+                    ]
+                    ++ sharedCommands;
                   };
                 };
             };
