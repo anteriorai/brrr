@@ -18,7 +18,7 @@
 {
   self,
   pkgs,
-  dynamodb-module,
+  datastores,
 }:
 
 # Distributed test across multiple VMs, so there’s still some room for bugs to
@@ -31,23 +31,7 @@ let
     pkgs.testers.runNixOSTest {
       inherit name;
       nodes = nodes // {
-        datastores =
-          { config, pkgs, ... }:
-          {
-            imports = [ dynamodb-module ];
-            services.redis.servers.main = {
-              enable = true;
-              port = 6379;
-              openFirewall = true;
-              bind = null;
-              logLevel = "debug";
-              settings.protected-mode = "no";
-            };
-            services.dynamodb = {
-              enable = true;
-              openFirewall = true;
-            };
-          };
+        inherit datastores;
         # Separate node entirely just for the actual testing
         tester =
           { config, pkgs, ... }:

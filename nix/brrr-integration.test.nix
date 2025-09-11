@@ -15,41 +15,29 @@
 # These are all the pytest tests, with the required database dependencies spun
 # up.
 
-{ pkgs, self }:
+{
+  pkgs,
+  self,
+  datastores,
+}:
 
 let
   mkTest =
-    { name, bin }:
+    { name, mkBin }:
     pkgs.testers.runNixOSTest {
       inherit name;
       globalTimeout = 5 * 60;
       nodes = {
-        datastores =
-          { config, pkgs, ... }:
-          {
-            imports = [ self.nixosModules.dynamodb ];
-            services.redis.servers.main = {
-              enable = true;
-              port = 6379;
-              openFirewall = true;
-              bind = null;
-              logLevel = "debug";
-              settings.protected-mode = "no";
-            };
-            services.dynamodb = {
-              enable = true;
-              openFirewall = true;
-            };
-          };
+        inherit datastores;
         tester =
           { pkgs, ... }:
           {
-            systemd.services.brrr-test-integration = {
+            systemd.services.${name} = {
               serviceConfig = {
                 Type = "oneshot";
                 Restart = "no";
                 RemainAfterExit = "yes";
-                ExecStart = bin;
+                ExecStart = mkBin { inherit pkgs; };
               };
               environment = {
                 AWS_DEFAULT_REGION = "us-east-1";
@@ -67,23 +55,29 @@ let
       testScript = ''
         datastores.wait_for_unit("default.target")
         tester.wait_for_unit("default.target")
-        tester.systemctl("start --no-block brrr-test-integration.service")
-        tester.wait_for_unit("brrr-test-integration.service")
+        tester.systemctl("start --no-block ${name}.service")
+        tester.wait_for_unit("${name}.service")
       '';
     };
+  mkBin = {
+    py =
+      { pkgs }:
+      pkgs.lib.getExe (
+        pkgs.writeShellScriptBin "brrr-py-test-integration" ''
+          set -euo pipefail
+          ${self.packages.${pkgs.system}.brrr-venv-test}/bin/pytest ${self.packages.${pkgs.system}.brrr.src}
+        ''
+      );
+    ts = { pkgs }: "${self.packages.${pkgs.system}.brrr-ts}/bin/brrr-test-integration";
+  };
 in
 {
-  brrr-py-test-integration = mkTest {
-    name = "brrr-py-test-integration";
-    bin = pkgs.lib.getExe (
-      pkgs.writeShellScriptBin "brrr-py-test-integration" ''
-        set -euo pipefail
-        ${self.packages.${pkgs.system}.brrr-venv-test}/bin/pytest ${self.packages.${pkgs.system}.brrr.src}
-      ''
-    );
-  };
   brrr-ts-test-integration = mkTest {
     name = "brrr-ts-test-integration";
-    bin = "${self.packages.${pkgs.system}.brrr-ts}/bin/brrr-test-integration";
+    mkBin = mkBin.ts;
+  };
+  brrr-py-test-integration = mkTest {
+    name = "brrr-py-test-integration";
+    mkBin = mkBin.py;
   };
 }

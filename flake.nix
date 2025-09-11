@@ -152,9 +152,23 @@
               inherit (inputs) package-lock2nix;
               inherit nodejs;
             };
-            integrationCommon = import ./nix/brrr-integration-common.nix {
-              dynamodb-module = self.nixosModules.dynamodb;
-            };
+            datastores =
+              { config, pkgs, ... }:
+              {
+                imports = [ self.nixosModules.dynamodb ];
+                services.redis.servers.main = {
+                  enable = true;
+                  port = 6379;
+                  openFirewall = true;
+                  bind = null;
+                  logLevel = "debug";
+                  settings.protected-mode = "no";
+                };
+                services.dynamodb = {
+                  enable = true;
+                  openFirewall = true;
+                };
+              };
           in
           {
             config = {
@@ -207,11 +221,8 @@
               };
               checks =
                 brrrpy.brrr.tests
-                // import ./nix/brrr-integration.test.nix { inherit self pkgs; }
-                // import ./nix/brrr-demo.test.nix {
-                  inherit self pkgs;
-                  dynamodb-module = self.nixosModules.dynamodb;
-                };
+                // import ./nix/brrr-integration.test.nix { inherit self pkgs datastores; }
+                // import ./nix/brrr-demo.test.nix { inherit self pkgs datastores; };
               devshells =
                 let
                   sharedCommands = [
