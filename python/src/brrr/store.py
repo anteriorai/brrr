@@ -54,7 +54,7 @@ class PendingReturns:
         return bencodepy.encode(
             {
                 b"returns": list(
-                    sorted(map(lambda x: x.encode("us-ascii"), self.returns))
+                    sorted(map(lambda x: x.encode("utf-8"), self.returns))
                 ),
                 **({b"scheduled_at": self.scheduled_at} if self.scheduled_at else {}),
             }
@@ -66,7 +66,7 @@ class PendingReturns:
         returns = decoded[b"returns"]
         return PendingReturns(
             decoded.get(b"scheduled_at"),
-            set(map(lambda x: x.decode("us-ascii"), returns)),
+            set(map(lambda x: x.decode("utf-8"), returns)),
         )
 
 
@@ -296,8 +296,8 @@ class Memory:
         """
 
         def _is_repeated_call(existing_return: str):
-            new_root, new_parent, new_topic = new_return.split("/")
-            ext_root, ext_parent, ext_topic = existing_return.split("/")
+            new_root, new_parent, new_topic = new_return.split("/", 2)
+            ext_root, ext_parent, ext_topic = existing_return.split("/", 2)
             return (
                 ext_root != new_root
                 and ext_parent == new_parent
