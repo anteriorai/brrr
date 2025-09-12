@@ -306,7 +306,7 @@ export async function storeContractTest(
       await using resource = await acquireResource();
       await resource.store.set(fixture.key, fixture.value);
       deepStrictEqual(await resource.store.get(fixture.key), fixture.value);
-      await resource.store.delete(fixture.key)
+      await resource.store.delete(fixture.key);
       strictEqual(await resource.store.get(fixture.key), undefined);
     });
 
