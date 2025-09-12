@@ -37,7 +37,7 @@ let
                 Type = "oneshot";
                 Restart = "no";
                 RemainAfterExit = "yes";
-                ExecStart = mkBin { inherit pkgs; };
+                ExecStart = pkgs.callPackage mkBin { };
               };
               environment = {
                 AWS_DEFAULT_REGION = "us-east-1";
@@ -61,14 +61,18 @@ let
     };
   mkBin = {
     py =
-      { pkgs }:
-      pkgs.lib.getExe (
-        pkgs.writeShellScriptBin "brrr-py-test-integration" ''
+      {
+        lib,
+        writeShellScriptBin,
+        system,
+      }:
+      lib.getExe (
+        writeShellScriptBin "brrr-py-test-integration" ''
           set -euo pipefail
-          ${self.packages.${pkgs.system}.brrr-venv-test}/bin/pytest ${self.packages.${pkgs.system}.brrr.src}
+          ${self.packages.${system}.brrr-venv-test}/bin/pytest ${self.packages.${system}.brrr.src}
         ''
       );
-    ts = { pkgs }: "${self.packages.${pkgs.system}.brrr-ts}/bin/brrr-test-integration";
+    ts = { system }: "${self.packages.${system}.brrr-ts}/bin/brrr-test-integration";
   };
 in
 {
