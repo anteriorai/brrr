@@ -86,7 +86,7 @@ async def test_parse_return_address(
 
 @pytest.mark.parametrize(
     "address",
-    ["rootroot/parent"],
+    ["root-only", "root/parent-no-topic"],
 )
 async def test_parse_return_address_invalid(address: str) -> None:
     with pytest.raises(ValueError):
