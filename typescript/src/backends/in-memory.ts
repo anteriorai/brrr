@@ -34,9 +34,9 @@ export class InMemoryStore implements Store {
     return true;
   }
 
-  public async delete(key: MemKey): Promise<boolean> {
+  public async delete(key: MemKey): Promise<void> {
     const keyStr = this.keyToString(key);
-    return this.store.delete(keyStr);
+    this.store.delete(keyStr);
   }
 
   public async get(key: MemKey): Promise<Uint8Array | undefined> {
