@@ -152,23 +152,7 @@
               inherit (inputs) package-lock2nix;
               inherit nodejs;
             };
-            datastores =
-              { config, pkgs, ... }:
-              {
-                imports = [ self.nixosModules.dynamodb ];
-                services.redis.servers.main = {
-                  enable = true;
-                  port = 6379;
-                  openFirewall = true;
-                  bind = null;
-                  logLevel = "debug";
-                  settings.protected-mode = "no";
-                };
-                services.dynamodb = {
-                  enable = true;
-                  openFirewall = true;
-                };
-              };
+            datastores = import ./nix/datastores.nix { inherit (self.nixosModules) dynamodb; };
           in
           {
             config = {
@@ -221,8 +205,8 @@
               };
               checks =
                 brrrpy.brrr.tests
-                // import ./nix/brrr-integration.test.nix { inherit self pkgs datastores; }
-                // import ./nix/brrr-demo.test.nix { inherit self pkgs datastores; };
+                // import ./nix/brrr-integration.test.nix { inherit self pkgs; }
+                // import ./nix/brrr-demo.test.nix { inherit self pkgs; };
               devshells =
                 let
                   sharedCommands = [
@@ -310,7 +294,6 @@
                         name = "brrr-test-all";
                         category = "test";
                         help = "Tests including dependencies, make sure to run brrr-demo-deps";
-                        # Lol
                         command = ''
                           (
                             ${mkEnvs (sharedEnvs // { AWS_DEFAULT_REGION = "us-east-1"; })}

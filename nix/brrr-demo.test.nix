@@ -15,11 +15,7 @@
 # Inspired by
 # https://blakesmith.me/2024/03/02/running-nixos-tests-with-flakes.html
 
-{
-  self,
-  pkgs,
-  datastores,
-}:
+{ self, pkgs }:
 
 # Distributed test across multiple VMs, so there’s still some room for bugs to
 # creep into the actual demo.  Both are nice to have so we should probably add a
@@ -31,7 +27,7 @@ let
     pkgs.testers.runNixOSTest {
       inherit name;
       nodes = nodes // {
-        inherit datastores;
+        datastores = import ./datastores.nix { inherit (self.nixosModules) dynamodb; };
         # Separate node entirely just for the actual testing
         tester =
           { config, pkgs, ... }:
