@@ -61,7 +61,7 @@
             ...
           }:
           lib.mkIf pkgs.stdenv.isLinux {
-            packages.docker = pkgs.dockerTools.buildLayeredImage {
+            packages.docker-py = pkgs.dockerTools.buildLayeredImage {
               name = "brrr-demo";
               tag = "latest";
               config.Entrypoint = [ (lib.getExe self'.packages.brrr-demo) ];
@@ -247,6 +247,14 @@
                         nix run .#deps
                       '';
                     }
+                    {
+                      name = "brrr-demo-full";
+                      category = "demo";
+                      help = "Launch a full demo locally";
+                      command = ''
+                        nix run .#demo
+                      '';
+                    }
                   ];
                   sharedEnvs = {
                     AWS_ENDPOINT_URL = "http://localhost:8000";
@@ -329,32 +337,6 @@
                             ${mkEnvs (sharedEnvs // { AWS_DEFAULT_REGION = "us-east-1"; })}
                             exec pytest "$@"
                           )'';
-                      }
-                      # Always build aarch64-linux
-                      {
-                        name = "brrr-build-docker";
-                        category = "build";
-                        help = "Build and load a Docker image (requires a Nix Linux builder)";
-                        command =
-                          let
-                            drv = self'.packages.docker;
-                          in
-                          ''
-                            (
-                              set -o pipefail
-                              if nix build --no-link --print-out-paths .#packages.aarch64-linux.docker | xargs -r docker load -i; then
-                                echo 'Start a new worker with `docker run <image name>`'
-                              fi
-                            )
-                          '';
-                      }
-                      {
-                        name = "brrr-demo-full";
-                        category = "demo";
-                        help = "Launch a full demo locally";
-                        command = ''
-                          nix run .#demo
-                        '';
                       }
                     ]
                     ++ sharedCommands;
