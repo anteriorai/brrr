@@ -72,7 +72,7 @@ let
         datastores.wait_for_unit("default.target")
         # Server initializes the stores
         server.wait_for_unit("default.target")
-        worker.wait_for_unit("default.target")
+        pyworker.wait_for_unit("default.target")
         tsworker.wait_for_unit("default.target")
         tester.wait_for_unit("default.target")
         server.wait_for_open_port(8080)
@@ -90,7 +90,7 @@ let
         networking.firewall.allowedTCPPorts = [ 8080 ];
         services.brrr-demo = {
           enable = true;
-          package = self.packages.${pkgs.system}.brrr-demo;
+          package = self.packages.${pkgs.system}.brrr-demo-py;
           args = [ "web_server" ];
           environment = {
             BRRR_DEMO_LISTEN_HOST = "0.0.0.0";
@@ -102,13 +102,13 @@ let
           };
         };
       };
-    worker =
+    pyworker =
       { config, pkgs, ... }:
       {
         imports = [ self.nixosModules.brrr-demo ];
         services.brrr-demo = {
           enable = true;
-          package = self.packages.${pkgs.system}.brrr-demo;
+          package = self.packages.${pkgs.system}.brrr-demo-py;
           args = [ "brrr_worker" ];
           environment = {
             BRRR_DEMO_REDIS_URL = "redis://datastores:6379";
@@ -146,7 +146,7 @@ let
         virtualisation.oci-containers.containers.brrr = {
           extraOptions = [ "--network=host" ];
           image = "brrr-demo:latest";
-          imageFile = self.packages.${pkgs.system}.docker;
+          imageFile = self.packages.${pkgs.system}.docker-py;
           environment = {
             BRRR_DEMO_LISTEN_HOST = "0.0.0.0";
             BRRR_DEMO_REDIS_URL = "redis://datastores:6379";
@@ -166,7 +166,7 @@ let
         virtualisation.oci-containers.containers.brrr = {
           extraOptions = [ "--network=host" ];
           image = "brrr-demo:latest";
-          imageFile = self.packages.${pkgs.system}.docker;
+          imageFile = self.packages.${pkgs.system}.docker-py;
           cmd = [ "brrr_worker" ];
           environment = {
             BRRR_DEMO_REDIS_URL = "redis://datastores:6379";
@@ -185,7 +185,6 @@ let
           extraOptions = [ "--network=host" ];
           image = "brrr-demo-ts:latest";
           imageFile = self.packages.${pkgs.system}.docker-ts;
-          cmd = [ ];
           environment = {
             BRRR_DEMO_REDIS_URL = "redis://datastores:6379";
             AWS_REGION = "foo";

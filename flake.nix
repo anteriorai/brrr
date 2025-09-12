@@ -62,9 +62,9 @@
           }:
           lib.mkIf pkgs.stdenv.isLinux {
             packages.docker-py = pkgs.dockerTools.buildLayeredImage {
-              name = "brrr-demo";
+              name = "brrr-demo-py";
               tag = "latest";
-              config.Entrypoint = [ (lib.getExe self'.packages.brrr-demo) ];
+              config.Entrypoint = [ (lib.getExe self'.packages.brrr-demo-py) ];
             };
             packages.docker-ts = pkgs.dockerTools.buildLayeredImage {
               name = "brrr-demo-ts";
@@ -113,7 +113,7 @@
                       args = [ "-disableTelemetry" ];
                     };
                     brrr-demo.worker-py = {
-                      package = self.packages.${pkgs.system}.brrr-demo;
+                      package = self.packages.${pkgs.system}.brrr-demo-py;
                       args = [ "brrr_worker" ];
                       environment = demoEnv;
                     };
@@ -122,7 +122,7 @@
                       environment = demoEnv;
                     };
                     brrr-demo.server = {
-                      package = self.packages.${pkgs.system}.brrr-demo;
+                      package = self.packages.${pkgs.system}.brrr-demo-py;
                       args = [ "web_server" ];
                       environment = demoEnv;
                     };
@@ -215,7 +215,7 @@
                 inherit (brrrts) brrr-ts;
                 default = brrrpy.brrr-venv;
                 # Stand-alone brrr_demo.py script
-                brrr-demo = pkgs.stdenvNoCC.mkDerivation {
+                brrr-demo-py = pkgs.stdenvNoCC.mkDerivation {
                   name = "brrr-demo.py";
                   dontUnpack = true;
                   installPhase = ''
