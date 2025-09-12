@@ -2,7 +2,6 @@ import asyncio
 import dataclasses
 import typing
 from collections import Counter
-from collections.abc import Sequence
 from typing import cast
 
 import brrr
@@ -22,19 +21,7 @@ from brrr.backends.in_memory import InMemoryByteStore, InMemoryQueue
 from brrr.local_app import LocalBrrr, local_app
 from brrr.pickle_codec import PickleCodec
 
-
-@pytest.fixture(params=("brrr-test", "'/:/\"~`\\", "🇰🇳"))
-def topic(request):
-    return request.param
-
-
-@pytest.fixture(params=("task", "`'\"\\/~$!@:", "🏭"))
-def task_name(request):
-    return request.param
-
-
-def names(base_name: str, names: Sequence[str]) -> Sequence[str]:
-    return map(lambda x: f"{base_name}{x}", names)
+from .parametrize import names
 
 
 async def test_app_worker(topic: str, task_name: str) -> None:
