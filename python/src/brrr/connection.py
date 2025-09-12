@@ -20,6 +20,7 @@ from .store import (
     Memory,
     NotFoundError,
     Store,
+    parse_return_address,
 )
 
 logger = logging.getLogger(__name__)
@@ -195,7 +196,7 @@ class Server(Connection):
     async def _schedule_return_call(self, return_addr: str) -> None:
         # These are all root_id/memo_key/topic triples which is great because
         # every return should be retried in its original root context.
-        root_id, parent_key, topic = return_addr.split("/", 2)
+        root_id, parent_key, topic = parse_return_address(return_addr)
         await self._put_job(topic, parent_key, root_id)
 
     async def _schedule_call_nested(

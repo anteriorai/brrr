@@ -190,6 +190,14 @@ class Cache(ABC):
         raise NotImplementedError()
 
 
+def parse_return_address(return_address: str) -> tuple[str, str, str]:
+    """
+    TODO text splitting is dangerous, switch to bencode
+    """
+    root, parent, topic = return_address.split("/", 2)
+    return root, parent, topic
+
+
 class Memory:
     def __init__(self, store: Store):
         self.store = store
@@ -296,8 +304,8 @@ class Memory:
         """
 
         def _is_repeated_call(existing_return: str):
-            new_root, new_parent, new_topic = new_return.split("/", 2)
-            ext_root, ext_parent, ext_topic = existing_return.split("/", 2)
+            new_root, new_parent, new_topic = parse_return_address(new_return)
+            ext_root, ext_parent, ext_topic = parse_return_address(existing_return)
             return (
                 ext_root != new_root
                 and ext_parent == new_parent

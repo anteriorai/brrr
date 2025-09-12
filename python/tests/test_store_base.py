@@ -7,6 +7,7 @@ from brrr.store import (
     MemKey,
     Memory,
     PendingReturns,
+    parse_return_address,
 )
 
 
@@ -68,3 +69,25 @@ async def test_encode_decode_mixed_cases(pending_returns) -> None:
     assert decoded == pending_returns
     assert decoded.scheduled_at == pending_returns.scheduled_at
     assert decoded.returns == pending_returns.returns
+
+
+@pytest.mark.parametrize(
+    "address,expected",
+    [
+        ("root/parent/topic", ("root", "parent", "topic")),
+        ("root/parent/topic/with/slashes", ("root", "parent", "topic/with/slashes")),
+    ],
+)
+async def test_parse_return_address(
+    address: str, expected: tuple[str, str, str]
+) -> None:
+    assert parse_return_address(address) == expected
+
+
+@pytest.mark.parametrize(
+    "address",
+    ["rootroot/parent"],
+)
+async def test_parse_return_address_invalid(address: str) -> None:
+    with pytest.raises(ValueError):
+        parse_return_address(address)
