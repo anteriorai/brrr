@@ -57,15 +57,14 @@ export class Dynamo implements Store {
     );
   }
 
-  public async delete(key: MemKey): Promise<boolean> {
-    const { Attributes } = await this.client.send(
+  public async delete(key: MemKey): Promise<void> {
+    await this.client.send(
       new DeleteCommand({
         TableName: this.tableName,
         Key: this.key(key),
         ReturnValues: "ALL_OLD",
       }),
     );
-    return !!Attributes;
   }
 
   public async setNewValue(key: MemKey, value: Uint8Array): Promise<boolean> {

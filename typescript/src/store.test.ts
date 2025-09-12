@@ -305,9 +305,9 @@ export async function storeContractTest(
     await test("Basic delete", async () => {
       await using resource = await acquireResource();
       await resource.store.set(fixture.key, fixture.value);
-      ok(await resource.store.delete(fixture.key));
+      deepStrictEqual(await resource.store.get(fixture.key), fixture.value);
+      await resource.store.delete(fixture.key)
       strictEqual(await resource.store.get(fixture.key), undefined);
-      ok(!(await resource.store.delete(fixture.otherKey)));
     });
 
     await test("Basic setNewValue", async () => {

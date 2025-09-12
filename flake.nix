@@ -243,7 +243,7 @@
                   };
                   mkEnvs = (
                     envs:
-                    lib.concatStringsSep "\n" (
+                    lib.concatLines (
                       lib.mapAttrsToList (name: value: ''
                         : "''${${name}=${value}}"
                         export ${name}
@@ -313,7 +313,7 @@
                         # Lol
                         command = ''
                           (
-                            ${mkEnvs (sharedEnvs // { AWS_DEFAULT_REGION = "fake"; })}
+                            ${mkEnvs (sharedEnvs // { AWS_DEFAULT_REGION = "us-east-1"; })}
                             exec pytest "$@"
                           )'';
                       }
@@ -363,7 +363,7 @@
                         help = "Tests including dependencies, make sure to run brrr-demo-deps";
                         command = ''
                           (
-                            ${mkEnvs (sharedEnvs // { AWS_REGION = "fake"; })}
+                            ${mkEnvs (sharedEnvs // { AWS_REGION = "us-east-1"; })}
                             npm run test:integration
                           )'';
                       }
