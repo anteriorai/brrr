@@ -7,14 +7,14 @@ import { randomUUID } from "node:crypto";
 await suite(import.meta.filename, async () => {
   const client = new DynamoDBClient();
 
-  await storeContractTest(
-    async () => {
-      const dynamo = new Dynamo(client, randomUUID());
-      await dynamo.createTable();
-      return dynamo;
-    },
-    async (dynamo) => {
-      await dynamo.deleteTable();
-    },
-  );
+  await storeContractTest(async () => {
+    const dynamo = new Dynamo(client, randomUUID());
+    await dynamo.createTable();
+    return {
+      store: dynamo,
+      async [Symbol.asyncDispose]() {
+        await dynamo.deleteTable();
+      },
+    };
+  });
 });
