@@ -64,12 +64,12 @@
             packages.docker = pkgs.dockerTools.buildLayeredImage {
               name = "brrr-demo";
               tag = "latest";
-              config.Entrypoint = [ "${lib.getExe self'.packages.brrr-demo}" ];
+              config.Entrypoint = [ (lib.getExe self'.packages.brrr-demo) ];
             };
             packages.docker-ts = pkgs.dockerTools.buildLayeredImage {
               name = "brrr-demo-ts";
               tag = "latest";
-              config.Entrypoint = [ "${lib.getExe self'.packages.brrr-demo-ts}" ];
+              config.Entrypoint = [ (lib.getExe self'.packages.brrr-demo-ts) ];
             };
           };
       };
