@@ -152,7 +152,6 @@
               inherit (inputs) package-lock2nix;
               inherit nodejs;
             };
-            datastores = import ./nix/datastores.nix { inherit (self.nixosModules) dynamodb; };
           in
           {
             config = {
