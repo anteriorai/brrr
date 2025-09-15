@@ -27,7 +27,14 @@ let
     pkgs.testers.runNixOSTest {
       inherit name;
       nodes = nodes // {
-        datastores = import ./datastores.nix { inherit (self.nixosModules) dynamodb; };
+        datastores =
+          { ... }:
+          {
+            imports = [
+              self.nixosModules.dynamodb
+              ./datastores.nix
+            ];
+          };
         # Separate node entirely just for the actual testing
         tester =
           { config, pkgs, ... }:

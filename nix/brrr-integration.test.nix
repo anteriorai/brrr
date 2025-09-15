@@ -24,7 +24,14 @@ let
       inherit name;
       globalTimeout = 5 * 60;
       nodes = {
-        datastores = import ./datastores.nix { inherit (self.nixosModules) dynamodb; };
+        datastores =
+          { ... }:
+          {
+            imports = [
+              self.nixosModules.dynamodb
+              ./datastores.nix
+            ];
+          };
         tester =
           { pkgs, ... }:
           {
