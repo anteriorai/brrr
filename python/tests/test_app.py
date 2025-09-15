@@ -193,7 +193,7 @@ async def test_asyncio_gather(topic: str, task_name: str) -> None:
 
 async def test_topics_separate_app_same_conn(topic: str, task_name: str) -> None:
     store = InMemoryByteStore()
-    t1, t2 = f"{topic}1", f"{topic}2"
+    t1, t2 = names(topic, ("1", "2"))
     queue = InMemoryQueue([t1, t2])
     name_one, name_two = names(task_name, ("one", "two"))
 
@@ -218,7 +218,7 @@ async def test_topics_separate_app_same_conn(topic: str, task_name: str) -> None
 
 async def test_topics_separate_app_separate_conn(topic: str, task_name: str) -> None:
     store = InMemoryByteStore()
-    t1, t2 = f"{topic}1", f"{topic}2"
+    t1, t2 = names(topic, ("1", "2"))
     queue = InMemoryQueue([t1, t2])
     name_one, name_two = names(task_name, ("one", "two"))
 
@@ -250,7 +250,7 @@ async def test_topics_separate_app_separate_conn(topic: str, task_name: str) -> 
 
 async def test_topics_same_app(topic: str, task_name) -> None:
     store = InMemoryByteStore()
-    t1, t2 = f"{topic}1", f"{topic}2"
+    t1, t2 = names(topic, ("1", "2"))
     queue = InMemoryQueue([t1, t2])
     name_one, name_two = names(task_name, ("one", "two"))
 

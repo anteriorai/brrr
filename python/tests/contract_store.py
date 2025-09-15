@@ -1,3 +1,4 @@
+import dataclasses
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -12,6 +13,7 @@ from brrr.store import (
     NotFoundError,
     Store,
 )
+from brrr.tagged_tuple import PendingReturn
 
 
 class FakeError(Exception):
@@ -280,7 +282,7 @@ class MemoryContract(ByteStoreContract):
 
             await self.read_after_write(r2)
 
-    async def test_pending_returns(self) -> None:
+    async def test_pending_returns(self, topic) -> None:
         async with self.with_memory() as memory:
 
             async def body(keys) -> None:
@@ -289,51 +291,39 @@ class MemoryContract(ByteStoreContract):
             await memory.with_pending_returns_remove("key", body)
 
             call_hash = "key"
-            base = "root/parent/topic"
+            one = PendingReturn(
+                root_id="root",
+                call_hash="parent",
+                topic=topic,
+            )
 
             # base case
-            assert await memory.add_pending_return(call_hash, base)
+            assert await memory.add_pending_return(call_hash, one)
             # same one, shouldn't schedule again
-            assert not await memory.add_pending_return(call_hash, base)
+            assert not await memory.add_pending_return(call_hash, one)
             # different root, should schedule - it's a retry
-            assert await memory.add_pending_return(
-                call_hash, "different-root/parent/topic"
-            )
+            two = dataclasses.replace(one, root_id="different")
+            assert await memory.add_pending_return(call_hash, two)
             # new callHash, new PR, should schedule
-            assert await memory.add_pending_return("different-hash", base)
+            assert await memory.add_pending_return("different-hash", one)
             # continuation, shouldn't schedule again
-            assert not await memory.add_pending_return(
-                call_hash, "root/parent/different-topic"
-            )
-            assert not await memory.add_pending_return(
-                call_hash, "root/different-parent/topic"
-            )
-            assert not await memory.add_pending_return(
-                call_hash, "root/different-parent/different-topic"
-            )
+            three = dataclasses.replace(one, topic="different")
+            assert not await memory.add_pending_return(call_hash, three)
+            four = dataclasses.replace(one, call_hash="different")
+            assert not await memory.add_pending_return(call_hash, four)
+            five = dataclasses.replace(one, call_hash="one", topic="two")
+            assert not await memory.add_pending_return(call_hash, five)
 
             with pytest.raises(FakeError):
 
                 async def body(keys) -> None:
-                    assert set(keys) == {
-                        "root/parent/topic",
-                        "different-root/parent/topic",
-                        "root/different-parent/topic",
-                        "root/parent/different-topic",
-                        "root/different-parent/different-topic",
-                    }
+                    assert set(keys) == {one, two, three, four, five}
                     raise FakeError()
 
                 await memory.with_pending_returns_remove("key", body)
 
             async def body2(keys) -> None:
-                assert set(keys) == {
-                    "root/parent/topic",
-                    "different-root/parent/topic",
-                    "root/different-parent/topic",
-                    "root/parent/different-topic",
-                    "root/different-parent/different-topic",
-                }
+                assert set(keys) == {one, two, three, four, five}
 
             await memory.with_pending_returns_remove("key", body2)
 
