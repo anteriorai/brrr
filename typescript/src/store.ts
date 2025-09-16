@@ -181,22 +181,20 @@ export class Memory {
     };
     let shouldSchedule = false;
     await this.withCas(async () => {
+      shouldSchedule = false;
       let existingEncoded = await this.store.get(memKey);
       let existing: PendingReturns;
       if (existingEncoded) {
         existing = PendingReturns.decode(existingEncoded);
       } else {
-        existing = new PendingReturns(Math.floor(Date.now() / 1000), []);
+        existing = new PendingReturns(Math.floor(Date.now() / 1000), [
+          newReturn,
+        ]);
         existingEncoded = existing.encode();
-        /**
-         * TODO this is racy. https://github.com/cohelm/brrr/pull/64
-         */
-        if (!(await this.store.setNewValue(memKey, existingEncoded))) {
-          return false;
-        }
         shouldSchedule = true;
+        return await this.store.setNewValue(memKey, existingEncoded);
       }
-      shouldSchedule ||= [...existing.encodedReturns].some((it) =>
+      shouldSchedule = [...existing.encodedReturns].some((it) =>
         TaggedTuple.decodeFromString(PendingReturn, it).isRepeatedCall(
           newReturn,
         ),
