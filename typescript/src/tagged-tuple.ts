@@ -8,16 +8,16 @@ export interface Tagged<T = any, A extends unknown[] = any[]> {
 }
 
 function fromTuple<T, A extends unknown[]>(
-  clz: Tagged<T, A>,
+  tagged: Tagged<T, A>,
   data: [number, ...A],
-): InstanceType<typeof clz> {
-  if (data[0] !== clz.tag) {
-    throw new TagMismatchError(clz);
+): InstanceType<typeof tagged> {
+  if (data[0] !== tagged.tag) {
+    throw new TagMismatchError(tagged);
   }
-  if (data.length - 1 !== clz.length) {
-    throw new MalformedTaggedTupleError(clz);
+  if (data.length - 1 !== tagged.length) {
+    throw new MalformedTaggedTupleError(tagged);
   }
-  return new clz(...(data.slice(1) as A));
+  return new tagged(...(data.slice(1) as A));
 }
 
 function asTuple<T extends object, A extends unknown[]>(
@@ -30,8 +30,7 @@ function asTuple<T extends object, A extends unknown[]>(
 }
 
 function encode(obj: InstanceType<Tagged>): Uint8Array {
-  const tuple = asTuple(obj);
-  return bencoder.encode(tuple);
+  return bencoder.encode(asTuple(obj));
 }
 
 function encodeToString(obj: InstanceType<Tagged>): string {
@@ -39,18 +38,18 @@ function encodeToString(obj: InstanceType<Tagged>): string {
 }
 
 function decode<T, A extends unknown[]>(
-  clz: Tagged<T, A>,
+  tagged: Tagged<T, A>,
   data: Uint8Array,
-): InstanceType<typeof clz> {
+): InstanceType<typeof tagged> {
   const decoded = bencoder.decode(data, encoding) as [number, ...A];
-  return fromTuple(clz, decoded);
+  return fromTuple(tagged, decoded);
 }
 
 function decodeFromString<T, A extends unknown[]>(
-  clz: Tagged<T, A>,
+  tagged: Tagged<T, A>,
   data: string,
-): InstanceType<typeof clz> {
-  return decode(clz, encoder.encode(data));
+): InstanceType<typeof tagged> {
+  return decode(tagged, encoder.encode(data));
 }
 
 export const TaggedTuple = {
