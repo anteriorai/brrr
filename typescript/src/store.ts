@@ -17,9 +17,7 @@ export class PendingReturns {
     returns: Iterable<PendingReturn>,
   ) {
     this.scheduledAt = scheduledAt;
-    this.encodedReturns = new Set(
-      [...returns].map(TaggedTuple.encodeToString),
-    );
+    this.encodedReturns = new Set([...returns].map(TaggedTuple.encodeToString));
   }
 
   public static decode(encoded: Uint8Array): PendingReturns {
