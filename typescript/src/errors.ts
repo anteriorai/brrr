@@ -42,15 +42,13 @@ export class TaskNotFoundError extends BrrrError {
 }
 
 export class TagMismatchError extends BrrrError {
-  public constructor(clz: Tagged) {
-    super(`Tag mismatch for ${clz.name}: expected ${clz.tag}`);
+  public constructor(expected: number, got: number) {
+    super(`Tag mismatch: expected ${expected}, got ${got}`);
   }
 }
 
 export class MalformedTaggedTupleError extends BrrrError {
-  public constructor(clz: Tagged) {
-    super(
-      `Malformed tagged tuple for ${clz.name}, expected ${clz.length} elements`,
-    );
+  public constructor(name: string, expected: number, actual: number) {
+    super(`Malformed tagged tuple for ${name}, expected ${expected} elements, got ${actual}`);
   }
 }

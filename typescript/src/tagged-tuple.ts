@@ -1,67 +1,56 @@
-import { bencoder, decoder, encoder, encoding } from "./internal-codecs.ts";
+import { bencoder } from "./text-codecs.ts";
+import type { Encoding } from "node:crypto";
 import { MalformedTaggedTupleError, TagMismatchError } from "./errors.ts";
 
-export interface Tagged<T = any, A extends unknown[] = any[]> {
-  new (...args: A): T;
+type Tagged<T, A extends unknown[], Tag extends number> = {
+  new(...args: A): T;
+  readonly tag: Tag;
+};
 
-  readonly tag: number;
-}
-
-function fromTuple<T, A extends unknown[]>(
-  tagged: Tagged<T, A>,
-  data: [number, ...A],
-): InstanceType<typeof tagged> {
-  if (data[0] !== tagged.tag) {
-    throw new TagMismatchError(tagged);
+export abstract class TaggedTuple {
+  public static fromTuple<
+    T extends TaggedTuple,
+    A extends unknown[],
+    Tag extends number,
+  >(this: Tagged<T, A, Tag>, ...data: unknown[]): T {
+    const [tag, ...tuple] = data as [Tag, ...A];
+    if (tag !== this.tag) {
+      throw new TagMismatchError(this.tag, tag);
+    }
+    if (tuple.length !== this.length) {
+      throw new MalformedTaggedTupleError(this.name, this.length, tuple.length);
+    }
+    return new this(...tuple);
   }
-  if (data.length - 1 !== tagged.length) {
-    throw new MalformedTaggedTupleError(tagged);
+
+  public asTuple(): [number, ...unknown[]] {
+    const { tag } = this.constructor as Tagged<this, unknown[], number>;
+    return [tag, ...Object.values(this)];
   }
-  return new tagged(...(data.slice(1) as A));
 }
 
-function asTuple<T extends object, A extends unknown[]>(
-  obj: InstanceType<Tagged<T, A>>,
-): [number, ...A] {
-  return [(obj.constructor as Tagged<T, A>).tag, ...Object.values(obj)] as [
-    number,
-    ...A,
-  ];
+export abstract class TaggedTupleStrings extends TaggedTuple {
+  private static readonly encoding: Encoding = "utf-8";
+
+  public encode(): Uint8Array {
+    const tuple = this.asTuple();
+    return bencoder.encode(tuple);
+  }
+
+  public static decode<
+    T extends TaggedTuple,
+    A extends unknown[],
+    Tag extends number,
+  >(this: Tagged<T, A, Tag>, data: Uint8Array): T {
+    const decoded = bencoder.decode(data, TaggedTupleStrings.encoding) as [
+      Tag,
+      ...A,
+    ];
+    return super.fromTuple(...decoded);
+  }
 }
 
-function encode(obj: InstanceType<Tagged>): Uint8Array {
-  return bencoder.encode(asTuple(obj));
-}
-
-function encodeToString(obj: InstanceType<Tagged>): string {
-  return decoder.decode(encode(obj));
-}
-
-function decode<T, A extends unknown[]>(
-  tagged: Tagged<T, A>,
-  data: Uint8Array,
-): InstanceType<typeof tagged> {
-  const decoded = bencoder.decode(data, encoding) as [number, ...A];
-  return fromTuple(tagged, decoded);
-}
-
-function decodeFromString<T, A extends unknown[]>(
-  tagged: Tagged<T, A>,
-  data: string,
-): InstanceType<typeof tagged> {
-  return decode(tagged, encoder.encode(data));
-}
-
-export const TaggedTuple = {
-  fromTuple,
-  asTuple,
-  encode,
-  encodeToString,
-  decode,
-  decodeFromString,
-} as const;
-
-export class PendingReturn {
+export class PendingReturn extends TaggedTuple {
   public static readonly tag = 1;
 
   public readonly rootId: string;
@@ -69,27 +58,21 @@ export class PendingReturn {
   public readonly topic: string;
 
   constructor(rootId: string, callHash: string, topic: string) {
+    super();
     this.rootId = rootId;
     this.callHash = callHash;
     this.topic = topic;
   }
-
-  public isRepeatedCall(other: PendingReturn): boolean {
-    return (
-      this.rootId !== other.rootId &&
-      this.callHash === other.callHash &&
-      this.topic === other.topic
-    );
-  }
 }
 
-export class ScheduleMessage {
+export class ScheduleMessage extends TaggedTupleStrings {
   public static readonly tag = 2;
 
   public readonly rootId: string;
   public readonly callHash: string;
 
   constructor(rootId: string, callHash: string) {
+    super();
     this.rootId = rootId;
     this.callHash = callHash;
   }
