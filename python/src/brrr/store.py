@@ -299,7 +299,7 @@ class Memory:
 
         """
 
-        def _is_repeated_call(existing: PendingReturn) -> bool:
+        def is_repeated_call(existing: PendingReturn) -> bool:
             return (
                 existing.root_id != new_return.root_id
                 and existing.call_hash == new_return.call_hash
@@ -310,7 +310,6 @@ class Memory:
         # every single line.
         async def cas_body() -> bool:
             memkey = MemKey("pending_returns", call_hash)
-            should_schedule = False
 
             logger.debug(f"Looking for existing pending returns for {call_hash}...")
             try:
@@ -318,17 +317,13 @@ class Memory:
                 logger.debug(f"    ... found! {existing_enc!r}")
                 existing = PendingReturns.decode(existing_enc)
             except NotFoundError:
-                existing = PendingReturns(int(time.time()), set())
+                existing = PendingReturns(int(time.time()), {new_return})
                 existing_enc = existing.encode()
                 logger.debug(f"    ... none found. Creating new: {existing_enc!r}")
-                # Note the double CAS!
                 await self.store.set_new_value(memkey, existing_enc)
-                should_schedule = True
+                return True
 
-            should_schedule = should_schedule or any(
-                map(_is_repeated_call, existing.returns)
-            )
-
+            should_schedule = any(map(is_repeated_call, existing.returns))
             existing.returns.add(new_return)
             await self.store.compare_and_set(memkey, existing.encode(), existing_enc)
             return should_schedule
