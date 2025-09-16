@@ -59,4 +59,11 @@ await suite(import.meta.filename, async () => {
     const decoded = taggedTuple.decode(Foo, encoded);
     deepStrictEqual(decoded, foo);
   });
+
+  await suite("encode and decode (string)", async () => {
+    const foo: Foo = taggedTuple.fromTuple(Foo, [0, 42, "hello"]);
+    const encoded: string = taggedTuple.encodeToString(foo);
+    const decoded = taggedTuple.decodeFromString(Foo, encoded);
+    deepStrictEqual(decoded, foo);
+  });
 });

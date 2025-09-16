@@ -1,5 +1,5 @@
 import type { Call } from "./call.ts";
-import { bencoder, decoder } from "./text-codecs.ts";
+import { bencoder, decoder } from "./internal-codecs.ts";
 import { CasRetryLimitReachedError, NotFoundError } from "./errors.ts";
 import { PendingReturn, taggedTuple } from "./tagged-tuple.ts";
 
