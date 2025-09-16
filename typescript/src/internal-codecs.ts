@@ -6,7 +6,7 @@ import { TextDecoder, TextEncoder } from "node:util";
 /**
  * Brrr uses UTF-8 for encoding
  */
-const encoding = "utf-8" as const satisfies Encoding
+export const encoding = "utf-8" as const satisfies Encoding
 
 /**
  * Bencode encoding and decoding utility.
