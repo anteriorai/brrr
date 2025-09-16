@@ -16,6 +16,7 @@ class Call:
     Using the same memo key, we store the task and its argv here so we can
     retrieve them in workers.
 
+    <docsync>Call</docsync>
     """
 
     # Ideally human readable name for this task.  Brrr treats this as an opaque
