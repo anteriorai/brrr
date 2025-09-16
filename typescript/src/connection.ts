@@ -150,12 +150,12 @@ export class Server extends Connection {
       callHash,
       new PendingReturn(
         parent.rootId,
-        callHash,
+        parent.callHash,
         topic
       )
     );
     if (shouldSchedule) {
-      await this.putJob(child.topic || topic, new ScheduleMessage(
+      await this.putJob(child.topic ?? topic, new ScheduleMessage(
         parent.rootId,
         callHash
       ));

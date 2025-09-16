@@ -1,25 +1,8 @@
 import { beforeEach, suite, test } from "node:test";
 import { strictEqual } from "node:assert";
-import {
-  type ActiveWorker,
-  AppConsumer,
-  AppWorker,
-  type Handlers,
-  taskFn,
-} from "./app.ts";
-import {
-  type Connection,
-  Defer,
-  type Request,
-  type Response,
-  Server,
-  SubscriberServer,
-} from "./connection.ts";
-import {
-  InMemoryCache,
-  InMemoryEmitter,
-  InMemoryStore,
-} from "./backends/in-memory.ts";
+import { type ActiveWorker, AppConsumer, AppWorker, type Handlers, taskFn, } from "./app.ts";
+import { type Connection, Defer, type Request, type Response, Server, SubscriberServer, } from "./connection.ts";
+import { InMemoryCache, InMemoryEmitter, InMemoryStore, } from "./backends/in-memory.ts";
 import { NaiveJsonCodec } from "./naive-json-codec.ts";
 import type { Call } from "./call.ts";
 import { NotFoundError, SpawnLimitError } from "./errors.ts";
@@ -298,7 +281,7 @@ await suite(import.meta.filename, async () => {
     strictEqual(await app.read(taskName)(7), 14);
   });
 
-  await test("debounce child", async () => {
+  await test("debounce child", { only: true }, async () => {
     const calls = new Map<number, number>();
 
     async function foo(app: ActiveWorker, a: number): Promise<number> {
@@ -378,7 +361,7 @@ await suite(import.meta.filename, async () => {
     return done;
   });
 
-  await suite("loop mode", { only: true }, async () => {
+  await suite("loop mode", async () => {
     let queues: Record<string, (string | typeof BrrrShutdownSymbol)[]>;
     let server: Server;
 
@@ -403,7 +386,7 @@ await suite(import.meta.filename, async () => {
       server = new Server(store, cache, publisher);
     });
 
-    await test("basic loop", { only: true }, async () => {
+    await test("basic loop", async () => {
       async function foo(app: ActiveWorker, a: number) {
         return (await app.call(bar, topic)(a + 1)) + 1;
       }
@@ -434,7 +417,8 @@ await suite(import.meta.filename, async () => {
     });
 
     await test("resumable loop", async () => {
-      class MyError extends Error {}
+      class MyError extends Error {
+      }
 
       let errors = 5;
 
@@ -470,7 +454,8 @@ await suite(import.meta.filename, async () => {
     });
 
     await test("resumable loop nested", async () => {
-      class MyError extends Error {}
+      class MyError extends Error {
+      }
 
       let errors = 5;
 

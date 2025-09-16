@@ -71,9 +71,9 @@ export class ScheduleMessage extends TaggedTupleStrings {
   public readonly rootId: string;
   public readonly callHash: string;
 
-  constructor(rotId: string, callHash: string) {
+  constructor(rootId: string, callHash: string) {
     super();
-    this.rootId = rotId;
+    this.rootId = rootId;
     this.callHash = callHash;
   }
 }
