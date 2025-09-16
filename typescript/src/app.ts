@@ -1,4 +1,10 @@
-import { type Connection, Defer, type DeferredCall, type Request, type Response, } from "./connection.ts";
+import {
+  type Connection,
+  Defer,
+  type DeferredCall,
+  type Request,
+  type Response,
+} from "./connection.ts";
 import type { Codec } from "./codec.ts";
 import { NotFoundError, TaskNotFoundError } from "./errors.ts";
 import { BrrrTaskSymbol } from "./symbol.ts";
@@ -10,9 +16,9 @@ export type Task<A extends unknown[] = any[], R = any> = ((
 };
 
 export type StripLeadingActiveWorker<A extends unknown[]> = A extends [
-    ActiveWorker,
-    ...infer Rest,
-  ]
+  ActiveWorker,
+  ...infer Rest,
+]
   ? Rest
   : A;
 

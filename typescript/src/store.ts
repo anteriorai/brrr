@@ -29,7 +29,12 @@ export class PendingReturns {
     ) as PendingReturnsPayload;
     return new this(
       scheduled_at,
-      [...new Set(returns)].map((it) => taggedTuple.fromTuple(PendingReturn, it)),
+      [...new Set(returns)].map((it) => {
+        return taggedTuple.fromTuple(
+          PendingReturn,
+          it as [number, string, string, string],
+        );
+      }),
     );
   }
 
@@ -37,7 +42,9 @@ export class PendingReturns {
     return bencoder.encode({
       scheduled_at: this.scheduledAt,
       returns: [...this.encodedReturns]
-        .map((it) => taggedTuple.asTuple(taggedTuple.decodeFromString(PendingReturn, it)))
+        .map((it) =>
+          taggedTuple.asTuple(taggedTuple.decodeFromString(PendingReturn, it)),
+        )
         .sort(),
     } satisfies PendingReturnsPayload);
   }
@@ -192,7 +199,9 @@ export class Memory {
         shouldSchedule = true;
       }
       shouldSchedule ||= [...existing.encodedReturns].some((it) =>
-        taggedTuple.decodeFromString(PendingReturn, it).isRepeatedCall(newReturn),
+        taggedTuple
+          .decodeFromString(PendingReturn, it)
+          .isRepeatedCall(newReturn),
       );
       const newReturns = new PendingReturns(
         existing.scheduledAt,
