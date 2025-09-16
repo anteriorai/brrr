@@ -4,7 +4,7 @@ import { MalformedTaggedTupleError, TagMismatchError } from "./errors.ts";
 
 const encoding: Encoding = "utf-8" as const;
 
-interface TaggedTuple<T = any, A extends unknown[] = any[]> {
+export interface TaggedTuple<T = any, A extends unknown[] = any[]> {
   new (...args: A): T;
 
   readonly tag: number;
@@ -15,10 +15,10 @@ function fromTuple<T, A extends unknown[]>(
   data: [number, ...A],
 ): InstanceType<typeof clz> {
   if (data[0] !== clz.tag) {
-    throw new TagMismatchError(clz.tag);
+    throw new TagMismatchError(clz);
   }
   if (data.length - 1 !== clz.length) {
-    throw new MalformedTaggedTupleError(clz.name, clz.length);
+    throw new MalformedTaggedTupleError(clz);
   }
   return new clz(...(data.slice(1) as A));
 }
