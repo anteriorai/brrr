@@ -4,7 +4,7 @@ import { SpawnLimitError } from "./errors.ts";
 import { randomUUID } from "node:crypto";
 import type { Publisher, Subscriber } from "./emitter.ts";
 import { BrrrShutdownSymbol, BrrrTaskDoneEventSymbol } from "./symbol.ts";
-import { PendingReturn, ScheduleMessage, taggedTuple } from "./tagged-tuple.ts";
+import { PendingReturn, ScheduleMessage, TaggedTuple } from "./tagged-tuple.ts";
 
 export interface DeferredCall {
   readonly topic: string | undefined;
@@ -48,7 +48,7 @@ export class Connection {
     if ((await this.cache.incr(`brrr_count/${job.rootId}`)) > this.spawnLimit) {
       throw new SpawnLimitError(this.spawnLimit, job.rootId, job.callHash);
     }
-    await this.emitter.emit(topic, taggedTuple.encodeToString(job));
+    await this.emitter.emit(topic, TaggedTuple.encodeToString(job));
   }
 
   public async scheduleRaw(topic: string, call: Call): Promise<void> {
@@ -95,7 +95,7 @@ export class Server extends Connection {
     topic: string,
     payload: string,
   ): Promise<Call | undefined> {
-    const message = taggedTuple.decodeFromString(ScheduleMessage, payload);
+    const message = TaggedTuple.decodeFromString(ScheduleMessage, payload);
     const call = await this.memory.getCall(message.callHash);
     const handled = await requestHandler({ call }, this);
     if (handled instanceof Defer) {
