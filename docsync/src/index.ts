@@ -1,18 +1,18 @@
 #!/usr/bin/env node --enable-source-maps
 
-import { getPythonDocsStrings } from "./python.ts";
-import { getTypeScriptDocStrings } from "./typescript.ts";
 import { deepStrictEqual } from "node:assert";
 import { join } from "node:path";
+import process from "node:process";
 
-const PYTHON_DIR = join(import.meta.dirname, "../../python");
-const TYPESCRIPT_DIR = join(import.meta.dirname, "../../typescript");
+import { getPythonDocsStrings } from "./python.ts";
+import { getTypeScriptDocStrings } from "./typescript.ts";
 
 async function main() {
-  console.log("Comparing", PYTHON_DIR, "and", TYPESCRIPT_DIR);
+  const [pythonDir, tsDir] = process.argv.slice(2);
+  console.log("Comparing", pythonDir, "and", tsDir);
   const path = {
-    python: join(PYTHON_DIR, "src/**/*.py"),
-    typescript: join(TYPESCRIPT_DIR, "src/**/*.ts"),
+    python: join(pythonDir, "src/**/*.py"),
+    typescript: join(tsDir, "src/**/*.ts"),
   } as const;
 
   const python = await getPythonDocsStrings(path.python);
