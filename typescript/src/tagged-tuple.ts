@@ -3,7 +3,7 @@ import type { Encoding } from "node:crypto";
 import { MalformedTaggedTupleError, TagMismatchError } from "./errors.ts";
 
 type Tagged<T, A extends unknown[], Tag extends number> = {
-  new(...args: A): T;
+  new (...args: A): T;
   readonly tag: Tag;
 };
 
@@ -12,12 +12,13 @@ export abstract class TaggedTuple {
     T extends TaggedTuple,
     A extends unknown[],
     Tag extends number,
-  >(this: Tagged<T, A, Tag>, tag: NoInfer<Tag>, ...tuple: A): T {
+  >(this: Tagged<T, A, Tag>, ...data: unknown[]): T {
+    const [tag, ...tuple] = data as [Tag, ...A];
     if (tag !== this.tag) {
       throw new TagMismatchError(this.tag, tag);
     }
     if (tuple.length !== this.length) {
-      throw new MalformedTaggedTupleError()
+      throw new MalformedTaggedTupleError();
     }
     return new this(...tuple);
   }

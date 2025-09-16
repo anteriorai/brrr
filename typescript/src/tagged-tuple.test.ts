@@ -20,14 +20,6 @@ await suite(import.meta.filename, async () => {
     }
 
     await suite("fromTuple", async () => {
-      await test("type test", async () => {
-        // correct types
-        const _: Foo = Foo.fromTuple(0, 42, "hello");
-        // @ts-expect-error wrong tag
-        throws(() => Foo.fromTuple(1, 42, "hello"));
-        // @ts-expect-error wrong args
-        Foo.fromTuple(0, "wrong", "args");
-      });
       await test("create instance", async () => {
         const foo = Foo.fromTuple(0, 42, "hello");
         ok(foo instanceof Foo);
@@ -35,17 +27,17 @@ await suite(import.meta.filename, async () => {
         ok(foo.baz === "hello");
       });
       await test("tag mismatch", async () => {
-        // @ts-expect-error wrong tag, but testing the runtime behavior
-        throws(() => Foo.fromTuple(1, 42, "hello")), TagMismatchError;
-      })
+        throws(() => Foo.fromTuple(1, 42, "hello"), TagMismatchError);
+      });
       await test("too many args", async () => {
-        // @ts-expect-error wrong tag, but testing the runtime behavior
-        throws(() => Foo.fromTuple(0, 42, "hello", "a"), MalformedTaggedTupleError)
-      })
+        throws(
+          () => Foo.fromTuple(0, 42, "hello", "a"),
+          MalformedTaggedTupleError,
+        );
+      });
       await test("too few args", async () => {
-        // @ts-expect-error wrong tag, but testing the runtime behavior
-        throws(() => Foo.fromTuple(0, 42), MalformedTaggedTupleError)
-      })
+        throws(() => Foo.fromTuple(0, 42), MalformedTaggedTupleError);
+      });
     });
 
     await suite("asTuple", async () => {
@@ -75,9 +67,6 @@ await suite(import.meta.filename, async () => {
       const encoded: Uint8Array = foo.encode();
       const decoded: Foo = Foo.decode(encoded);
       deepStrictEqual(decoded, foo);
-
-      const unknownData: unknown[] = [0, 42, "hello"];
-      const a = Foo.fromTuple(0, unknownData)
     });
   });
 });
