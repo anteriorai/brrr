@@ -18,7 +18,7 @@ export class PendingReturns {
   ) {
     this.scheduledAt = scheduledAt;
     this.encodedReturns = new Set(
-      [...returns].map((it) => TaggedTuple.encodeToString(it)),
+      [...returns].map(TaggedTuple.encodeToString),
     );
   }
 
