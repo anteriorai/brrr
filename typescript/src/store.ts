@@ -1,6 +1,5 @@
 import type { Call } from "./call.ts";
 import { bencoder, decoder } from "./text-codecs.ts";
-import { TextDecoder } from "node:util";
 import { CasRetryLimitReachedError, NotFoundError } from "./errors.ts";
 import { PendingReturn } from "./tagged-tuple.ts";
 
@@ -11,35 +10,35 @@ export interface PendingReturnsPayload {
 
 export class PendingReturns {
   public readonly scheduledAt: number | undefined;
-  public readonly returns: ReadonlySet<PendingReturn>;
+  public readonly encodedReturns: ReadonlySet<string>;
 
   public constructor(
     scheduledAt: number | undefined,
-    returns: ReadonlySet<PendingReturn>,
+    returns: Iterable<PendingReturn>,
   ) {
     this.scheduledAt = scheduledAt;
-    this.encodedReturns = new Set([...returns].map(TaggedTuple.encodeToString));
+    this.encodedReturns = new Set(
+      [...returns].map((it) => it.encodeToString()),
+    );
   }
 
   public static decode(encoded: Uint8Array): PendingReturns {
     const { scheduled_at, returns } = bencoder.decode(
       encoded,
-      'utf-8'
+      "utf-8",
     ) as PendingReturnsPayload;
     return new this(
       scheduled_at,
-      new Set(
-        returns.map(it => PendingReturn.fromTuple(...it))
-      ),
+      [...new Set(returns)].map((it) => PendingReturn.fromTuple(...it)),
     );
   }
 
   public encode(): Uint8Array {
     return bencoder.encode({
       scheduled_at: this.scheduledAt,
-      returns: [...this.returns]
-        .map(it => it.asTuple())
-        .sort()
+      returns: [...this.encodedReturns]
+        .map((it) => PendingReturn.decodeFromString(it).asTuple())
+        .sort(),
     } satisfies PendingReturnsPayload);
   }
 }
@@ -193,16 +192,14 @@ export class Memory {
         shouldSchedule = true;
       }
       shouldSchedule ||= [...existing.encodedReturns].some((it) =>
-        TaggedTuple.decodeFromString(PendingReturn, it).isRepeatedCall(
-          newReturn,
-        ),
+        PendingReturn.decodeFromString(it).isRepeatedCall(newReturn),
       );
       const newReturns = new PendingReturns(
         existing.scheduledAt,
         existing.encodedReturns
-          .union(new Set([TaggedTuple.encodeToString(newReturn)]))
+          .union(new Set([newReturn.encodeToString()]))
           .values()
-          .map((it) => TaggedTuple.decodeFromString(PendingReturn, it)),
+          .map((it) => PendingReturn.decodeFromString(it)),
       );
       return this.store.compareAndSet(
         memKey,
@@ -231,7 +228,7 @@ export class Memory {
         PendingReturns.decode(pendingEncoded)
           .encodedReturns.difference(handled)
           .values()
-          .map((it) => TaggedTuple.decodeFromString(PendingReturn, it)),
+          .map((it) => PendingReturn.decodeFromString(it)),
       );
       await f(toHandle);
       for (const it of toHandle) {
@@ -248,13 +245,5 @@ export class Memory {
       }
     }
     throw new CasRetryLimitReachedError(Memory.casRetryLimit);
-  }
-
-  private isRepeatedCall(newReturn: PendingReturn, existingReturn: PendingReturn): boolean {
-    return (
-      newReturn.rootId !== existingReturn.rootId &&
-      newReturn.callHash === existingReturn.callHash &&
-      newReturn.topic === existingReturn.topic
-    );
   }
 }
