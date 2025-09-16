@@ -4,6 +4,8 @@ import { SpawnLimitError } from "./errors.ts";
 import { randomUUID } from "node:crypto";
 import type { Publisher, Subscriber } from "./emitter.ts";
 import { BrrrShutdownSymbol, BrrrTaskDoneEventSymbol } from "./symbol.ts";
+import { PendingReturn, ScheduleMessage } from "./tagged-tuple.ts";
+import { decoder, encoder } from "./text-codecs.ts";
 
 export interface DeferredCall {
   readonly topic: string | undefined;
@@ -45,13 +47,12 @@ export class Connection {
 
   public async putJob(
     topic: string,
-    callHash: string,
-    rootId: string,
+    job: ScheduleMessage
   ): Promise<void> {
-    if ((await this.cache.incr(`brrr_count/${rootId}`)) > this.spawnLimit) {
-      throw new SpawnLimitError(this.spawnLimit, rootId, callHash);
+    if ((await this.cache.incr(`brrr_count/${job.rootId}`)) > this.spawnLimit) {
+      throw new SpawnLimitError(this.spawnLimit, job.rootId, job.callHash);
     }
-    await this.emitter.emit(topic, `${rootId}/${callHash}`);
+    await this.emitter.emit(topic, decoder.decode(job.encode()))
   }
 
   public async scheduleRaw(topic: string, call: Call): Promise<void> {
@@ -60,7 +61,10 @@ export class Connection {
     }
     await this.memory.setCall(call);
     const rootId = randomUUID().replaceAll("-", "");
-    await this.putJob(topic, call.callHash, rootId);
+    await this.putJob(topic, new ScheduleMessage(
+      rootId,
+      call.callHash
+    ));
   }
 
   public async readRaw(callHash: string): Promise<Uint8Array | undefined> {
@@ -96,25 +100,25 @@ export class Server extends Connection {
   protected async handleMessage(
     requestHandler: RequestHandler,
     topic: string,
-    callId: string,
+    payload: string
   ): Promise<Call | undefined> {
-    const [rootId, callHash] = callId.split("/") as [string, string];
-    const call = await this.memory.getCall(callHash);
+    const message = ScheduleMessage.decode(encoder.encode(payload))
+    const call = await this.memory.getCall(message.callHash);
     const handled = await requestHandler({ call }, this);
     if (handled instanceof Defer) {
       await Promise.all(
         handled.calls.map((child) => {
-          return this.scheduleCallNested(topic, child, rootId, callId);
+          return this.scheduleCallNested(topic, child, message);
         }),
       );
       return;
     }
-    await this.memory.setValue(callHash, handled.payload);
+    await this.memory.setValue(message.callHash, handled.payload);
     let spawnLimitError: SpawnLimitError;
-    await this.memory.withPendingReturnsRemove(callHash, async (returns) => {
-      for (const pending of returns) {
+    await this.memory.withPendingReturnsRemove(message.callHash, async (pendingReturns) => {
+      for (const pendingReturn of pendingReturns) {
         try {
-          await this.scheduleReturnCall(pending);
+          await this.scheduleReturnCall(pendingReturn);
         } catch (err) {
           if (err instanceof SpawnLimitError) {
             spawnLimitError = err;
@@ -130,29 +134,31 @@ export class Server extends Connection {
     return call;
   }
 
-  private async scheduleReturnCall(addr: string): Promise<void> {
-    const [rootId, parentKey, topic] = addr.split("/") as [
-      string,
-      string,
-      string,
-    ];
-    await this.putJob(topic, parentKey, rootId);
+  private async scheduleReturnCall(pendingReturn: PendingReturn): Promise<void> {
+    const job = new ScheduleMessage(pendingReturn.rootId, pendingReturn.callHash)
+    await this.putJob(pendingReturn.topic, job);
   }
 
   private async scheduleCallNested(
     topic: string,
     child: DeferredCall,
-    rootId: string,
-    parentKey: string,
+    parent: ScheduleMessage
   ): Promise<void> {
     await this.memory.setCall(child.call);
     const callHash = child.call.callHash;
     const shouldSchedule = await this.memory.addPendingReturns(
       callHash,
-      `${parentKey}/${topic}`,
+      new PendingReturn(
+        parent.rootId,
+        callHash,
+        topic
+      )
     );
     if (shouldSchedule) {
-      await this.putJob(child.topic || topic, callHash, rootId);
+      await this.putJob(child.topic || topic, new ScheduleMessage(
+        parent.rootId,
+        callHash
+      ));
     }
   }
 }

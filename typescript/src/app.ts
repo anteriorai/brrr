@@ -111,6 +111,7 @@ export class AppWorker extends AppConsumer {
     if (!handler) {
       throw new TaskNotFoundError(request.call.taskName);
     }
+    console.log({NOCOMMIT: `Handling task ${request.call.taskName}`});
     try {
       const activeWorker = new ActiveWorker(
         connection,
@@ -122,6 +123,7 @@ export class AppWorker extends AppConsumer {
       });
       return { payload };
     } catch (err) {
+      console.log({NOCOMMIT: `Deferring task ${request.call.taskName}`});
       if (err instanceof Defer) {
         return err;
       }

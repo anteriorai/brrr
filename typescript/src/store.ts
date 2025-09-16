@@ -1,23 +1,21 @@
 import type { Call } from "./call.ts";
-import { bencoder } from "./bencode.ts";
+import { bencoder, decoder } from "./text-codecs.ts";
 import { TextDecoder } from "node:util";
-import type { Encoding } from "node:crypto";
 import { CasRetryLimitReachedError, NotFoundError } from "./errors.ts";
+import { PendingReturn } from "./tagged-tuple.ts";
 
 export interface PendingReturnsPayload {
   readonly scheduled_at: number | undefined;
-  readonly returns: Buffer[];
+  readonly returns: unknown[][];
 }
 
 export class PendingReturns {
-  private static readonly encoding = "ascii" satisfies Encoding;
-
   public readonly scheduledAt: number | undefined;
-  public readonly returns: ReadonlySet<string>;
+  public readonly returns: ReadonlySet<PendingReturn>;
 
   public constructor(
     scheduledAt: number | undefined,
-    returns: ReadonlySet<string>,
+    returns: ReadonlySet<PendingReturn>,
   ) {
     this.scheduledAt = scheduledAt;
     this.returns = returns;
@@ -26,11 +24,13 @@ export class PendingReturns {
   public static decode(encoded: Uint8Array): PendingReturns {
     const { scheduled_at, returns } = bencoder.decode(
       encoded,
-      PendingReturns.encoding,
+      'utf-8'
     ) as PendingReturnsPayload;
     return new PendingReturns(
       scheduled_at,
-      new Set(returns.map((it) => it.toString(PendingReturns.encoding))),
+      new Set(
+        returns.map(it => PendingReturn.fromTuple(...it))
+      ),
     );
   }
 
@@ -38,8 +38,8 @@ export class PendingReturns {
     return bencoder.encode({
       scheduled_at: this.scheduledAt,
       returns: [...this.returns]
-        .map((it) => Buffer.from(it, PendingReturns.encoding))
-        .sort(Buffer.compare),
+        .map(it => it.asTuple())
+        .sort()
     } satisfies PendingReturnsPayload);
   }
 }
@@ -102,8 +102,6 @@ export interface Cache {
 
 export class Memory {
   private static readonly casRetryLimit = 100;
-  private static readonly encoding = "ascii" satisfies Encoding;
-  private static readonly decoder = new TextDecoder(Memory.encoding);
 
   private readonly store: Store;
 
@@ -125,7 +123,7 @@ export class Memory {
       payload: Uint8Array;
     };
     return {
-      taskName: Memory.decoder.decode(task_name),
+      taskName: decoder.decode(task_name),
       payload,
       callHash,
     };
@@ -171,7 +169,7 @@ export class Memory {
 
   public async addPendingReturns(
     callHash: string,
-    newReturn: string,
+    newReturn: PendingReturn,
   ): Promise<boolean> {
     const memKey: MemKey = {
       type: "pending_returns",
@@ -209,13 +207,13 @@ export class Memory {
 
   public async withPendingReturnsRemove(
     callHash: string,
-    f: (returns: ReadonlySet<string>) => Promise<void>,
+    f: (returns: ReadonlySet<PendingReturn>) => Promise<void>,
   ) {
     const memKey: MemKey = {
       type: "pending_returns",
       callHash,
     };
-    const handled = new Set<string>();
+    const handled = new Set<PendingReturn>();
     return this.withCas(async () => {
       const pendingEncoded = await this.store.get(memKey);
       if (!pendingEncoded) {
@@ -240,26 +238,11 @@ export class Memory {
     throw new CasRetryLimitReachedError(Memory.casRetryLimit);
   }
 
-  // TODO: migrate to bencode
-  private isRepeatedCall(newReturn: string, existingReturn: string): boolean {
-    const [newRoot, newParent, newTopic, ...newRest] = newReturn.split("/");
-    if (!newRoot || !newParent || !newTopic || newRest.length) {
-      throw new Error(`Invalid return address: ${newReturn}`);
-    }
-    const [existingRoot, existingParent, existingTopic, ...existingRest] =
-      existingReturn.split("/");
-    if (
-      !existingRoot ||
-      !existingParent ||
-      !existingTopic ||
-      existingRest.length
-    ) {
-      throw new Error(`Invalid return address: ${existingReturn}`);
-    }
+  private isRepeatedCall(newReturn: PendingReturn, existingReturn: PendingReturn): boolean {
     return (
-      newRoot !== existingRoot &&
-      newParent === existingParent &&
-      newTopic === existingTopic
+      newReturn.rootId !== existingReturn.rootId &&
+      newReturn.callHash === existingReturn.callHash &&
+      newReturn.topic === existingReturn.topic
     );
   }
 }

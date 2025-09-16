@@ -1,9 +1,9 @@
-import { bencoder } from "./bencode.ts";
+import { bencoder } from "./text-codecs.ts";
 import type { Encoding } from "node:crypto";
 import { MalformedTaggedTupleError, TagMismatchError } from "./errors.ts";
 
 type Tagged<T, A extends unknown[], Tag extends number> = {
-  new (...args: A): T;
+  new(...args: A): T;
   readonly tag: Tag;
 };
 
@@ -18,7 +18,7 @@ export abstract class TaggedTuple {
       throw new TagMismatchError(this.tag, tag);
     }
     if (tuple.length !== this.length) {
-      throw new MalformedTaggedTupleError();
+      throw new MalformedTaggedTupleError(this.name, this.length, tuple.length);
     }
     return new this(...tuple);
   }
@@ -41,7 +41,7 @@ export abstract class TaggedTupleStrings extends TaggedTuple {
     T extends TaggedTuple,
     A extends unknown[],
     Tag extends number,
-  >(data: Uint8Array): T {
+  >(this: Tagged<T, A, Tag>, data: Uint8Array): T {
     const decoded = bencoder.decode(data, TaggedTupleStrings.encoding) as [
       Tag,
       ...A,
@@ -53,14 +53,14 @@ export abstract class TaggedTupleStrings extends TaggedTuple {
 export class PendingReturn extends TaggedTuple {
   public static readonly tag = 1;
 
-  public readonly root_id: string;
-  public readonly call_hash: string;
+  public readonly rootId: string;
+  public readonly callHash: string;
   public readonly topic: string;
 
-  constructor(root_id: string, call_hash: string, topic: string) {
+  constructor(rootId: string, callHash: string, topic: string) {
     super();
-    this.root_id = root_id;
-    this.call_hash = call_hash;
+    this.rootId = rootId;
+    this.callHash = callHash;
     this.topic = topic;
   }
 }
@@ -68,12 +68,12 @@ export class PendingReturn extends TaggedTuple {
 export class ScheduleMessage extends TaggedTupleStrings {
   public static readonly tag = 2;
 
-  public readonly root_id: string;
-  public readonly call_hash: string;
+  public readonly rootId: string;
+  public readonly callHash: string;
 
-  constructor(root_id: string, call_hash: string) {
+  constructor(rotId: string, callHash: string) {
     super();
-    this.root_id = root_id;
-    this.call_hash = call_hash;
+    this.rootId = rotId;
+    this.callHash = callHash;
   }
 }

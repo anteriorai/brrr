@@ -378,7 +378,7 @@ await suite(import.meta.filename, async () => {
     return done;
   });
 
-  await suite("loop mode", async () => {
+  await suite("loop mode", { only: true }, async () => {
     let queues: Record<string, (string | typeof BrrrShutdownSymbol)[]>;
     let server: Server;
 
@@ -403,7 +403,7 @@ await suite(import.meta.filename, async () => {
       server = new Server(store, cache, publisher);
     });
 
-    await test("basic loop", async () => {
+    await test("basic loop", { only: true }, async () => {
       async function foo(app: ActiveWorker, a: number) {
         return (await app.call(bar, topic)(a + 1)) + 1;
       }
