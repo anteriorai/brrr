@@ -22,7 +22,7 @@ import {
 } from "./store.ts";
 import { InMemoryStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
-import { PendingReturn } from "./tagged-tuple.ts";
+import { PendingReturn, taggedTuple } from "./tagged-tuple.ts";
 
 await suite(import.meta.filename, async () => {
   await suite(PendingReturns.name, async () => {
@@ -147,7 +147,7 @@ await suite(import.meta.filename, async () => {
         });
         deepStrictEqual(
           PendingReturns.decode(encoded!).encodedReturns,
-          new Set(cases.map((it) => it[1].encodeToString())),
+          new Set(cases.map((it) => taggedTuple.encodeToString(it[1]))),
         );
       });
 
@@ -163,7 +163,7 @@ await suite(import.meta.filename, async () => {
         });
         ok(raw);
         const decoded = PendingReturns.decode(raw);
-        ok(decoded.encodedReturns.has(fixture.newReturn.encodeToString()));
+        ok(decoded.encodedReturns.has(taggedTuple.encodeToString(fixture.newReturn)));
         strictEqual(decoded.scheduledAt, mockTimersOptions.now / 1000);
       });
 
@@ -185,7 +185,7 @@ await suite(import.meta.filename, async () => {
         const decoded = PendingReturns.decode(raw);
         deepStrictEqual(
           decoded.encodedReturns,
-          new Set([fixture.newReturn.encodeToString()]),
+          new Set([taggedTuple.encodeToString(fixture.newReturn)]),
         );
       });
 
@@ -214,7 +214,7 @@ await suite(import.meta.filename, async () => {
           decoded.encodedReturns,
           new Set(
             [fixture.newReturn, completelyDifferentReturn].map((it) =>
-              it.encodeToString(),
+              taggedTuple.encodeToString(it),
             ),
           ),
         );
@@ -238,7 +238,7 @@ await suite(import.meta.filename, async () => {
         ok(raw);
         const decoded = PendingReturns.decode(raw);
         ok(
-          decoded.encodedReturns.has(returnWithDifferentRoot.encodeToString()),
+          decoded.encodedReturns.has(taggedTuple.encodeToString(returnWithDifferentRoot)),
         );
         strictEqual(decoded.scheduledAt, mockTimersOptions.now / 1000);
       });
@@ -267,7 +267,7 @@ await suite(import.meta.filename, async () => {
           fixture.pendingReturns.key.callHash,
           (returns) => {
             deepStrictEqual(
-              [...returns].map((it) => it.encodeToString()),
+              [...returns].map((it) => taggedTuple.encodeToString(it)),
               [...pendingReturns.encodedReturns],
             );
             return mockFn(returns);
