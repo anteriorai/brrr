@@ -156,6 +156,7 @@
             );
             brrrpy = callPackage ./python/package.nix { };
             brrr-ts = callPackage ./typescript/package.nix { };
+            docsync = callPackage ./docsync/package.nix { };
           in
           {
             config = {
@@ -184,6 +185,7 @@
               };
               treefmt = import ./nix/treefmt.nix;
               packages = {
+                inherit docsync;
                 inherit (pkgs) uv;
                 inherit (brrrpy) brrr brrr-venv-test;
                 inherit brrr-ts;

@@ -6,8 +6,10 @@
   "main": "index.js",
   "scripts": {
     "start": "node src/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "rm -rf dist && cp -r src dist",
+    "test": "echo no tests"
   },
+  "bin": "dist/index.ts",
   "keywords": [],
   "author": "",
   "license": "ISC",
