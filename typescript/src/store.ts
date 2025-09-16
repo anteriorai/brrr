@@ -1,7 +1,8 @@
 import type { Call } from "./call.ts";
-import { bencoder, decoder } from "./internal-codecs.ts";
+import { bencoder, decoder } from "./text-codecs.ts";
+import { TextDecoder } from "node:util";
 import { CasRetryLimitReachedError, NotFoundError } from "./errors.ts";
-import { PendingReturn, TaggedTuple } from "./tagged-tuple.ts";
+import { PendingReturn } from "./tagged-tuple.ts";
 
 export interface PendingReturnsPayload {
   readonly scheduled_at: number | undefined;
@@ -10,11 +11,11 @@ export interface PendingReturnsPayload {
 
 export class PendingReturns {
   public readonly scheduledAt: number | undefined;
-  public readonly encodedReturns: ReadonlySet<string>;
+  public readonly returns: ReadonlySet<PendingReturn>;
 
   public constructor(
     scheduledAt: number | undefined,
-    returns: Iterable<PendingReturn>,
+    returns: ReadonlySet<PendingReturn>,
   ) {
     this.scheduledAt = scheduledAt;
     this.encodedReturns = new Set([...returns].map(TaggedTuple.encodeToString));
@@ -23,27 +24,22 @@ export class PendingReturns {
   public static decode(encoded: Uint8Array): PendingReturns {
     const { scheduled_at, returns } = bencoder.decode(
       encoded,
-      "utf-8",
+      'utf-8'
     ) as PendingReturnsPayload;
     return new this(
       scheduled_at,
-      [...new Set(returns)].map((it) => {
-        return TaggedTuple.fromTuple(
-          PendingReturn,
-          it as [number, string, string, string],
-        );
-      }),
+      new Set(
+        returns.map(it => PendingReturn.fromTuple(...it))
+      ),
     );
   }
 
   public encode(): Uint8Array {
     return bencoder.encode({
       scheduled_at: this.scheduledAt,
-      returns: [...this.encodedReturns]
-        .map((it) =>
-          TaggedTuple.asTuple(TaggedTuple.decodeFromString(PendingReturn, it)),
-        )
-        .sort(),
+      returns: [...this.returns]
+        .map(it => it.asTuple())
+        .sort()
     } satisfies PendingReturnsPayload);
   }
 }
@@ -252,5 +248,13 @@ export class Memory {
       }
     }
     throw new CasRetryLimitReachedError(Memory.casRetryLimit);
+  }
+
+  private isRepeatedCall(newReturn: PendingReturn, existingReturn: PendingReturn): boolean {
+    return (
+      newReturn.rootId !== existingReturn.rootId &&
+      newReturn.callHash === existingReturn.callHash &&
+      newReturn.topic === existingReturn.topic
+    );
   }
 }

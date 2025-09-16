@@ -4,7 +4,8 @@ import { SpawnLimitError } from "./errors.ts";
 import { randomUUID } from "node:crypto";
 import type { Publisher, Subscriber } from "./emitter.ts";
 import { BrrrShutdownSymbol, BrrrTaskDoneEventSymbol } from "./symbol.ts";
-import { PendingReturn, ScheduleMessage, TaggedTuple } from "./tagged-tuple.ts";
+import { PendingReturn, ScheduleMessage } from "./tagged-tuple.ts";
+import { decoder, encoder } from "./text-codecs.ts";
 
 export interface DeferredCall {
   readonly topic: string | undefined;
@@ -48,7 +49,7 @@ export class Connection {
     if ((await this.cache.incr(`brrr_count/${job.rootId}`)) > this.spawnLimit) {
       throw new SpawnLimitError(this.spawnLimit, job.rootId, job.callHash);
     }
-    await this.emitter.emit(topic, TaggedTuple.encodeToString(job));
+    await this.emitter.emit(topic, decoder.decode(job.encode()));
   }
 
   public async scheduleRaw(topic: string, call: Call): Promise<void> {
@@ -57,7 +58,10 @@ export class Connection {
     }
     await this.memory.setCall(call);
     const rootId = randomUUID().replaceAll("-", "");
-    await this.putJob(topic, new ScheduleMessage(rootId, call.callHash));
+    await this.putJob(topic, new ScheduleMessage(
+      rootId,
+      call.callHash,
+    ));
   }
 
   public async readRaw(callHash: string): Promise<Uint8Array | undefined> {
@@ -93,9 +97,9 @@ export class Server extends Connection {
   protected async handleMessage(
     requestHandler: RequestHandler,
     topic: string,
-    payload: string,
+    payload: string
   ): Promise<Call | undefined> {
-    const message = TaggedTuple.decodeFromString(ScheduleMessage, payload);
+    const message = ScheduleMessage.decode(encoder.encode(payload))
     const call = await this.memory.getCall(message.callHash);
     const handled = await requestHandler({ call }, this);
     if (handled instanceof Defer) {
@@ -108,18 +112,14 @@ export class Server extends Connection {
     }
     await this.memory.setValue(message.callHash, handled.payload);
     let spawnLimitError: SpawnLimitError;
-    await this.memory.withPendingReturnsRemove(
-      message.callHash,
-      async (returns) => {
-        for (const pending of returns) {
-          try {
-            await this.scheduleReturnCall(pending);
-          } catch (err) {
-            if (err instanceof SpawnLimitError) {
-              spawnLimitError = err;
-              continue;
-            }
-            throw err;
+    await this.memory.withPendingReturnsRemove(message.callHash, async (returns) => {
+      for (const pending of returns) {
+        try {
+          await this.scheduleReturnCall(pending);
+        } catch (err) {
+          if (err instanceof SpawnLimitError) {
+            spawnLimitError = err;
+            continue;
           }
         }
         if (spawnLimitError) {
@@ -130,34 +130,32 @@ export class Server extends Connection {
     return call;
   }
 
-  private async scheduleReturnCall(
-    pendingReturn: PendingReturn,
-  ): Promise<void> {
+  private async scheduleReturnCall(pendingReturn: PendingReturn): Promise<void> {
     const job = new ScheduleMessage(
       pendingReturn.rootId,
       pendingReturn.callHash,
-    );
+    )
     await this.putJob(pendingReturn.topic, job);
   }
 
   private async scheduleCallNested(
     topic: string,
     child: DeferredCall,
-    parent: ScheduleMessage,
+    parent: ScheduleMessage
   ): Promise<void> {
     await this.memory.setCall(child.call);
     const callHash = child.call.callHash;
     const pendingReturn = new PendingReturn(
       parent.rootId,
       parent.callHash,
-      topic,
-    );
-    const shouldSchedule = await this.memory.addPendingReturns(
-      callHash,
-      pendingReturn,
-    );
+      topic
+    )
+    const shouldSchedule = await this.memory.addPendingReturns(callHash, pendingReturn);
     if (shouldSchedule) {
-      const job = new ScheduleMessage(parent.rootId, callHash);
+      const job = new ScheduleMessage(
+        parent.rootId,
+        callHash
+      )
       await this.putJob(child.topic || topic, job);
     }
   }
