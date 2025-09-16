@@ -2,72 +2,57 @@ import { bencoder, decoder, encoder } from "./text-codecs.ts";
 import type { Encoding } from "node:crypto";
 import { MalformedTaggedTupleError, TagMismatchError } from "./errors.ts";
 
-type Tagged<T, A extends unknown[], Tag extends number> = {
-  new (...args: A): T;
-  readonly tag: Tag;
-};
+const encoding: Encoding = "utf-8" as const;
 
-export abstract class TaggedTuple {
-  public static fromTuple<
-    T extends TaggedTuple,
-    A extends unknown[],
-    Tag extends number,
-  >(this: Tagged<T, A, Tag>, ...data: unknown[]): T {
-    const [tag, ...tuple] = data as [Tag, ...A];
-    if (tag !== this.tag) {
-      throw new TagMismatchError(this.tag, tag);
-    }
-    if (tuple.length !== this.length) {
-      throw new MalformedTaggedTupleError(this.name, this.length, tuple.length);
-    }
-    return new this(...tuple);
-  }
+interface TaggedTuple<T> {
+  new(...args: any[]): T
 
-  public asTuple(): [number, ...unknown[]] {
-    const { tag } = this.constructor as Tagged<this, unknown[], number>;
-    return [tag, ...Object.values(this)];
-  }
+  readonly tag: number
 }
 
-export abstract class TaggedTupleStrings extends TaggedTuple {
-  private static readonly encoding: Encoding = "utf-8";
-
-  public encode(): Uint8Array {
-    const tuple = this.asTuple();
-    return bencoder.encode(tuple);
+function fromTuple<T>(clz: TaggedTuple<T>, data: unknown[]): InstanceType<typeof clz> {
+  if (data[0] !== clz.tag) {
+    throw new TagMismatchError(clz.tag);
   }
-
-  public encodeToString(): string {
-    return decoder.decode(this.encode());
+  if (data.length - 1 !== clz.length) {
+    throw new MalformedTaggedTupleError(clz.name, clz.length);
   }
-
-  public static decode<
-    T extends TaggedTuple,
-    A extends unknown[],
-    Tag extends number,
-  >(this: Tagged<T, A, Tag>, data: Uint8Array): T {
-    const decoded = bencoder.decode(data, TaggedTupleStrings.encoding) as [
-      Tag,
-      ...A,
-    ];
-    return super.fromTuple(...decoded);
-  }
-
-  public static decodeFromString<
-    T extends TaggedTuple,
-    A extends unknown[],
-    Tag extends number,
-  >(
-    this: Tagged<T, A, Tag> &
-      // type cheat
-      { decode: typeof TaggedTupleStrings.decode },
-    data: string,
-  ): T {
-    return this.decode(encoder.encode(data));
-  }
+  return new clz(...data.slice(1))
 }
 
-export class PendingReturn extends TaggedTupleStrings {
+function asTuple<T extends object>(obj: InstanceType<TaggedTuple<T>>): unknown[] {
+  return [(obj.constructor as TaggedTuple<T>).tag, ...Object.values(obj)]
+}
+
+function encode<T extends object>(obj: InstanceType<TaggedTuple<T>>): Uint8Array {
+  const tuple = asTuple(obj);
+  return bencoder.encode(tuple);
+}
+
+function encodeToString<T extends object>(obj: InstanceType<TaggedTuple<T>>): string {
+  return decoder.decode(encode(obj));
+}
+
+function decode<T>(clz: TaggedTuple<T>, data: Uint8Array): InstanceType<typeof clz> {
+  const decoded = bencoder.decode(data, encoding) as [number, ...unknown[]];
+  return fromTuple(clz, decoded);
+}
+
+function decodeFromString<T>(clz: TaggedTuple<T>, data: string): InstanceType<typeof clz> {
+  return decode(clz, encoder.encode(data));
+}
+
+
+export const taggedTuple = {
+  fromTuple,
+  asTuple,
+  encode,
+  encodeToString,
+  decode,
+  decodeFromString,
+} as const
+
+export class PendingReturn {
   public static readonly tag = 1;
 
   public readonly rootId: string;
@@ -75,7 +60,6 @@ export class PendingReturn extends TaggedTupleStrings {
   public readonly topic: string;
 
   constructor(rootId: string, callHash: string, topic: string) {
-    super();
     this.rootId = rootId;
     this.callHash = callHash;
     this.topic = topic;
@@ -90,14 +74,13 @@ export class PendingReturn extends TaggedTupleStrings {
   }
 }
 
-export class ScheduleMessage extends TaggedTupleStrings {
+export class ScheduleMessage {
   public static readonly tag = 2;
 
   public readonly rootId: string;
   public readonly callHash: string;
 
   constructor(rootId: string, callHash: string) {
-    super();
     this.rootId = rootId;
     this.callHash = callHash;
   }
