@@ -1,6 +1,5 @@
 import type { Call } from "./call.ts";
 import { bencoder, decoder } from "./text-codecs.ts";
-import { TextDecoder } from "node:util";
 import { CasRetryLimitReachedError, NotFoundError } from "./errors.ts";
 import { PendingReturn } from "./tagged-tuple.ts";
 
@@ -11,35 +10,35 @@ export interface PendingReturnsPayload {
 
 export class PendingReturns {
   public readonly scheduledAt: number | undefined;
-  public readonly returns: ReadonlySet<PendingReturn>;
+  public readonly encodedReturns: ReadonlySet<string>;
 
   public constructor(
     scheduledAt: number | undefined,
-    returns: ReadonlySet<PendingReturn>,
+    returns: Iterable<PendingReturn>,
   ) {
     this.scheduledAt = scheduledAt;
-    this.returns = returns;
+    this.encodedReturns = new Set(
+      [...returns].map((it) => it.encodeToString()),
+    );
   }
 
   public static decode(encoded: Uint8Array): PendingReturns {
     const { scheduled_at, returns } = bencoder.decode(
       encoded,
-      'utf-8'
+      "utf-8",
     ) as PendingReturnsPayload;
     return new this(
       scheduled_at,
-      new Set(
-        returns.map(it => PendingReturn.fromTuple(...it))
-      ),
+      [...new Set(returns)].map((it) => PendingReturn.fromTuple(...it)),
     );
   }
 
   public encode(): Uint8Array {
     return bencoder.encode({
       scheduled_at: this.scheduledAt,
-      returns: [...this.returns]
-        .map(it => it.asTuple())
-        .sort()
+      returns: [...this.encodedReturns]
+        .map((it) => PendingReturn.decodeFromString(it).asTuple())
+        .sort(),
     } satisfies PendingReturnsPayload);
   }
 }
@@ -182,19 +181,25 @@ export class Memory {
       if (existingEncoded) {
         existing = PendingReturns.decode(existingEncoded);
       } else {
-        existing = new PendingReturns(Math.floor(Date.now() / 1000), new Set());
+        existing = new PendingReturns(Math.floor(Date.now() / 1000), []);
         existingEncoded = existing.encode();
+        /**
+         * TODO this is racy. https://github.com/cohelm/brrr/pull/64
+         */
         if (!(await this.store.setNewValue(memKey, existingEncoded))) {
           return false;
         }
         shouldSchedule = true;
       }
-      shouldSchedule ||= existing.returns
-        .values()
-        .some((it) => this.isRepeatedCall(it, newReturn));
+      shouldSchedule ||= [...existing.encodedReturns].some((it) =>
+        PendingReturn.decodeFromString(it).isRepeatedCall(newReturn),
+      );
       const newReturns = new PendingReturns(
         existing.scheduledAt,
-        existing.returns.union(new Set([newReturn])),
+        existing.encodedReturns
+          .union(new Set([newReturn.encodeToString()]))
+          .values()
+          .map((it) => PendingReturn.decodeFromString(it)),
       );
       return this.store.compareAndSet(
         memKey,
@@ -219,8 +224,12 @@ export class Memory {
       if (!pendingEncoded) {
         return true;
       }
-      const toHandle =
-        PendingReturns.decode(pendingEncoded).returns.difference(handled);
+      const toHandle = new Set(
+        PendingReturns.decode(pendingEncoded)
+          .encodedReturns.difference(handled)
+          .values()
+          .map((it) => PendingReturn.decodeFromString(it)),
+      );
       await f(toHandle);
       for (const it of toHandle) {
         handled.add(it);
@@ -236,13 +245,5 @@ export class Memory {
       }
     }
     throw new CasRetryLimitReachedError(Memory.casRetryLimit);
-  }
-
-  private isRepeatedCall(newReturn: PendingReturn, existingReturn: PendingReturn): boolean {
-    return (
-      newReturn.rootId !== existingReturn.rootId &&
-      newReturn.callHash === existingReturn.callHash &&
-      newReturn.topic === existingReturn.topic
-    );
   }
 }

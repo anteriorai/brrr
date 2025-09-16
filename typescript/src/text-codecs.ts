@@ -20,4 +20,4 @@ export const bencoder = {
  * Exports TextEncoder and TextDecoder instances for UTF-8 encoding.
  */
 export const encoder = new TextEncoder();
-export const decoder = new TextDecoder('utf-8' satisfies Encoding);
+export const decoder = new TextDecoder("utf-8" satisfies Encoding);

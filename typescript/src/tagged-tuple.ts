@@ -1,9 +1,9 @@
-import { bencoder } from "./text-codecs.ts";
+import { bencoder, decoder, encoder } from "./text-codecs.ts";
 import type { Encoding } from "node:crypto";
 import { MalformedTaggedTupleError, TagMismatchError } from "./errors.ts";
 
 type Tagged<T, A extends unknown[], Tag extends number> = {
-  new(...args: A): T;
+  new (...args: A): T;
   readonly tag: Tag;
 };
 
@@ -37,6 +37,10 @@ export abstract class TaggedTupleStrings extends TaggedTuple {
     return bencoder.encode(tuple);
   }
 
+  public encodeToString(): string {
+    return decoder.decode(this.encode());
+  }
+
   public static decode<
     T extends TaggedTuple,
     A extends unknown[],
@@ -48,9 +52,22 @@ export abstract class TaggedTupleStrings extends TaggedTuple {
     ];
     return super.fromTuple(...decoded);
   }
+
+  public static decodeFromString<
+    T extends TaggedTuple,
+    A extends unknown[],
+    Tag extends number,
+  >(
+    this: Tagged<T, A, Tag> &
+      // type cheat
+      { decode: typeof TaggedTupleStrings.decode },
+    data: string,
+  ): T {
+    return this.decode(encoder.encode(data));
+  }
 }
 
-export class PendingReturn extends TaggedTuple {
+export class PendingReturn extends TaggedTupleStrings {
   public static readonly tag = 1;
 
   public readonly rootId: string;
@@ -62,6 +79,14 @@ export class PendingReturn extends TaggedTuple {
     this.rootId = rootId;
     this.callHash = callHash;
     this.topic = topic;
+  }
+
+  public isRepeatedCall(other: PendingReturn): boolean {
+    return (
+      this.rootId !== other.rootId &&
+      this.callHash === other.callHash &&
+      this.topic === other.topic
+    );
   }
 }
 

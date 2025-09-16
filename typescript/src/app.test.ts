@@ -65,7 +65,7 @@ const handlers: Handlers = {
   foo,
 };
 
-const only = { only: true } as const
+const only = { only: true } as const;
 
 await suite(import.meta.filename, async () => {
   function waitFor(call: Call, predicate?: () => Promise<void>): Promise<void> {
