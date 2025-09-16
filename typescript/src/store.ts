@@ -1,7 +1,7 @@
 import type { Call } from "./call.ts";
 import { bencoder, decoder } from "./internal-codecs.ts";
 import { CasRetryLimitReachedError, NotFoundError } from "./errors.ts";
-import { PendingReturn, taggedTuple } from "./tagged-tuple.ts";
+import { PendingReturn, TaggedTuple } from "./tagged-tuple.ts";
 
 export interface PendingReturnsPayload {
   readonly scheduled_at: number | undefined;
@@ -18,7 +18,7 @@ export class PendingReturns {
   ) {
     this.scheduledAt = scheduledAt;
     this.encodedReturns = new Set(
-      [...returns].map((it) => taggedTuple.encodeToString(it)),
+      [...returns].map((it) => TaggedTuple.encodeToString(it)),
     );
   }
 
@@ -30,7 +30,7 @@ export class PendingReturns {
     return new this(
       scheduled_at,
       [...new Set(returns)].map((it) => {
-        return taggedTuple.fromTuple(
+        return TaggedTuple.fromTuple(
           PendingReturn,
           it as [number, string, string, string],
         );
@@ -43,7 +43,7 @@ export class PendingReturns {
       scheduled_at: this.scheduledAt,
       returns: [...this.encodedReturns]
         .map((it) =>
-          taggedTuple.asTuple(taggedTuple.decodeFromString(PendingReturn, it)),
+          TaggedTuple.asTuple(TaggedTuple.decodeFromString(PendingReturn, it)),
         )
         .sort(),
     } satisfies PendingReturnsPayload);
@@ -199,16 +199,16 @@ export class Memory {
         shouldSchedule = true;
       }
       shouldSchedule ||= [...existing.encodedReturns].some((it) =>
-        taggedTuple
-          .decodeFromString(PendingReturn, it)
-          .isRepeatedCall(newReturn),
+        TaggedTuple.decodeFromString(PendingReturn, it).isRepeatedCall(
+          newReturn,
+        ),
       );
       const newReturns = new PendingReturns(
         existing.scheduledAt,
         existing.encodedReturns
-          .union(new Set([taggedTuple.encodeToString(newReturn)]))
+          .union(new Set([TaggedTuple.encodeToString(newReturn)]))
           .values()
-          .map((it) => taggedTuple.decodeFromString(PendingReturn, it)),
+          .map((it) => TaggedTuple.decodeFromString(PendingReturn, it)),
       );
       return this.store.compareAndSet(
         memKey,
@@ -237,7 +237,7 @@ export class Memory {
         PendingReturns.decode(pendingEncoded)
           .encodedReturns.difference(handled)
           .values()
-          .map((it) => taggedTuple.decodeFromString(PendingReturn, it)),
+          .map((it) => TaggedTuple.decodeFromString(PendingReturn, it)),
       );
       await f(toHandle);
       for (const it of toHandle) {
