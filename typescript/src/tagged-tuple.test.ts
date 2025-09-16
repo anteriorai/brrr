@@ -2,6 +2,7 @@ import { suite, test } from "node:test";
 import { TaggedTuple, TaggedTupleStrings } from "./tagged-tuple.ts";
 import { deepStrictEqual, ok } from "node:assert/strict";
 import { throws } from "node:assert";
+import { MalformedTaggedTupleError, TagMismatchError } from "./errors.ts";
 
 await suite(import.meta.filename, async () => {
   await suite(TaggedTuple.name, async () => {
@@ -33,7 +34,18 @@ await suite(import.meta.filename, async () => {
         ok(foo.bar === 42);
         ok(foo.baz === "hello");
       });
-      await test("tag mismatch")
+      await test("tag mismatch", async () => {
+        // @ts-expect-error wrong tag, but testing the runtime behavior
+        throws(() => Foo.fromTuple(1, 42, "hello")), TagMismatchError;
+      })
+      await test("too many args", async () => {
+        // @ts-expect-error wrong tag, but testing the runtime behavior
+        throws(() => Foo.fromTuple(0, 42, "hello", "a"), MalformedTaggedTupleError)
+      })
+      await test("too few args", async () => {
+        // @ts-expect-error wrong tag, but testing the runtime behavior
+        throws(() => Foo.fromTuple(0, 42), MalformedTaggedTupleError)
+      })
     });
 
     await suite("asTuple", async () => {
@@ -63,6 +75,9 @@ await suite(import.meta.filename, async () => {
       const encoded: Uint8Array = foo.encode();
       const decoded: Foo = Foo.decode(encoded);
       deepStrictEqual(decoded, foo);
+
+      const unknownData: unknown[] = [0, 42, "hello"];
+      const a = Foo.fromTuple(0, unknownData)
     });
   });
 });

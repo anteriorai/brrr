@@ -1,5 +1,6 @@
 import { bencoder } from "./bencode.ts";
 import type { Encoding } from "node:crypto";
+import { MalformedTaggedTupleError, TagMismatchError } from "./errors.ts";
 
 type Tagged<T, A extends unknown[], Tag extends number> = {
   new(...args: A): T;
@@ -13,13 +14,16 @@ export abstract class TaggedTuple {
     Tag extends number,
   >(this: Tagged<T, A, Tag>, tag: NoInfer<Tag>, ...tuple: A): T {
     if (tag !== this.tag) {
-      throw new Error(`Tag mismatch: expected ${this.tag}, got ${tag}`);
+      throw new TagMismatchError(this.tag, tag);
+    }
+    if (tuple.length !== this.length) {
+      throw new MalformedTaggedTupleError()
     }
     return new this(...tuple);
   }
 
   public asTuple(): [number, ...unknown[]] {
-    const { tag } = this.constructor as typeof TaggedTuple & { tag: number };
+    const { tag } = this.constructor as Tagged<this, unknown[], number>;
     return [tag, ...Object.values(this)];
   }
 }
@@ -41,8 +45,7 @@ export abstract class TaggedTupleStrings extends TaggedTuple {
       Tag,
       ...A,
     ];
-    // @ts-expect-error cheating here
-    return (this as typeof TaggedTuple).fromTuple(...decoded);
+    return super.fromTuple(...decoded);
   }
 }
 
