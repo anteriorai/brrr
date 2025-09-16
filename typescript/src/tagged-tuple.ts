@@ -1,10 +1,10 @@
-import { bencoder, decoder, encoder } from "./text-codecs.ts";
+import { bencoder, decoder, encoder } from "./internal-codecs.ts";
 import type { Encoding } from "node:crypto";
 import { MalformedTaggedTupleError, TagMismatchError } from "./errors.ts";
 
 const encoding: Encoding = "utf-8" as const;
 
-interface TaggedTuple<T, A extends unknown[]> {
+interface TaggedTuple<T = any, A extends unknown[] = any[]> {
   new (...args: A): T;
 
   readonly tag: number;
@@ -25,20 +25,19 @@ function fromTuple<T, A extends unknown[]>(
 
 function asTuple<T extends object, A extends unknown[]>(
   obj: InstanceType<TaggedTuple<T, A>>,
-): unknown[] {
-  return [(obj.constructor as TaggedTuple<T, A>).tag, ...Object.values(obj)];
+): [number, ...A] {
+  return [
+    (obj.constructor as TaggedTuple<T, A>).tag,
+    ...Object.values(obj),
+  ] as [number, ...A];
 }
 
-function encode<T extends object, A extends unknown[]>(
-  obj: InstanceType<TaggedTuple<T, A>>,
-): Uint8Array {
+function encode(obj: InstanceType<TaggedTuple>): Uint8Array {
   const tuple = asTuple(obj);
   return bencoder.encode(tuple);
 }
 
-function encodeToString<T extends object, A extends unknown[]>(
-  obj: InstanceType<TaggedTuple<T, A>>,
-): string {
+function encodeToString(obj: InstanceType<TaggedTuple>): string {
   return decoder.decode(encode(obj));
 }
 
