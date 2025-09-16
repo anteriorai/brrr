@@ -1,11 +1,8 @@
-import { bencoder, decoder, encoder } from "./internal-codecs.ts";
-import type { Encoding } from "node:crypto";
+import { bencoder, decoder, encoder, encoding } from "./internal-codecs.ts";
 import { MalformedTaggedTupleError, TagMismatchError } from "./errors.ts";
 
-const encoding: Encoding = "utf-8" as const;
-
 export interface Tagged<T = any, A extends unknown[] = any[]> {
-  new (...args: A): T;
+  new(...args: A): T;
 
   readonly tag: number;
 }
