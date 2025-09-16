@@ -138,20 +138,24 @@
           let
             python = pkgs.python313;
             nodejs = pkgs.nodejs_24;
-            devPackages = [
+            devPackagesNoPy = [
               pkgs.process-compose
               pkgs.redis # For the CLI
               self'.packages.uv
               nodejs
             ];
-            brrrpy = pkgs.callPackage ./python/package.nix {
-              inherit (inputs) pyproject-build-systems pyproject-nix uv2nix;
-              inherit python;
-            };
-            brrrts = pkgs.callPackage ./typescript/package.nix {
-              inherit (inputs) package-lock2nix;
-              inherit nodejs;
-            };
+            callPackage = lib.callPackageWith (
+              pkgs
+              // {
+                inherit python nodejs;
+                inherit (inputs) pyproject-build-systems pyproject-nix uv2nix;
+                package-lock2nix = pkgs.callPackage inputs.package-lock2nix.lib.package-lock2nix {
+                  inherit nodejs;
+                };
+              }
+            );
+            brrrpy = callPackage ./python/package.nix { };
+            brrr-ts = callPackage ./typescript/package.nix { };
           in
           {
             config = {
@@ -180,10 +184,9 @@
               };
               treefmt = import ./nix/treefmt.nix;
               packages = {
-                inherit python;
                 inherit (pkgs) uv;
                 inherit (brrrpy) brrr brrr-venv-test;
-                inherit (brrrts) brrr-ts;
+                inherit brrr-ts;
                 default = brrrpy.brrr-venv;
                 # Stand-alone brrr_demo.py script
                 brrr-demo = pkgs.stdenvNoCC.mkDerivation {
@@ -228,14 +231,14 @@
                 in
                 {
                   default = {
-                    packages = devPackages ++ [ self'.packages.python ];
+                    packages = devPackagesNoPy ++ [ python ];
                     motd = ''
                       This is the generic devshell for brrr development.  Use this to fix
                       problems in the Python lockfile and to access generic tooling.
 
                       Available tools:
                     ''
-                    + lib.concatLines (map (x: "  - ${x.pname or x.name}") devPackages)
+                    + lib.concatLines (map (x: "  - ${x.pname or x.name}") devPackagesNoPy)
                     + ''
 
                       For Python-specific development, use: nix develop .#python
@@ -271,7 +274,7 @@
                         value = "1";
                       }
                     ];
-                    packages = devPackages ++ [ brrrpy.brrr-venv-editable ];
+                    packages = devPackagesNoPy ++ [ brrrpy.brrr-venv-editable ];
                     commands = [
                       {
                         name = "brrr-test-unit";
@@ -329,7 +332,7 @@
                     ++ sharedCommands;
                   };
                   typescript = {
-                    packages = devPackages;
+                    packages = devPackagesNoPy;
                     commands = [
                       {
                         name = "brrr-test-unit";
