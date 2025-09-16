@@ -163,7 +163,11 @@ await suite(import.meta.filename, async () => {
         });
         ok(raw);
         const decoded = PendingReturns.decode(raw);
-        ok(decoded.encodedReturns.has(taggedTuple.encodeToString(fixture.newReturn)));
+        ok(
+          decoded.encodedReturns.has(
+            taggedTuple.encodeToString(fixture.newReturn),
+          ),
+        );
         strictEqual(decoded.scheduledAt, mockTimersOptions.now / 1000);
       });
 
@@ -238,7 +242,9 @@ await suite(import.meta.filename, async () => {
         ok(raw);
         const decoded = PendingReturns.decode(raw);
         ok(
-          decoded.encodedReturns.has(taggedTuple.encodeToString(returnWithDifferentRoot)),
+          decoded.encodedReturns.has(
+            taggedTuple.encodeToString(returnWithDifferentRoot),
+          ),
         );
         strictEqual(decoded.scheduledAt, mockTimersOptions.now / 1000);
       });

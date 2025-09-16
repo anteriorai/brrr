@@ -48,8 +48,6 @@ export class TagMismatchError extends BrrrError {
 
 export class MalformedTaggedTupleError extends BrrrError {
   public constructor(name: string, expected: number) {
-    super(
-      `Malformed tagged tuple for ${name}, expected ${expected} elements`,
-    );
+    super(`Malformed tagged tuple for ${name}, expected ${expected} elements`);
   }
 }

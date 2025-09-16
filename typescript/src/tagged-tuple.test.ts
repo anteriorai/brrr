@@ -2,7 +2,7 @@ import { suite, test } from "node:test";
 import { deepStrictEqual, ok } from "node:assert/strict";
 import { throws } from "node:assert";
 import { MalformedTaggedTupleError, TagMismatchError } from "./errors.ts";
-import { taggedTuple } from './tagged-tuple.ts'
+import { taggedTuple } from "./tagged-tuple.ts";
 
 await suite(import.meta.filename, async () => {
   class Foo {
@@ -25,16 +25,24 @@ await suite(import.meta.filename, async () => {
       ok(foo.baz === "hello");
     });
     await test("tag mismatch", async () => {
-      throws(() => taggedTuple.fromTuple(Foo, [1, 42, "hello"]), TagMismatchError);
+      throws(
+        () => taggedTuple.fromTuple(Foo, [1, 42, "hello"]),
+        TagMismatchError,
+      );
     });
     await test("too many args", async () => {
       throws(
+        // @ts-expect-error testing runtime error
         () => taggedTuple.fromTuple(Foo, [0, 42, "hello", "a"]),
         MalformedTaggedTupleError,
       );
     });
     await test("too few args", async () => {
-      throws(() => taggedTuple.fromTuple(Foo, [0, 42]), MalformedTaggedTupleError);
+      throws(
+        // @ts-expect-error testing runtime error
+        () => taggedTuple.fromTuple(Foo, [0, 42]),
+        MalformedTaggedTupleError,
+      );
     });
   });
 
