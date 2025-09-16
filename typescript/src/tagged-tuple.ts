@@ -36,13 +36,13 @@ export abstract class TaggedTupleStrings extends TaggedTuple {
     T extends TaggedTuple,
     A extends unknown[],
     Tag extends number,
-  >(this: Tagged<T, A, Tag>, data: Uint8Array): T {
+  >(data: Uint8Array): T {
     const decoded = bencoder.decode(data, TaggedTupleStrings.encoding) as [
       Tag,
       ...A,
     ];
-    // cheating here - but we have enough type and test coverage to be confident
-    return (this as any).fromTuple(...decoded);
+    // @ts-expect-error cheating here
+    return (this as typeof TaggedTuple).fromTuple(...decoded);
   }
 }
 

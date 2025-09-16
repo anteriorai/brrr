@@ -33,11 +33,12 @@ await suite(import.meta.filename, async () => {
         ok(foo.bar === 42);
         ok(foo.baz === "hello");
       });
+      await test("tag mismatch")
     });
 
     await suite("asTuple", async () => {
       await test("basic", async () => {
-        const foo = Foo.fromTuple(0, 42, "hello");
+        const foo: Foo = Foo.fromTuple(0, 42, "hello");
         deepStrictEqual(foo.asTuple(), [0, 42, "hello"]);
       });
     });
@@ -59,7 +60,7 @@ await suite(import.meta.filename, async () => {
 
     await suite("encode and decode", async () => {
       const foo: Foo = Foo.fromTuple(0, 42, "hello");
-      const encoded = foo.encode();
+      const encoded: Uint8Array = foo.encode();
       const decoded: Foo = Foo.decode(encoded);
       deepStrictEqual(decoded, foo);
     });
