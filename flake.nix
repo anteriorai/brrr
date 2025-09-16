@@ -212,6 +212,7 @@
                   inherit self;
                   dynamodb-module = self.nixosModules.dynamodb;
                 };
+                inherit (docsync.tests) docsync;
               }
               // brrrpy.brrr.tests
               // import ./nix/brrr-demo.test.nix {
