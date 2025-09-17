@@ -207,16 +207,11 @@
                 # disappear at any time.
                 nix-flake-check-changed = pkgs.callPackage ./nix-flake-check-changed/package.nix { };
               };
-              checks = {
-                pytestIntegration = pkgs.callPackage ./nix/brrr-integration.test.nix {
-                  inherit self;
-                  dynamodb-module = self.nixosModules.dynamodb;
-                };
-                inherit (docsync.tests) docsync;
-              }
-              // brrrpy.brrr.tests
-              // import ./nix/brrr-integration.test.nix { inherit self pkgs; }
-              // import ./nix/brrr-demo.test.nix { inherit self pkgs; };
+              checks =
+                docsync.tests
+                // brrrpy.brrr.tests
+                // import ./nix/brrr-integration.test.nix { inherit self pkgs; }
+                // import ./nix/brrr-demo.test.nix { inherit self pkgs; };
               devshells =
                 let
                   sharedCommands = [
