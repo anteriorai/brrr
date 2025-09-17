@@ -182,26 +182,23 @@ export class Memory {
     let shouldSchedule = false;
     await this.withCas(async () => {
       shouldSchedule = false;
-      let existingEncoded = await this.store.get(memKey);
-      let existing: PendingReturns;
-      if (existingEncoded) {
-        existing = PendingReturns.decode(existingEncoded);
-      } else {
-        existing = new PendingReturns(Math.floor(Date.now() / 1000), [
+      const existingEncoded = await this.store.get(memKey);
+      if (!existingEncoded) {
+        const newReturns = new PendingReturns(Math.floor(Date.now() / 1000), [
           newReturn,
         ]);
-        existingEncoded = existing.encode();
         shouldSchedule = true;
-        return await this.store.setNewValue(memKey, existingEncoded);
+        return await this.store.setNewValue(memKey, newReturns.encode());
       }
-      shouldSchedule = [...existing.encodedReturns].some((it) =>
+      const pendingReturns = PendingReturns.decode(existingEncoded);
+      shouldSchedule = [...pendingReturns.encodedReturns].some((it) =>
         TaggedTuple.decodeFromString(PendingReturn, it).isRepeatedCall(
           newReturn,
         ),
       );
       const newReturns = new PendingReturns(
-        existing.scheduledAt,
-        existing.encodedReturns
+        pendingReturns.scheduledAt,
+        pendingReturns.encodedReturns
           .union(new Set([TaggedTuple.encodeToString(newReturn)]))
           .values()
           .map((it) => TaggedTuple.decodeFromString(PendingReturn, it)),
