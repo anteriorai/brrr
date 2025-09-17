@@ -3,17 +3,25 @@
   "version": "0.1.1-dev",
   "description": "Horizontally scalable workflow scheduling with pluggable backends",
   "type": "module",
+  "bin": {
+    "brrr-test-integration": "brrr-test-integration"
+  },
   "scripts": {
     "build": "tsc",
     "test": "node --test 'src/**/*.test.ts'",
-    "test:watch": "node --test --watch 'src/**/*.test.ts'"
+    "test:watch": "node --test --watch 'src/**/*.test.ts'",
+    "test:integration": "node --test 'src/**/*.test-integration.ts'"
   },
   "repository": "https://github.com/cohelm/brrr",
   "engines": {
     "node": ">=24"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.878.0",
+    "@aws-sdk/lib-dynamodb": "^3.878.0",
+    "@aws-sdk/util-dynamodb": "^3.878.0",
     "bencode": "^4.0.0",
+    "redis": "^5.8.2",
     "superjson": "^2.2.2"
   },
   "devDependencies": {

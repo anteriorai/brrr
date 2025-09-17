@@ -15,11 +15,7 @@
 # Inspired by
 # https://blakesmith.me/2024/03/02/running-nixos-tests-with-flakes.html
 
-{
-  self,
-  pkgs,
-  dynamodb-module,
-}:
+{ self, pkgs }:
 
 # Distributed test across multiple VMs, so there’s still some room for bugs to
 # creep into the actual demo.  Both are nice to have so we should probably add a
@@ -32,21 +28,12 @@ let
       inherit name;
       nodes = nodes // {
         datastores =
-          { config, pkgs, ... }:
+          { ... }:
           {
-            imports = [ dynamodb-module ];
-            services.redis.servers.main = {
-              enable = true;
-              port = 6379;
-              openFirewall = true;
-              bind = null;
-              logLevel = "debug";
-              settings.protected-mode = "no";
-            };
-            services.dynamodb = {
-              enable = true;
-              openFirewall = true;
-            };
+            imports = [
+              self.nixosModules.dynamodb
+              ./datastores.nix
+            ];
           };
         # Separate node entirely just for the actual testing
         tester =

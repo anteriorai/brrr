@@ -72,7 +72,7 @@ export interface Store {
   /**
    * Delete the value for the given key.
    */
-  delete(key: MemKey): Promise<boolean>;
+  delete(key: MemKey): Promise<void>;
 
   /**
    * Set a new value for the given key.
