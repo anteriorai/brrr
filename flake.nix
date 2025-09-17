@@ -230,14 +230,16 @@
                     AWS_SECRET_ACCESS_KEY = "fake";
                     BRRR_TEST_REDIS_URL = "redis://localhost:6379";
                   };
+                  toShellVarNoOverwrite = (key: value: '': "''${${lib.toShellVar key value}}"'');
+
+                  toExportShellVar = (key: ''export ${key}'');
+
                   mkEnvs = (
-                    envs:
-                    lib.concatLines (
-                      lib.mapAttrsToList (name: value: ''
-                        : "''${${name}=${value}}"
-                        export ${name}
-                      '') envs
-                    )
+                    attrset:
+                    lib.concatMapAttrsStringSep "\n" (key: value: ''
+                      ${toShellVarNoOverwrite key value}
+                      ${toExportShellVar key}
+                    '') attrset
                   );
                 in
                 {
