@@ -1,3 +1,6 @@
-{ package-lock2nix }:
+{ package-lock2nix, nodejs }:
 
-package-lock2nix.mkNpmModule { src = ./.; }
+package-lock2nix.mkNpmModule {
+  buildInputs = [ nodejs ];
+  src = ./.;
+}
