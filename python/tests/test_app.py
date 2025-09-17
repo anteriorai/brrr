@@ -278,10 +278,8 @@ async def test_topics_same_app(topic: str, task_name) -> None:
     await queue.join()
 
 
-async def test_weird_names() -> None:
+async def test_weird_names(topic: str, task_name: str) -> None:
     store = InMemoryByteStore()
-    topic = "//':\"~`\\"
-    task_name = "`'\"\\/~$!@:"
     queue = InMemoryQueue([topic])
 
     @brrr.handler_no_arg
@@ -299,7 +297,7 @@ async def test_weird_names() -> None:
         assert await app.read(task_name)(7) == 14
 
 
-async def test_app_nop_closed_queue() -> None:
+async def test_app_nop_closed_queue(topic: str) -> None:
     store = InMemoryByteStore()
     queue = InMemoryQueue([topic])
     await queue.close()
