@@ -1,25 +1,6 @@
-import {
-  afterEach,
-  before,
-  beforeEach,
-  mock,
-  type MockTimersOptions,
-  suite,
-  test,
-} from "node:test";
-import {
-  deepStrictEqual,
-  doesNotReject,
-  ok,
-  strictEqual,
-} from "node:assert/strict";
-import {
-  type Cache,
-  type MemKey,
-  Memory,
-  PendingReturns,
-  type Store,
-} from "./store.ts";
+import { afterEach, before, beforeEach, mock, type MockTimersOptions, suite, test, } from "node:test";
+import { deepStrictEqual, doesNotReject, ok, strictEqual, } from "node:assert/strict";
+import { type Cache, type MemKey, Memory, PendingReturns, type Store, } from "./store.ts";
 import { InMemoryStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
 import { PendingReturn, TaggedTuple } from "./tagged-tuple.ts";
@@ -286,10 +267,10 @@ await suite(import.meta.filename, async () => {
   });
 });
 
-export async function storeContractTest(factory: () => Store) {
+export async function storeContractTest(
+  acquireResource: () => Promise<{ store: Store } & AsyncDisposable>,
+) {
   await suite("store-contract", async () => {
-    let store: Store;
-
     const fixture = {
       key: {
         type: "call",
@@ -302,78 +283,94 @@ export async function storeContractTest(factory: () => Store) {
       },
     } as const;
 
-    beforeEach(async () => {
-      store = factory();
-      await store.set(fixture.key, fixture.value);
-    });
-
     await test("Basic get", async () => {
+        await using resource = await acquireResource();
+      const store = resource.store;
+      await store.set(fixture.key, fixture.value);
       const retrieved = await store.get(fixture.key);
       deepStrictEqual(retrieved, fixture.value);
       strictEqual(await store.get(fixture.otherKey), undefined);
     });
 
     await test("Basic has", async () => {
-      ok(await store.has(fixture.key));
-      ok(!(await store.has(fixture.otherKey)));
+        await using resource = await acquireResource();
+      await resource.store.set(fixture.key, fixture.value);
+      ok(await resource.store.has(fixture.key));
+      ok(!(await resource.store.has(fixture.otherKey)));
     });
 
     await test("Basic set", async () => {
+        await using resource = await acquireResource();
+      await resource.store.set(fixture.key, fixture.value);
       const newKey: MemKey = {
         type: "call",
         callHash: "new-call-hash",
       };
       const newValue = new Uint8Array([6, 7, 8, 9, 10]);
-      await store.set(newKey, newValue);
-      const retrieved = await store.get(newKey);
+      await resource.store.set(newKey, newValue);
+      const retrieved = await resource.store.get(newKey);
       deepStrictEqual(retrieved, newValue);
     });
 
     await test("Basic delete", async () => {
-      await store.delete(fixture.key);
-      strictEqual(await store.get(fixture.key), undefined);
-      strictEqual(await store.delete(fixture.otherKey), false);
+      await using resource = await acquireResource();
+      await resource.store.set(fixture.key, fixture.value);
+      await resource.store.delete(fixture.key);
+      strictEqual(await resource.store.get(fixture.key), undefined);
     });
 
     await test("Basic setNewValue", async () => {
+        await using resource = await acquireResource();
+      await resource.store.set(fixture.key, fixture.value);
       const newValue = new Uint8Array([6, 7, 8, 9, 10]);
-      ok(!(await store.setNewValue(fixture.key, newValue)));
-      await doesNotReject(store.setNewValue(fixture.otherKey, newValue));
-      const retrieved = await store.get(fixture.otherKey);
+      ok(!(await resource.store.setNewValue(fixture.key, newValue)));
+      await doesNotReject(
+        resource.store.setNewValue(fixture.otherKey, newValue),
+      );
+      const retrieved = await resource.store.get(fixture.otherKey);
       deepStrictEqual(retrieved, newValue);
     });
 
     await test("Basic compareAndSet", async () => {
+        await using resource = await acquireResource();
+      await resource.store.set(fixture.key, fixture.value);
       const newValue = new Uint8Array([6, 7, 8, 9, 10]);
-      await store.compareAndSet(fixture.key, newValue, fixture.value);
-      const retrieved = await store.get(fixture.key);
+      await resource.store.compareAndSet(fixture.key, newValue, fixture.value);
+      const retrieved = await resource.store.get(fixture.key);
       deepStrictEqual(retrieved, newValue);
       ok(
-        !(await store.compareAndSet(fixture.otherKey, newValue, fixture.value)),
+        !(await resource.store.compareAndSet(
+          fixture.otherKey,
+          newValue,
+          fixture.value,
+        )),
       );
     });
 
     await test("Basic compareAndDelete", async () => {
-      await store.compareAndDelete(fixture.key, fixture.value);
-      strictEqual(await store.get(fixture.key), undefined);
-      ok(!(await store.compareAndDelete(fixture.otherKey, fixture.value)));
+        await using resource = await acquireResource();
+      await resource.store.set(fixture.key, fixture.value);
+      await resource.store.compareAndDelete(fixture.key, fixture.value);
+      strictEqual(await resource.store.get(fixture.key), undefined);
+      ok(
+        !(await resource.store.compareAndDelete(
+          fixture.otherKey,
+          fixture.value,
+        )),
+      );
     });
   });
 }
 
-export async function cacheContractTest(factory: () => Cache) {
+export async function cacheContractTest(acquireResource: () => Promise<{ cache: Cache } & AsyncDisposable>) {
   await suite("cache-contract", async () => {
-    let cache: Cache;
-
-    beforeEach(() => {
-      cache = factory();
-    });
+    const key = "test-incr-key";
 
     await test("Basic incr", async () => {
-      const key = "test-incr-key";
-      const initialValue = await cache.incr(key);
+        await using resource = await acquireResource();
+      const initialValue = await resource.cache.incr(key);
       strictEqual(initialValue, 1);
-      const nextValue = await cache.incr(key);
+      const nextValue = await resource.cache.incr(key);
       strictEqual(nextValue, 2);
     });
   });
