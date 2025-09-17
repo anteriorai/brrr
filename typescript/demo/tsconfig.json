@@ -1,9 +1,6 @@
 {
   "extends": "../tsconfig.json",
-  "compilerOptions": {
-    "paths": {
-      "brrr": ["../src/index.ts"]
-    }
-  },
-  "include": ["**/*.ts"]
+  "include": [
+    "**/*.ts"
+  ]
 }

@@ -4,6 +4,7 @@
   "description": "Horizontally scalable workflow scheduling with pluggable backends",
   "type": "module",
   "bin": {
+    "brrr-demo": "demo/cli.ts",
     "brrr-test-integration": "brrr-test-integration"
   },
   "scripts": {

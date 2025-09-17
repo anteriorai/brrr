@@ -95,6 +95,7 @@ export class Server extends Connection {
     topic: string,
     payload: string,
   ): Promise<Call | undefined> {
+    console.log(payload)
     const message = TaggedTuple.decodeFromString(ScheduleMessage, payload);
     const call = await this.memory.getCall(message.callHash);
     const handled = await requestHandler({ call }, this);

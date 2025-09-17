@@ -1,13 +1,5 @@
 #!/usr/bin/env node
-import {
-  ActiveWorker,
-  AppWorker,
-  Dynamo,
-  NaiveJsonCodec,
-  Redis,
-  Server,
-  taskFn,
-} from "brrr";
+import { ActiveWorker, AppWorker, Dynamo, NaiveJsonCodec, Redis, Server, taskFn, } from "../src/index.ts";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { createClientPool } from "redis";
 import { env } from "node:process";
