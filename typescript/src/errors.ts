@@ -1,4 +1,5 @@
 import type { MemKey } from "./store.ts";
+import type { Tagged } from "./tagged-tuple.ts";
 
 abstract class BrrrError extends Error {
   protected constructor(message: string) {
@@ -37,5 +38,19 @@ export class SpawnLimitError extends BrrrError {
 export class TaskNotFoundError extends BrrrError {
   public constructor(taskName: string) {
     super(`Task not found: ${taskName}`);
+  }
+}
+
+export class TagMismatchError extends BrrrError {
+  public constructor(clz: Tagged) {
+    super(`Tag mismatch for ${clz.name}: expected ${clz.tag}`);
+  }
+}
+
+export class MalformedTaggedTupleError extends BrrrError {
+  public constructor(clz: Tagged) {
+    super(
+      `Malformed tagged tuple for ${clz.name}, expected ${clz.length} elements`,
+    );
   }
 }
