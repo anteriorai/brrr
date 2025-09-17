@@ -5,7 +5,6 @@ import {
   type RedisScripts,
 } from "redis";
 import type { Cache } from "../store.ts";
-import { RedisMessage, TaggedTuple } from "../tagged-tuple.ts";
 
 export class Redis implements Cache {
   public readonly client: RedisClientPoolType<
@@ -24,9 +23,7 @@ export class Redis implements Cache {
   }
 
   public async push(topic: string, content: string): Promise<void> {
-    const scheduledAt = Math.floor(Date.now() / 1000);
-    const message = new RedisMessage(scheduledAt, content);
-    await this.client.rPush(topic, TaggedTuple.encodeToString(message));
+    await this.client.rPush(topic, content);
   }
 
   public async pop(
@@ -34,10 +31,7 @@ export class Redis implements Cache {
     timeoutMs: number = 20_000,
   ): Promise<string | undefined> {
     const response = await this.client.blPop(topic, timeoutMs / 1000);
-    if (!response?.element) {
-      return;
-    }
-    return TaggedTuple.decodeFromString(RedisMessage, response.element).content;
+    return response?.element;
   }
 
   public async incr(key: string): Promise<number> {
