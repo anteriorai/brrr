@@ -9,12 +9,6 @@ abstract class BrrrError extends Error {
   }
 }
 
-export class InvalidMessageError extends BrrrError {
-  public constructor(reason: string) {
-    super(`Recieved invalid message: ${reason}`);
-  }
-}
-
 export class NotFoundError extends BrrrError {
   public constructor(key: MemKey) {
     super(`Not found: ${key.type}/${key.callHash}`);
