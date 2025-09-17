@@ -22,11 +22,14 @@ import {
 } from "./store.ts";
 import { InMemoryStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
+import { PendingReturn, TaggedTuple } from "./tagged-tuple.ts";
 
 await suite(import.meta.filename, async () => {
   await suite(PendingReturns.name, async () => {
     await test("Encoded payload can be encoded & decoded", async () => {
-      const original = new PendingReturns(0, new Set(["a", "b", "c"]));
+      const original = new PendingReturns(0, [
+        new PendingReturn("a", "b", "c"),
+      ]);
       const encoded = original.encode();
       const decoded = PendingReturns.decode(encoded);
       deepStrictEqual(original, decoded);
@@ -34,7 +37,9 @@ await suite(import.meta.filename, async () => {
     });
 
     await test("Encoded payload with undefined timestamp can be encoded & decoded", async () => {
-      const original = new PendingReturns(undefined, new Set(["a", "b", "c"]));
+      const original = new PendingReturns(undefined, [
+        new PendingReturn("a", "b", "c"),
+      ]);
       const encoded = original.encode();
       const decoded = PendingReturns.decode(encoded);
       deepStrictEqual(original, decoded);
@@ -58,7 +63,7 @@ await suite(import.meta.filename, async () => {
           callHash: "test-pending-return-hash",
         } satisfies MemKey,
       },
-      newReturn: "some-root/some-parent/some-topic",
+      newReturn: new PendingReturn("some-root", "some-parent", "some-topic"),
     } as const;
 
     beforeEach(async () => {
@@ -114,28 +119,25 @@ await suite(import.meta.filename, async () => {
 
       await test("simple cases to document & test shouldSchedule", async () => {
         const hash = "some-hash";
-        const base = "root/parent/topic";
+        const base = new PendingReturn("root", "parent", "topic");
 
         const cases = [
           // base case
-          [[hash, base], true],
+          [hash, base, true],
           // same one, shouldn't schedule again
-          [[hash, base], false],
+          [hash, base, false],
           // different root, should schedule - it's a retry
-          [[hash, "different-root/parent/topic"], true],
+          [hash, new PendingReturn("diff-root", "parent", "topic"), true],
           // new callHash, new PR, should schedule
-          [["different-hash", base], true],
+          ["diff-hash", base, true],
           // continuation, shouldn't schedule again
-          [[hash, "root/parent/different-topic"], false],
-          [[hash, "root/different-parent/topic"], false],
-          [[hash, "root/different-parent/different-topic"], false],
+          [hash, new PendingReturn("root", "parent", "diff-topic"), false],
+          [hash, new PendingReturn("root", "diff-parent", "topic"), false],
+          [hash, new PendingReturn("root", "diff-parent", "diff-topic"), false],
         ] as const;
 
-        for (const [args, shouldSchedule] of cases) {
-          strictEqual(
-            await memory.addPendingReturns(args[0], args[1]),
-            shouldSchedule,
-          );
+        for (const [hash, pr, shouldSchedule] of cases) {
+          strictEqual(await memory.addPendingReturns(hash, pr), shouldSchedule);
         }
 
         // ensure all returns are stored
@@ -144,8 +146,8 @@ await suite(import.meta.filename, async () => {
           callHash: hash,
         });
         deepStrictEqual(
-          PendingReturns.decode(encoded!).returns,
-          new Set(cases.map((it) => it[0][1])),
+          PendingReturns.decode(encoded!).encodedReturns,
+          new Set(cases.map((it) => TaggedTuple.encodeToString(it[1]))),
         );
       });
 
@@ -161,7 +163,11 @@ await suite(import.meta.filename, async () => {
         });
         ok(raw);
         const decoded = PendingReturns.decode(raw);
-        ok(decoded.returns.has(fixture.newReturn));
+        ok(
+          decoded.encodedReturns.has(
+            TaggedTuple.encodeToString(fixture.newReturn),
+          ),
+        );
         strictEqual(decoded.scheduledAt, mockTimersOptions.now / 1000);
       });
 
@@ -181,7 +187,10 @@ await suite(import.meta.filename, async () => {
         });
         ok(raw);
         const decoded = PendingReturns.decode(raw);
-        deepStrictEqual(decoded.returns, new Set([fixture.newReturn]));
+        deepStrictEqual(
+          decoded.encodedReturns,
+          new Set([TaggedTuple.encodeToString(fixture.newReturn)]),
+        );
       });
 
       await test("Handles different returns properly", async () => {
@@ -189,9 +198,14 @@ await suite(import.meta.filename, async () => {
           fixture.call.callHash,
           fixture.newReturn,
         );
+        const completelyDifferentReturn = new PendingReturn(
+          "completely",
+          "different",
+          "return",
+        );
         const shouldSchedule = await memory.addPendingReturns(
           fixture.call.callHash,
-          "completely/different/return",
+          completelyDifferentReturn,
         );
         ok(!shouldSchedule);
         const raw = await store.get({
@@ -201,15 +215,21 @@ await suite(import.meta.filename, async () => {
         ok(raw);
         const decoded = PendingReturns.decode(raw);
         deepStrictEqual(
-          decoded.returns,
-          new Set([fixture.newReturn, "completely/different/return"]),
+          decoded.encodedReturns,
+          new Set(
+            [fixture.newReturn, completelyDifferentReturn].map((it) =>
+              TaggedTuple.encodeToString(it),
+            ),
+          ),
         );
       });
 
       await test("Repeated call with different rootId should schedule again", async () => {
-        const returnWithDifferentRoot =
-          "some-other-root" +
-          fixture.newReturn.slice(fixture.newReturn.indexOf("/"));
+        const returnWithDifferentRoot = new PendingReturn(
+          "other-root",
+          fixture.newReturn.callHash,
+          fixture.newReturn.topic,
+        );
         const shouldSchedule = await memory.addPendingReturns(
           fixture.call.callHash,
           returnWithDifferentRoot,
@@ -221,13 +241,18 @@ await suite(import.meta.filename, async () => {
         });
         ok(raw);
         const decoded = PendingReturns.decode(raw);
-        ok(decoded.returns.has(returnWithDifferentRoot));
+        ok(
+          decoded.encodedReturns.has(
+            TaggedTuple.encodeToString(returnWithDifferentRoot),
+          ),
+        );
         strictEqual(decoded.scheduledAt, mockTimersOptions.now / 1000);
       });
     });
 
     await suite("withPendingReturnRemove", async () => {
-      const mockFn = mock.fn<(returns: Iterable<string>) => Promise<void>>();
+      const mockFn =
+        mock.fn<(returns: Iterable<PendingReturn>) => Promise<void>>();
 
       afterEach(() => {
         mockFn.mock.resetCalls();
@@ -239,19 +264,22 @@ await suite(import.meta.filename, async () => {
       });
 
       await test("invokes f with pending returns and deletes the key", async () => {
-        const pendingReturns = new PendingReturns(
-          undefined,
-          new Set(["a", "b"]),
-        );
+        const pendingReturns = new PendingReturns(undefined, [
+          new PendingReturn("a", "b", "c"),
+          new PendingReturn("d", "e", "f"),
+        ]);
         await store.set(fixture.pendingReturns.key, pendingReturns.encode());
         await memory.withPendingReturnsRemove(
           fixture.pendingReturns.key.callHash,
-          mockFn,
+          (returns) => {
+            deepStrictEqual(
+              [...returns].map((it) => TaggedTuple.encodeToString(it)),
+              [...pendingReturns.encodedReturns],
+            );
+            return mockFn(returns);
+          },
         );
         strictEqual(mockFn.mock.callCount(), 1);
-        deepStrictEqual(mockFn.mock.calls?.at(0)?.arguments, [
-          pendingReturns.returns,
-        ]);
         strictEqual(await store.get(fixture.pendingReturns.key), undefined);
       });
     });
