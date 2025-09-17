@@ -77,7 +77,6 @@ async def with_redis(
     redurl: str | None = os.environ.get("BRRR_DEMO_REDIS_URL"),
 ) -> AsyncIterator[redis.Redis]:
     rkwargs = dict(
-        decode_responses=True,
         health_check_interval=10,
         socket_connect_timeout=5,
         retry_on_timeout=True,
