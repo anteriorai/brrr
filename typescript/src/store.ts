@@ -1,23 +1,20 @@
 import type { Call } from "./call.ts";
-import { bencoder } from "./bencode.ts";
-import { TextDecoder } from "node:util";
-import type { Encoding } from "node:crypto";
+import { bencoder, decoder } from "./internal-codecs.ts";
 import { CasRetryLimitReachedError, NotFoundError } from "./errors.ts";
+import { PendingReturn, TaggedTuple } from "./tagged-tuple.ts";
 
 export interface PendingReturnsPayload {
   readonly scheduled_at: number | undefined;
-  readonly returns: Buffer[];
+  readonly returns: unknown[][];
 }
 
 export class PendingReturns {
-  private static readonly encoding = "ascii" satisfies Encoding;
-
   public readonly scheduledAt: number | undefined;
-  public readonly returns: ReadonlySet<string>;
+  public readonly encodedReturns: ReadonlySet<string>;
 
   public constructor(
     scheduledAt: number | undefined,
-    returns: ReadonlySet<string>,
+    returns: Iterable<PendingReturn>,
   ) {
     this.scheduledAt = scheduledAt;
     this.encodedReturns = new Set([...returns].map(TaggedTuple.encodeToString));
@@ -26,20 +23,27 @@ export class PendingReturns {
   public static decode(encoded: Uint8Array): PendingReturns {
     const { scheduled_at, returns } = bencoder.decode(
       encoded,
-      PendingReturns.encoding,
+      "utf-8",
     ) as PendingReturnsPayload;
-    return new PendingReturns(
+    return new this(
       scheduled_at,
-      new Set(returns.map((it) => it.toString(PendingReturns.encoding))),
+      [...new Set(returns)].map((it) => {
+        return TaggedTuple.fromTuple(
+          PendingReturn,
+          it as [number, string, string, string],
+        );
+      }),
     );
   }
 
   public encode(): Uint8Array {
     return bencoder.encode({
       scheduled_at: this.scheduledAt,
-      returns: [...this.returns]
-        .map((it) => Buffer.from(it, PendingReturns.encoding))
-        .sort(Buffer.compare),
+      returns: [...this.encodedReturns]
+        .map((it) =>
+          TaggedTuple.asTuple(TaggedTuple.decodeFromString(PendingReturn, it)),
+        )
+        .sort(),
     } satisfies PendingReturnsPayload);
   }
 }
@@ -102,8 +106,6 @@ export interface Cache {
 
 export class Memory {
   private static readonly casRetryLimit = 100;
-  private static readonly encoding = "ascii" satisfies Encoding;
-  private static readonly decoder = new TextDecoder(Memory.encoding);
 
   private readonly store: Store;
 
@@ -125,7 +127,7 @@ export class Memory {
       payload: Uint8Array;
     };
     return {
-      taskName: Memory.decoder.decode(task_name),
+      taskName: decoder.decode(task_name),
       payload,
       callHash,
     };
@@ -171,7 +173,7 @@ export class Memory {
 
   public async addPendingReturns(
     callHash: string,
-    newReturn: string,
+    newReturn: PendingReturn,
   ): Promise<boolean> {
     const memKey: MemKey = {
       type: "pending_returns",
@@ -179,24 +181,27 @@ export class Memory {
     };
     let shouldSchedule = false;
     await this.withCas(async () => {
-      let existingEncoded = await this.store.get(memKey);
-      let existing: PendingReturns;
-      if (existingEncoded) {
-        existing = PendingReturns.decode(existingEncoded);
-      } else {
-        existing = new PendingReturns(Math.floor(Date.now() / 1000), new Set());
-        existingEncoded = existing.encode();
-        if (!(await this.store.setNewValue(memKey, existingEncoded))) {
-          return false;
-        }
+      shouldSchedule = false;
+      const existingEncoded = await this.store.get(memKey);
+      if (!existingEncoded) {
+        const newReturns = new PendingReturns(Math.floor(Date.now() / 1000), [
+          newReturn,
+        ]);
         shouldSchedule = true;
+        return await this.store.setNewValue(memKey, newReturns.encode());
       }
-      shouldSchedule ||= existing.returns
-        .values()
-        .some((it) => this.isRepeatedCall(it, newReturn));
+      const pendingReturns = PendingReturns.decode(existingEncoded);
+      shouldSchedule = [...pendingReturns.encodedReturns].some((it) =>
+        TaggedTuple.decodeFromString(PendingReturn, it).isRepeatedCall(
+          newReturn,
+        ),
+      );
       const newReturns = new PendingReturns(
-        existing.scheduledAt,
-        existing.returns.union(new Set([newReturn])),
+        pendingReturns.scheduledAt,
+        pendingReturns.encodedReturns
+          .union(new Set([TaggedTuple.encodeToString(newReturn)]))
+          .values()
+          .map((it) => TaggedTuple.decodeFromString(PendingReturn, it)),
       );
       return this.store.compareAndSet(
         memKey,
@@ -209,20 +214,24 @@ export class Memory {
 
   public async withPendingReturnsRemove(
     callHash: string,
-    f: (returns: ReadonlySet<string>) => Promise<void>,
+    f: (returns: ReadonlySet<PendingReturn>) => Promise<void>,
   ) {
     const memKey: MemKey = {
       type: "pending_returns",
       callHash,
     };
-    const handled = new Set<string>();
+    const handled = new Set<PendingReturn>();
     return this.withCas(async () => {
       const pendingEncoded = await this.store.get(memKey);
       if (!pendingEncoded) {
         return true;
       }
-      const toHandle =
-        PendingReturns.decode(pendingEncoded).returns.difference(handled);
+      const toHandle = new Set(
+        PendingReturns.decode(pendingEncoded)
+          .encodedReturns.difference(handled)
+          .values()
+          .map((it) => TaggedTuple.decodeFromString(PendingReturn, it)),
+      );
       await f(toHandle);
       for (const it of toHandle) {
         handled.add(it);
@@ -238,28 +247,5 @@ export class Memory {
       }
     }
     throw new CasRetryLimitReachedError(Memory.casRetryLimit);
-  }
-
-  // TODO: migrate to bencode
-  private isRepeatedCall(newReturn: string, existingReturn: string): boolean {
-    const [newRoot, newParent, newTopic, ...newRest] = newReturn.split("/");
-    if (!newRoot || !newParent || !newTopic || newRest.length) {
-      throw new Error(`Invalid return address: ${newReturn}`);
-    }
-    const [existingRoot, existingParent, existingTopic, ...existingRest] =
-      existingReturn.split("/");
-    if (
-      !existingRoot ||
-      !existingParent ||
-      !existingTopic ||
-      existingRest.length
-    ) {
-      throw new Error(`Invalid return address: ${existingReturn}`);
-    }
-    return (
-      newRoot !== existingRoot &&
-      newParent === existingParent &&
-      newTopic === existingTopic
-    );
   }
 }
