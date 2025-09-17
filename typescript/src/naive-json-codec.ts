@@ -17,9 +17,6 @@ export class NaiveJsonCodec implements Codec {
   public static readonly binaryToTextEncoding =
     "hex" satisfies BinaryToTextEncoding;
 
-  private static readonly encoder = new TextEncoder();
-  private static readonly decoder = new TextDecoder();
-
   public async decodeReturn(_: string, payload: Uint8Array): Promise<unknown> {
     const decoded = decoder.decode(payload);
     return parse(decoded);
