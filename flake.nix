@@ -53,18 +53,22 @@
       # flake.parts module for linux systems
       brrrLinux = {
         perSystem =
-          { config
-          , lib
-          , pkgs
-          , self'
-          , ...
+          {
+            config,
+            lib,
+            pkgs,
+            self',
+            ...
           }:
           let
-            mkDemoLayeredImage = (name: pkgs.dockerTools.buildLayeredImage {
-              inherit name;
-              tag = "latest";
-              config.Entrypoint = [ (lib.getExe self'.packages.${name}) ];
-            });
+            mkDemoLayeredImage = (
+              name:
+              pkgs.dockerTools.buildLayeredImage {
+                inherit name;
+                tag = "latest";
+                config.Entrypoint = [ (lib.getExe self'.packages.${name}) ];
+              }
+            );
           in
           lib.mkIf pkgs.stdenv.isLinux {
             packages.docker-py = mkDemoLayeredImage "brrr-demo-py";
@@ -109,6 +113,11 @@
                       enable = true;
                       args = [ "-disableTelemetry" ];
                     };
+                    brrr-demo.server = {
+                      package = self.packages.${pkgs.system}.brrr-demo-py;
+                      args = [ "web_server" ];
+                      environment = demoEnv;
+                    };
                     brrr-demo.worker-py = {
                       package = self.packages.${pkgs.system}.brrr-demo-py;
                       args = [ "brrr_worker" ];
@@ -116,11 +125,6 @@
                     };
                     brrr-demo.worker-ts = {
                       package = self.packages.${pkgs.system}.brrr-demo-ts;
-                      environment = demoEnv;
-                    };
-                    brrr-demo.server = {
-                      package = self.packages.${pkgs.system}.brrr-demo-py;
-                      args = [ "web_server" ];
                       environment = demoEnv;
                     };
                   };
@@ -133,13 +137,14 @@
           };
         };
         perSystem =
-          { config
-          , self'
-          , inputs'
-          , pkgs
-          , lib
-          , system
-          , ...
+          {
+            config,
+            self',
+            inputs',
+            pkgs,
+            lib,
+            system,
+            ...
           }:
           let
             python = pkgs.python313;
@@ -253,12 +258,10 @@
 
                   mkEnvs = (
                     attrset:
-                    lib.concatMapAttrsStringSep "\n"
-                      (key: value: ''
-                        ${toShellVarNoOverwrite key value}
-                        ${toExportShellVar key}
-                      '')
-                      attrset
+                    lib.concatMapAttrsStringSep "\n" (key: value: ''
+                      ${toShellVarNoOverwrite key value}
+                      ${toExportShellVar key}
+                    '') attrset
                   );
                 in
                 {
