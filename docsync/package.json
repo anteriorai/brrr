@@ -1,0 +1,29 @@
+{
+  "name": "docsync",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node src/index.ts",
+    "build": "rm -rf dist && cp -r src dist",
+    "test": "echo no tests"
+  },
+  "bin": "dist/index.ts",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "tree-sitter": "^0.22.4",
+    "tree-sitter-python": "^0.23.6",
+    "tree-sitter-typescript": "^0.23.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.1.0"
+  },
+  "overrides": {
+    "tree-sitter-typescript": {
+      "tree-sitter": "^0.22.4"
+    }
+  }
+}
