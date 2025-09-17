@@ -1,6 +1,25 @@
-import { afterEach, before, beforeEach, mock, type MockTimersOptions, suite, test, } from "node:test";
-import { deepStrictEqual, doesNotReject, ok, strictEqual, } from "node:assert/strict";
-import { type Cache, type MemKey, Memory, PendingReturns, type Store, } from "./store.ts";
+import {
+  afterEach,
+  before,
+  beforeEach,
+  mock,
+  type MockTimersOptions,
+  suite,
+  test,
+} from "node:test";
+import {
+  deepStrictEqual,
+  doesNotReject,
+  ok,
+  strictEqual,
+} from "node:assert/strict";
+import {
+  type Cache,
+  type MemKey,
+  Memory,
+  PendingReturns,
+  type Store,
+} from "./store.ts";
 import { InMemoryStore } from "./backends/in-memory.ts";
 import type { Call } from "./call.ts";
 import { PendingReturn, TaggedTuple } from "./tagged-tuple.ts";
@@ -284,7 +303,7 @@ export async function storeContractTest(
     } as const;
 
     await test("Basic get", async () => {
-        await using resource = await acquireResource();
+      await using resource = await acquireResource();
       const store = resource.store;
       await store.set(fixture.key, fixture.value);
       const retrieved = await store.get(fixture.key);
@@ -293,14 +312,14 @@ export async function storeContractTest(
     });
 
     await test("Basic has", async () => {
-        await using resource = await acquireResource();
+      await using resource = await acquireResource();
       await resource.store.set(fixture.key, fixture.value);
       ok(await resource.store.has(fixture.key));
       ok(!(await resource.store.has(fixture.otherKey)));
     });
 
     await test("Basic set", async () => {
-        await using resource = await acquireResource();
+      await using resource = await acquireResource();
       await resource.store.set(fixture.key, fixture.value);
       const newKey: MemKey = {
         type: "call",
@@ -320,7 +339,7 @@ export async function storeContractTest(
     });
 
     await test("Basic setNewValue", async () => {
-        await using resource = await acquireResource();
+      await using resource = await acquireResource();
       await resource.store.set(fixture.key, fixture.value);
       const newValue = new Uint8Array([6, 7, 8, 9, 10]);
       ok(!(await resource.store.setNewValue(fixture.key, newValue)));
@@ -332,7 +351,7 @@ export async function storeContractTest(
     });
 
     await test("Basic compareAndSet", async () => {
-        await using resource = await acquireResource();
+      await using resource = await acquireResource();
       await resource.store.set(fixture.key, fixture.value);
       const newValue = new Uint8Array([6, 7, 8, 9, 10]);
       await resource.store.compareAndSet(fixture.key, newValue, fixture.value);
@@ -348,7 +367,7 @@ export async function storeContractTest(
     });
 
     await test("Basic compareAndDelete", async () => {
-        await using resource = await acquireResource();
+      await using resource = await acquireResource();
       await resource.store.set(fixture.key, fixture.value);
       await resource.store.compareAndDelete(fixture.key, fixture.value);
       strictEqual(await resource.store.get(fixture.key), undefined);
@@ -362,12 +381,14 @@ export async function storeContractTest(
   });
 }
 
-export async function cacheContractTest(acquireResource: () => Promise<{ cache: Cache } & AsyncDisposable>) {
+export async function cacheContractTest(
+  acquireResource: () => Promise<{ cache: Cache } & AsyncDisposable>,
+) {
   await suite("cache-contract", async () => {
     const key = "test-incr-key";
 
     await test("Basic incr", async () => {
-        await using resource = await acquireResource();
+      await using resource = await acquireResource();
       const initialValue = await resource.cache.incr(key);
       strictEqual(initialValue, 1);
       const nextValue = await resource.cache.incr(key);
