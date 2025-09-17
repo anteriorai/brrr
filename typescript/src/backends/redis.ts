@@ -3,18 +3,11 @@ import {
   type RedisFunctions,
   type RedisModules,
   type RedisScripts,
-  RESP_TYPES,
 } from "redis";
 import type { Cache } from "../store.ts";
-import { InvalidMessageError } from "../errors.ts";
-import { bencoder } from "../bencode.ts";
-import type { Encoding } from "node:crypto";
-
-type RedisPayload = [1, number, string];
+import { RedisMessage, TaggedTuple } from "../tagged-tuple.ts";
 
 export class Redis implements Cache {
-  public static readonly encoding = "utf-8" satisfies Encoding;
-
   public readonly client: RedisClientPoolType<
     RedisModules,
     RedisFunctions,
@@ -30,47 +23,21 @@ export class Redis implements Cache {
     await this.client.connect();
   }
 
-  public async push(topic: string, message: string): Promise<void> {
-    const element = bencoder.encode([
-      1,
-      Math.floor(Date.now() / 1000),
-      message,
-    ] satisfies RedisPayload);
-    await this.client.rPush(topic, Buffer.from(element));
+  public async push(topic: string, content: string): Promise<void> {
+    const scheduledAt = Math.floor(Date.now() / 1000);
+    const message = new RedisMessage(scheduledAt, content);
+    await this.client.rPush(topic, TaggedTuple.encodeToString(message));
   }
 
   public async pop(
     topic: string,
     timeoutMs: number = 20_000,
   ): Promise<string | undefined> {
-    const response = await this.client
-      .withTypeMapping({
-        [RESP_TYPES.BLOB_STRING]: Buffer,
-      })
-      .blPop(topic, timeoutMs / 1000);
-    if (!response) {
+    const response = await this.client.blPop(topic, timeoutMs / 1000);
+    if (!response?.element) {
       return;
     }
-    return this.decodeMessage(response.element);
-  }
-
-  private decodeMessage(data: Uint8Array): string | undefined {
-    const chunks = bencoder.decode(data, Redis.encoding) as RedisPayload;
-    if (chunks.length !== 3) {
-      throw new InvalidMessageError(
-        `Message length expected to be 3, got ${chunks.length}`,
-      );
-    }
-    if (chunks[0] !== 1) {
-      throw new InvalidMessageError("Version mismatch");
-    }
-    if (!Number.isInteger(chunks[1])) {
-      throw new InvalidMessageError("Timestamp is not an integer");
-    }
-    if (typeof chunks[2] !== "string") {
-      throw new InvalidMessageError("Message content is not string");
-    }
-    return chunks[2];
+    return TaggedTuple.decodeFromString(RedisMessage, response.element).content;
   }
 
   public async incr(key: string): Promise<number> {

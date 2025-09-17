@@ -94,3 +94,15 @@ export class ScheduleMessage {
     this.callHash = callHash;
   }
 }
+
+export class RedisMessage {
+  public static readonly tag = 1;
+
+  public readonly scheduledAt: number;
+  public readonly content: string;
+
+  constructor(scheduledAt: number, content: string) {
+    this.scheduledAt = scheduledAt;
+    this.content = content;
+  }
+}
