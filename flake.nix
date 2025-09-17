@@ -215,10 +215,8 @@
                 inherit (docsync.tests) docsync;
               }
               // brrrpy.brrr.tests
-              // import ./nix/brrr-demo.test.nix {
-                inherit self pkgs;
-                dynamodb-module = self.nixosModules.dynamodb;
-              };
+              // import ./nix/brrr-integration.test.nix { inherit self pkgs; }
+              // import ./nix/brrr-demo.test.nix { inherit self pkgs; };
               devshells =
                 let
                   sharedCommands = [
@@ -231,6 +229,21 @@
                       '';
                     }
                   ];
+                  sharedEnvs = {
+                    AWS_ENDPOINT_URL = "http://localhost:8000";
+                    AWS_ACCESS_KEY_ID = "fake";
+                    AWS_SECRET_ACCESS_KEY = "fake";
+                    BRRR_TEST_REDIS_URL = "redis://localhost:6379";
+                  };
+                  mkEnvs = (
+                    envs:
+                    lib.concatLines (
+                      lib.mapAttrsToList (name: value: ''
+                        : "''${${name}=${value}}"
+                        export ${name}
+                      '') envs
+                    )
+                  );
                 in
                 {
                   default = {
@@ -294,16 +307,9 @@
                         # Lol
                         command = ''
                           (
-                                              : "''${AWS_DEFAULT_REGION=fake}"
-                                              export AWS_DEFAULT_REGION
-                                              : "''${AWS_ENDPOINT_URL=http://localhost:8000}"
-                                              export AWS_ENDPOINT_URL
-                                              : "''${AWS_ACCESS_KEY_ID=fake}"
-                                              export AWS_ACCESS_KEY_ID
-                                              : "''${AWS_SECRET_ACCESS_KEY=fake}"
-                                              export AWS_SECRET_ACCESS_KEY
-                                              exec pytest "$@"
-                                            )'';
+                            ${mkEnvs (sharedEnvs // { AWS_DEFAULT_REGION = "us-east-1"; })}
+                            exec pytest "$@"
+                          )'';
                       }
                       # Always build aarch64-linux
                       {
@@ -344,6 +350,16 @@
                         command = ''
                           npm run test
                         '';
+                      }
+                      {
+                        name = "brrr-test-all";
+                        category = "test";
+                        help = "Tests including dependencies, make sure to run brrr-demo-deps";
+                        command = ''
+                          (
+                            ${mkEnvs (sharedEnvs // { AWS_REGION = "us-east-1"; })}
+                            npm run test:integration
+                          )'';
                       }
                     ]
                     ++ sharedCommands;
