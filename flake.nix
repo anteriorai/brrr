@@ -144,14 +144,19 @@
               self'.packages.uv
               nodejs
             ];
-            brrrpy = pkgs.callPackage ./python/package.nix {
-              inherit (inputs) pyproject-build-systems pyproject-nix uv2nix;
-              inherit python;
-            };
-            brrrts = pkgs.callPackage ./typescript/package.nix {
-              inherit (inputs) package-lock2nix;
-              inherit nodejs;
-            };
+            callPackage = lib.callPackageWith (
+              pkgs
+              // {
+                inherit python nodejs;
+                inherit (inputs) pyproject-build-systems pyproject-nix uv2nix;
+                package-lock2nix = pkgs.callPackage inputs.package-lock2nix.lib.package-lock2nix {
+                  inherit nodejs;
+                };
+              }
+            );
+            brrrpy = callPackage ./python/package.nix { };
+            brrr-ts = callPackage ./typescript/package.nix { };
+            docsync = callPackage ./docsync/package.nix { };
           in
           {
             config = {
@@ -183,7 +188,7 @@
                 inherit docsync;
                 inherit (pkgs) uv;
                 inherit (brrrpy) brrr brrr-venv-test;
-                inherit (brrrts) brrr-ts;
+                inherit brrr-ts;
                 default = brrrpy.brrr-venv;
                 # Stand-alone brrr_demo.py script
                 brrr-demo = pkgs.stdenvNoCC.mkDerivation {
@@ -202,10 +207,18 @@
                 # disappear at any time.
                 nix-flake-check-changed = pkgs.callPackage ./nix-flake-check-changed/package.nix { };
               };
-              checks =
-                brrrpy.brrr.tests
-                // import ./nix/brrr-integration.test.nix { inherit self pkgs; }
-                // import ./nix/brrr-demo.test.nix { inherit self pkgs; };
+              checks = {
+                pytestIntegration = pkgs.callPackage ./nix/brrr-integration.test.nix {
+                  inherit self;
+                  dynamodb-module = self.nixosModules.dynamodb;
+                };
+                inherit (docsync.tests) docsync;
+              }
+              // brrrpy.brrr.tests
+              // import ./nix/brrr-demo.test.nix {
+                inherit self pkgs;
+                dynamodb-module = self.nixosModules.dynamodb;
+              };
               devshells =
                 let
                   sharedCommands = [
@@ -218,21 +231,6 @@
                       '';
                     }
                   ];
-                  sharedEnvs = {
-                    AWS_ENDPOINT_URL = "http://localhost:8000";
-                    AWS_ACCESS_KEY_ID = "fake";
-                    AWS_SECRET_ACCESS_KEY = "fake";
-                    BRRR_TEST_REDIS_URL = "redis://localhost:6379";
-                  };
-                  mkEnvs = (
-                    envs:
-                    lib.concatLines (
-                      lib.mapAttrsToList (name: value: ''
-                        : "''${${name}=${value}}"
-                        export ${name}
-                      '') envs
-                    )
-                  );
                 in
                 {
                   default = {
@@ -293,11 +291,19 @@
                         name = "brrr-test-all";
                         category = "test";
                         help = "Tests including dependencies, make sure to run brrr-demo-deps";
+                        # Lol
                         command = ''
                           (
-                            ${mkEnvs (sharedEnvs // { AWS_DEFAULT_REGION = "us-east-1"; })}
-                            exec pytest "$@"
-                          )'';
+                                              : "''${AWS_DEFAULT_REGION=fake}"
+                                              export AWS_DEFAULT_REGION
+                                              : "''${AWS_ENDPOINT_URL=http://localhost:8000}"
+                                              export AWS_ENDPOINT_URL
+                                              : "''${AWS_ACCESS_KEY_ID=fake}"
+                                              export AWS_ACCESS_KEY_ID
+                                              : "''${AWS_SECRET_ACCESS_KEY=fake}"
+                                              export AWS_SECRET_ACCESS_KEY
+                                              exec pytest "$@"
+                                            )'';
                       }
                       # Always build aarch64-linux
                       {
@@ -339,17 +345,8 @@
                           npm run test
                         '';
                       }
-                      {
-                        name = "brrr-test-all";
-                        category = "test";
-                        help = "Tests including dependencies, make sure to run brrr-demo-deps";
-                        command = ''
-                          (
-                            ${mkEnvs (sharedEnvs // { AWS_REGION = "us-east-1"; })}
-                            npm run test:integration
-                          )'';
-                      }
-                    ] ++ sharedCommands;
+                    ]
+                    ++ sharedCommands;
                   };
                 };
             };
