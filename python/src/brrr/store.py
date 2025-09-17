@@ -5,11 +5,12 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, Self
 
 import bencodepy
 
 from .call import Call
+from .tagged_tuple import PendingReturn
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,9 @@ class Info:
     retries: int | None
     retry_delay_seconds: int | None
     log_prints: bool | None
+
+
+_bc = bencodepy.Bencode(encoding="utf-8")
 
 
 @dataclass
@@ -48,25 +52,23 @@ class PendingReturns:
     # any such event serialization where order matters.  This is for expiring
     # entries in a stale cache, that’s all.
     scheduled_at: int | None
-    returns: set[str]
+    returns: set[PendingReturn]
 
     def encode(self) -> bytes:
-        return bencodepy.encode(
+        return _bc.encode(
             {
-                b"returns": list(
-                    sorted(map(lambda x: x.encode("us-ascii"), self.returns))
-                ),
-                **({b"scheduled_at": self.scheduled_at} if self.scheduled_at else {}),
+                "returns": list(sorted(map(lambda x: x.astuple(), self.returns))),
+                **({"scheduled_at": self.scheduled_at} if self.scheduled_at else {}),
             }
         )
 
     @classmethod
-    def decode(cls, enc: bytes) -> PendingReturns:
-        decoded = bencodepy.decode(enc)
-        returns = decoded[b"returns"]
-        return PendingReturns(
-            decoded.get(b"scheduled_at"),
-            set(map(lambda x: x.decode("us-ascii"), returns)),
+    def decode(cls, enc: bytes) -> Self:
+        decoded = _bc.decode(enc)
+        returns = decoded["returns"]
+        return cls(
+            decoded.get("scheduled_at"),
+            set(map(PendingReturn.fromtuple, returns)),
         )
 
 
@@ -282,7 +284,9 @@ class Memory:
                     raise Exception("exceeded CAS retry limit") from e
                 continue
 
-    async def add_pending_return(self, call_hash: str, new_return: str) -> bool:
+    async def add_pending_return(
+        self, call_hash: str, new_return: PendingReturn
+    ) -> bool:
         """Register a pending return address for a call.
 
         Note this is inherently racy: as soon as this call completes, another
@@ -295,20 +299,17 @@ class Memory:
 
         """
 
-        def _is_repeated_call(existing_return: str):
-            new_root, new_parent, new_topic = new_return.split("/")
-            ext_root, ext_parent, ext_topic = existing_return.split("/")
+        def is_repeated_call(existing: PendingReturn) -> bool:
             return (
-                ext_root != new_root
-                and ext_parent == new_parent
-                and ext_topic == new_topic
+                existing.root_id != new_return.root_id
+                and existing.call_hash == new_return.call_hash
+                and existing.topic == new_return.topic
             )
 
         # Beware race conditions here!  Be aware of concurrency corner cases on
         # every single line.
         async def cas_body() -> bool:
             memkey = MemKey("pending_returns", call_hash)
-            should_schedule = False
 
             logger.debug(f"Looking for existing pending returns for {call_hash}...")
             try:
@@ -316,17 +317,13 @@ class Memory:
                 logger.debug(f"    ... found! {existing_enc!r}")
                 existing = PendingReturns.decode(existing_enc)
             except NotFoundError:
-                existing = PendingReturns(int(time.time()), set())
+                existing = PendingReturns(int(time.time()), {new_return})
                 existing_enc = existing.encode()
                 logger.debug(f"    ... none found. Creating new: {existing_enc!r}")
-                # Note the double CAS!
                 await self.store.set_new_value(memkey, existing_enc)
-                should_schedule = True
+                return True
 
-            should_schedule = should_schedule or any(
-                map(_is_repeated_call, existing.returns)
-            )
-
+            should_schedule = any(map(is_repeated_call, existing.returns))
             existing.returns.add(new_return)
             await self.store.compare_and_set(memkey, existing.encode(), existing_enc)
             return should_schedule
@@ -334,10 +331,10 @@ class Memory:
         return await self._with_cas(cas_body)
 
     async def with_pending_returns_remove(
-        self, call_hash: str, f: Callable[[Iterable[str]], Awaitable[None]]
+        self, call_hash: str, f: Callable[[Iterable[PendingReturn]], Awaitable[None]]
     ) -> None:
         memkey = MemKey("pending_returns", call_hash)
-        handled: set[str] = set()
+        handled: set[PendingReturn] = set()
 
         async def cas_body():
             nonlocal handled

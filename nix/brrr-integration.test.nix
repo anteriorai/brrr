@@ -15,11 +15,7 @@
 # These are all the pytest tests, with the required database dependencies spun
 # up.
 
-{
-  pkgs,
-  self,
-  datastores,
-}:
+{ pkgs, self }:
 
 let
   mkTest =
@@ -28,7 +24,14 @@ let
       inherit name;
       globalTimeout = 5 * 60;
       nodes = {
-        inherit datastores;
+        datastores =
+          { ... }:
+          {
+            imports = [
+              self.nixosModules.dynamodb
+              ./datastores.nix
+            ];
+          };
         tester =
           { pkgs, ... }:
           {

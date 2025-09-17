@@ -4,8 +4,6 @@ from brrr import OnlyInBrrrError
 from brrr.local_app import LocalBrrr
 from brrr.pickle_codec import PickleCodec
 
-TOPIC = "brrr-test"
-
 
 async def test_only_no_brrr() -> None:
     @brrr.handler_no_arg
@@ -17,13 +15,13 @@ async def test_only_no_brrr() -> None:
         await foo(3)
 
 
-async def test_only_in_brrr() -> None:
+async def test_only_in_brrr(topic: str, task_name: str) -> None:
     @brrr.handler_no_arg
     @brrr.only
     async def foo(a: int) -> int:
         return a * 2
 
-    b = LocalBrrr(topic=TOPIC, handlers=dict(foo=foo), codec=PickleCodec())
+    b = LocalBrrr(topic=topic, handlers={task_name: foo}, codec=PickleCodec())
     assert await b.run(foo)(5) == 10
 
 

@@ -21,6 +21,7 @@ from .store import (
     NotFoundError,
     Store,
 )
+from .tagged_tuple import PendingReturn, ScheduleMessage
 
 logger = logging.getLogger(__name__)
 
@@ -64,10 +65,6 @@ class Response:
 
 
 type Handler = Callable[[Request, Connection], Awaitable[Response | Defer]]
-
-
-def _parse_call_id(call_id: str):
-    return call_id.split("/")
 
 
 @asynccontextmanager
@@ -125,15 +122,15 @@ class Connection:
         self._memory = Memory(store)
         self._queue = queue
 
-    async def _put_job(self, topic: str, call_hash: str, root_id: str) -> None:
+    async def _put_job(self, topic: str, job: ScheduleMessage) -> None:
         # Incredibly mother-of-all ad-hoc definitions.  Doesn’t use the topic
         # for counting spawn limits: the spawn limit is currently intended to
         # never be hit at all: it’s a /semantic/ check, not a /runtime/ check.
         # It’s not intended for example to give paying customers a higher spawn
         # limit than free ones.  It’s intended to catch infinite recursion and
         # non-idempotent call graphs.
-        if (await self._cache.incr(f"brrr_count/{root_id}")) > self._spawn_limit:
-            msg = f"Spawn limit {self._spawn_limit} reached for {root_id} at job {call_hash}"
+        if (await self._cache.incr(f"brrr_count/{job.root_id}")) > self._spawn_limit:
+            msg = f"Spawn limit {self._spawn_limit} reached for {job.root_id} at job {job.call_hash}"
             logger.error(msg)
             # Throw here because it allows the user of brrrlib to decide how to
             # handle this: what kind of logging?  Does the worker crash in order
@@ -142,7 +139,8 @@ class Connection:
             # bigger issue to admins?  Or just wrap it in a while True loop
             # which catches and ignores specifically this error?
             raise SpawnLimitError(msg)
-        await self._queue.put_message(topic, f"{root_id}/{call_hash}")
+
+        await self._queue.put_message(topic, job.encode().decode("utf-8"))
 
     async def schedule_raw(
         self, topic: str, idempotency_key: str, task_name: str, payload: bytes
@@ -161,7 +159,11 @@ class Connection:
         await self._memory.set_call(call)
         # Random root id for every call so we can disambiguate retries
         root_id = base64.urlsafe_b64encode(uuid4().bytes).decode("ascii").strip("=")
-        await self._put_job(topic, idempotency_key, root_id)
+        job = ScheduleMessage(
+            call_hash=idempotency_key,
+            root_id=root_id,
+        )
+        await self._put_job(topic, job)
 
     async def read_raw(self, call_hash: str) -> bytes | None:
         """
@@ -192,14 +194,15 @@ class Server(Connection):
         self._n = Server._total_workers
         Server._total_workers += 1
 
-    async def _schedule_return_call(self, return_addr: str) -> None:
-        # These are all root_id/memo_key/topic triples which is great because
-        # every return should be retried in its original root context.
-        root_id, parent_key, topic = return_addr.split("/", 2)
-        await self._put_job(topic, parent_key, root_id)
+    async def _schedule_return_call(self, ret: PendingReturn) -> None:
+        job = ScheduleMessage(root_id=ret.root_id, call_hash=ret.call_hash)
+        await self._put_job(ret.topic, job)
 
     async def _schedule_call_nested(
-        self, my_topic: str, child: DeferredCall, root_id: str, parent_call_id: str
+        self,
+        my_topic: str,
+        child: DeferredCall,
+        parent: ScheduleMessage,
     ) -> None:
         """Schedule this call on the brrr workforce.
 
@@ -228,28 +231,30 @@ class Server(Connection):
         # fine because the result does in fact exist.
         child_topic = child.topic or my_topic
         call_hash = child.call.call_hash
-        # Ad-hoc encoding: I happen to know that parent_call_id itself is
-        # root_id/parent_key, neither of which can contain a ‘/’.  The topic
-        # however is user-controlled and can contain any character, so it must
-        # come last for deterministic decoding.  Obviously a far better idea
-        # would be to just use bencode here.
-        should_schedule = await self._memory.add_pending_return(
-            call_hash, f"{parent_call_id}/{my_topic}"
+        ret = PendingReturn(
+            root_id=parent.root_id,
+            call_hash=parent.call_hash,
+            topic=my_topic,
         )
+        should_schedule = await self._memory.add_pending_return(call_hash, ret)
         if should_schedule:
-            await self._put_job(child_topic, call_hash, root_id)
+            job = ScheduleMessage(
+                call_hash=call_hash,
+                root_id=parent.root_id,
+            )
+            await self._put_job(child_topic, job)
 
-    async def _handle_msg(
-        self, handler: Handler, my_topic: str, my_call_id: str
-    ) -> None:
-        root_id, my_memo_key = _parse_call_id(my_call_id)
-        call = await self._memory.get_call(my_memo_key)
+    async def _handle_msg(self, handler: Handler, my_topic: str, payload: str) -> None:
+        msg = ScheduleMessage.decode(payload.encode("utf-8"))
+        call = await self._memory.get_call(msg.call_hash)
 
-        logger.debug(f"Calling {my_topic} -> {my_call_id} -> {call.task_name}")
+        logger.debug(
+            f"Calling {my_topic} -> {msg.root_id}/{msg.call_hash} -> {call.task_name}"
+        )
         req = Request(call=call)
         ret = await handler(req, self)
         if isinstance(ret, Defer):
-            logger.debug("Deferring %s %s", my_call_id, call.task_name)
+            logger.debug(f"Deferring {msg.root_id}/{msg.call_hash}: {call.task_name}")
 
             # Any of these calls could throw a SpawnLimitError: let that bubble
             # up.  This is very ugly but I want to keep the contract of throwing
@@ -262,17 +267,19 @@ class Server(Connection):
             # but allows the caller to handle it from the point at which it
             # occurs.
             async def handle_child(child: DeferredCall) -> None:
-                await self._schedule_call_nested(my_topic, child, root_id, my_call_id)
+                await self._schedule_call_nested(my_topic, child, msg)
 
             await asyncio.gather(*map(handle_child, ret.calls))
             return
 
         elif isinstance(ret, Response):
-            logger.info(f"Handled {my_topic} -> {my_call_id} -> {call.task_name}")
+            logger.info(
+                f"Handled {my_topic} -> {msg.root_id}/{msg.call_hash} -> {call.task_name}"
+            )
 
             # This can end up in a race against another worker to write the
             # value.
-            await self._memory.set_value(my_memo_key, ret.payload)
+            await self._memory.set_value(msg.call_hash, ret.payload)
 
             # This is ugly and it’s tempting to use asyncio.gather with
             # ‘return_exceptions=True’.  However note I don’t want to blanket catch
@@ -283,19 +290,19 @@ class Server(Connection):
             # doing it this way, without any of the clarity.
             spawn_limit_err = None
 
-            async def schedule_returns(returns: Iterable[str]) -> None:
+            async def schedule_returns(returns: Iterable[PendingReturn]) -> None:
                 for pending in returns:
                     try:
                         await self._schedule_return_call(pending)
                     except SpawnLimitError as e:
                         logger.info(
-                            f"Spawn limit reached returning from {my_memo_key} to {pending}; clearing the return"
+                            f"Spawn limit reached returning from {msg.call_hash} to {pending}; clearing the return"
                         )
                         nonlocal spawn_limit_err
                         spawn_limit_err = e
 
             await self._memory.with_pending_returns_remove(
-                my_memo_key, schedule_returns
+                msg.call_hash, schedule_returns
             )
             if spawn_limit_err is not None:
                 raise spawn_limit_err
