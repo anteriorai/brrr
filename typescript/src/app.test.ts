@@ -246,35 +246,11 @@ await suite(import.meta.filename, async () => {
     });
     server.listen(subtopics.t1, app.handle);
     server.listen(subtopics.t2, app.handle);
+
+    const call = await codec.encodeCall("two", [7]);
     await app.schedule(two, subtopics.t2)(7);
-  });
 
-  await test("stress parallel", async () => {
-    async function fib(app: ActiveWorker, n: bigint): Promise<bigint> {
-      if (n < 2) {
-        return n;
-      }
-      const [a, b] = await app.gather(
-        app.call(fib)(n - 1n),
-        app.call(fib)(n - 2n),
-      );
-      return a + b;
-    }
-
-    async function top(app: ActiveWorker): Promise<void> {
-      const n = await app.call(fib)(1000n);
-      deepStrictEqual(
-        n,
-        43466557686937456435688527675040625802564660517371780402481729089536555417949051890403879840079255169295922593080322634775209689623239873322471161642996440906533187938298969649928516003704476137795166849228875n,
-      );
-    }
-
-    const app = new AppWorker(codec, server, { fib, top });
-    await app.schedule(top, topic)();
-
-    await Promise.all(
-      new Array(10).keys().map(() => server.listen(topic, app.handle)),
-    );
+    await waitFor(call);
   });
 
   await test("weird names", async () => {
@@ -505,6 +481,35 @@ await suite(import.meta.filename, async () => {
         }
       }
       strictEqual(errors, 0);
+    });
+
+    await test("stress parallel", async () => {
+      async function fib(app: ActiveWorker, sn: string): Promise<string> {
+        const n = BigInt(sn);
+        if (n < 2) {
+          return n.toString();
+        }
+        const [a, b] = await app.gather(
+          app.call(fib)(`${n - 1n}`),
+          app.call(fib)(`${n - 2n}`),
+        );
+        return `${BigInt(a) + BigInt(b)}`;
+      }
+
+      async function top(app: ActiveWorker): Promise<void> {
+        const n = await app.call(fib)(`${1000n}`);
+        deepStrictEqual(
+          n,
+          `${43466557686937456435688527675040625802564660517371780402481729089536555417949051890403879840079255169295922593080322634775209689623239873322471161642996440906533187938298969649928516003704476137795166849228875n}`,
+        );
+      }
+
+      const app = new AppWorker(codec, server, { fib, top });
+      await app.schedule(top, topic)();
+
+      await Promise.all(
+        new Array(10).keys().map(() => server.loop(topic, app.handle, flusher)),
+      );
     });
 
     await test("app subclass", async () => {

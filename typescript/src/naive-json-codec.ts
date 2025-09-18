@@ -1,11 +1,10 @@
 import { type BinaryToTextEncoding, createHash } from "node:crypto";
 import type { Call } from "./call.ts";
 import type { Codec } from "./codec.ts";
-import { parse, stringify } from "superjson";
 import { decoder, encoder } from "./internal-codecs.ts";
 
 /**
- * Naive JSON codec that uses `superjson` for serialization and deserialization.
+ * Naive JSON codec that uses built-in `JSON` for serialization and deserialization.
  *
  * It tries its best to ensure that the serialized data is deterministic by
  * sorting object keys recursively before serialization, but it's not
@@ -19,7 +18,7 @@ export class NaiveJsonCodec implements Codec {
 
   public async decodeReturn(_: string, payload: Uint8Array): Promise<unknown> {
     const decoded = decoder.decode(payload);
-    return parse(decoded);
+    return JSON.parse(decoded);
   }
 
   public async encodeCall<A extends unknown[]>(
@@ -27,7 +26,7 @@ export class NaiveJsonCodec implements Codec {
     args: A,
   ): Promise<Call> {
     const sortedArgs = args.map(NaiveJsonCodec.sortObjectKeys);
-    const data = stringify(sortedArgs);
+    const data = JSON.stringify(sortedArgs);
     const payload = encoder.encode(data);
     const callHash = await this.hashCall(taskName, sortedArgs);
     return { taskName, payload, callHash };
@@ -38,9 +37,9 @@ export class NaiveJsonCodec implements Codec {
     task: (...args: A) => Promise<R>,
   ): Promise<Uint8Array> {
     const decoded = decoder.decode(call.payload);
-    const args = parse<A>(decoded);
+    const args = JSON.parse(decoded) as A;
     const result = await task(...args);
-    const resultJson = stringify(result);
+    const resultJson = JSON.stringify(result);
     return encoder.encode(resultJson);
   }
 
@@ -48,7 +47,7 @@ export class NaiveJsonCodec implements Codec {
     taskName: string,
     args: A,
   ): Promise<string> {
-    const data = stringify([taskName, args]);
+    const data = JSON.stringify([taskName, args]);
     return createHash(NaiveJsonCodec.algorithm)
       .update(data)
       .digest(NaiveJsonCodec.binaryToTextEncoding);
