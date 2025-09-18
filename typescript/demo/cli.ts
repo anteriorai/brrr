@@ -1,13 +1,12 @@
-#!/usr/bin/env node
+#!/usr/bin/env node --unhandled-rejections=strict
 import {
   ActiveWorker,
   AppWorker,
-  Dynamo,
   NaiveJsonCodec,
-  Redis,
   Server,
   taskFn,
 } from "../src/index.ts";
+import { Dynamo, Redis } from "../src/backends/index.ts";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { createClientPool } from "redis";
 import { env } from "node:process";
@@ -30,6 +29,11 @@ async function createRedis(): Promise<Redis> {
 const dynamo = await createDynamo();
 const redis = await createRedis();
 
+const topics = {
+  py: "brrr-demo-main",
+  ts: "brrr-ts-demo-main",
+} as const;
+
 function sum({ values }: { values: number[] }): number {
   return values.reduce((a, b) => a + b);
 }
@@ -47,8 +51,8 @@ async function lucas(app: ActiveWorker, { n, salt }: Arg): Promise<number> {
   }
   return app.call(sum)({
     values: await app.gather(
-      app.call<[Arg], number>("fib", "brrr-demo-main")({ n: n - 1, salt }),
-      app.call<[Arg], number>("fib", "brrr-demo-main")({ n: n + 1, salt }),
+      app.call<[Arg], number>("fib", topics.py)({ n: n - 1, salt }),
+      app.call<[Arg], number>("fib", topics.py)({ n: n + 1, salt }),
     ),
   });
 }
@@ -66,8 +70,6 @@ const app = new AppWorker(codec, server, {
   lucas,
 });
 
-const topic = "brrr-ts-demo-main";
-
-await server.loop(topic, app.handle, async () => {
-  return await redis.pop(topic);
+await server.loop(topics.ts, app.handle, async () => {
+  return redis.pop(topics.ts);
 });

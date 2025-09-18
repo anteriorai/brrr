@@ -111,12 +111,12 @@ export class AppWorker extends AppConsumer {
     if (!handler) {
       throw new TaskNotFoundError(request.call.taskName);
     }
+    const activeWorker = new ActiveWorker(
+      connection,
+      this.codec,
+      this.handlers,
+    );
     try {
-      const activeWorker = new ActiveWorker(
-        connection,
-        this.codec,
-        this.handlers,
-      );
       const payload = await this.codec.invokeTask(request.call, (...args) => {
         return handler(activeWorker, ...args);
       });
@@ -146,13 +146,20 @@ export class ActiveWorker {
     topic?: string | undefined,
   ): NoAppTask<A, R> {
     const taskName = taskIdentifierToName(taskIdentifier, this.handlers);
-    return async (...args: StripLeadingActiveWorker<A>): Promise<R> => {
-      const call = await this.codec.encodeCall(taskName, args);
-      const payload = await this.connection.memory.getValue(call.callHash);
-      if (!payload) {
-        throw new Defer({ topic, call });
-      }
-      return this.codec.decodeReturn(taskName, payload) as R;
+    return (...args: StripLeadingActiveWorker<A>): Promise<R> => {
+      const promise = new Promise<R>(async (resolve, reject) => {
+        const call = await this.codec.encodeCall(taskName, args);
+        const payload = await this.connection.memory.getValue(call.callHash);
+        if (!payload) {
+          reject(new Defer({ topic, call }));
+        } else {
+          resolve(this.codec.decodeReturn(taskName, payload) as R);
+        }
+      });
+      promise.catch(() => {
+        // noop to avoid unhandled promise rejection
+      });
+      return promise;
     };
   }
 
