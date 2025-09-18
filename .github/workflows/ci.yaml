@@ -1,5 +1,4 @@
 on:
-  pull_request:
   push:
 
 name: CI
@@ -12,6 +11,7 @@ jobs:
         uses: nobssoftware/nocommit@v2
 
   nix-flake-check:
+    timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
