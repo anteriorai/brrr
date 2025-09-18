@@ -1,5 +1,10 @@
 on:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+  merge_group:
 
 name: PR
 
@@ -7,23 +12,8 @@ jobs:
   conventional-commit:
     name: "PR title"
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: read
     steps:
-      - uses: amannn/action-semantic-pull-request@04501d43b574e4c1d23c629ffe4dcec27acfdeff
+      - run: |
+          <<<"$TITLE" grep '^\(build\|chore\|ci\|docs\|feat\|fix\|perf\|p\?refactor\|revert\|style\|test\)\(([a-zA-Z0-9_-]\+)\)\?!\?: '
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          types: |
-            build
-            chore
-            ci
-            docs
-            feat
-            fix
-            perf
-            refactor
-            prefactor
-            revert
-            style
-            test
+          TITLE: "${{ github.event.pull_request.title || github.event.merge_group.head_commit.message }}"
