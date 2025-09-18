@@ -29,17 +29,17 @@
     "test:watch": "node --test --watch 'src/**/*.test.ts'",
     "test:integration": "node --test 'src/**/*.test-integration.ts'"
   },
-  "repository": "https://github.com/cohelm/brrr",
+  "repository": "git+https://github.com/anteriorai/brrr",
   "engines": {
     "node": ">=24"
   },
   "dependencies": {
-    "bencode": "^4.0.0",
-    "superjson": "^2.2.2"
+    "bencode": "^4.0.0"
   },
   "devDependencies": {
     "@types/bencode": "^2.0.4",
     "@types/node": "^24.2.1",
+    "superjson": "^2.2.2",
     "typescript": "^5.9.2"
   },
   "peerDependencies": {
