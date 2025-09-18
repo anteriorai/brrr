@@ -366,7 +366,11 @@ await suite(import.meta.filename, async () => {
     };
 
     async function flusher() {
-      return queues[topic]?.shift() ?? BrrrShutdownSymbol;
+      const item = queues[topic]?.shift();
+      if (!item) {
+        return BrrrShutdownSymbol;
+      }
+      return item;
     }
 
     beforeEach(() => {
