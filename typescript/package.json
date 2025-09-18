@@ -7,6 +7,21 @@
     "brrr-test-integration": "scripts/brrr-test-integration.sh"
   },
   "license": "AGPL-3.0-only",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./dist/*/index.d.ts",
+      "import": "./dist/*/index.js",
+      "require": "./dist/*/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "node --test 'src/**/*.test.ts'",
@@ -18,16 +33,18 @@
     "node": ">=24"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.878.0",
-    "@aws-sdk/lib-dynamodb": "^3.878.0",
-    "@aws-sdk/util-dynamodb": "^3.878.0",
     "bencode": "^4.0.0",
-    "redis": "^5.8.2",
     "superjson": "^2.2.2"
   },
   "devDependencies": {
     "@types/bencode": "^2.0.4",
     "@types/node": "^24.2.1",
     "typescript": "^5.9.2"
+  },
+  "peerDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.891.0",
+    "@aws-sdk/lib-dynamodb": "^3.891.0",
+    "@aws-sdk/util-dynamodb": "^3.891.0",
+    "redis": "^5.8.2"
   }
 }
