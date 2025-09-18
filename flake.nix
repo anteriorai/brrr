@@ -142,6 +142,7 @@
               pkgs.process-compose
               pkgs.redis # For the CLI
               self'.packages.uv
+              self'.packages.npm-version-to-git
               nodejs
             ];
             callPackage = lib.callPackageWith (
@@ -189,6 +190,7 @@
                 inherit (pkgs) uv;
                 inherit (brrrpy) brrr brrr-venv-test;
                 inherit brrr-ts;
+                inherit (brrr-ts) npm-version-to-git;
                 default = brrrpy.brrr-venv;
                 # Stand-alone brrr_demo.py script
                 brrr-demo = pkgs.stdenvNoCC.mkDerivation {
