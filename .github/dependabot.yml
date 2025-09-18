@@ -1,0 +1,28 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "typescript"
+    cooldown:
+      default-days: 10
+    schedule:
+      interval: "weekly"
+    groups:
+      all:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/" # Location of package manifests
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "uv"
+    directory: "python"
+    cooldown:
+      default-days: 10
+    schedule:
+      interval: "weekly"
+    groups:
+      all:
+        patterns:
+          - "*"
