@@ -1,11 +1,12 @@
 {
   "name": "@anterior/brrr",
-  "version": "0.1.1-dev",
+  "version": "0.1.2",
   "description": "Horizontally scalable workflow scheduling with pluggable backends",
   "type": "module",
   "bin": {
-    "brrr-test-integration": "brrr-test-integration"
+    "brrr-test-integration": "scripts/brrr-test-integration.sh"
   },
+  "license": "AGPL-3.0-only",
   "scripts": {
     "build": "tsc",
     "test": "node --test 'src/**/*.test.ts'",
