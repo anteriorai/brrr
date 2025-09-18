@@ -28,7 +28,7 @@
     "test:watch": "node --test --watch 'src/**/*.test.ts'",
     "test:integration": "node --test 'src/**/*.test-integration.ts'"
   },
-  "repository": "https://github.com/cohelm/brrr",
+  "repository": "git+https://github.com/anteriorai/brrr",
   "engines": {
     "node": ">=24"
   },
