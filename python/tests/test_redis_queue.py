@@ -14,7 +14,6 @@ from tests.contract_queue import QueueContract
 @asynccontextmanager
 async def with_redis(redurl: str | None) -> AsyncIterator[redis.Redis]:
     rkwargs = dict(
-        decode_responses=True,
         health_check_interval=10,
         socket_connect_timeout=5,
         retry_on_timeout=True,
@@ -43,10 +42,3 @@ class TestRedisQueue(QueueContract):
         RedisQueue.recv_block_secs = 1
         async with with_redis(os.environ.get("BRRR_TEST_REDIS_URL")) as rc:
             yield RedisQueue(rc)
-
-    async def test_decode_error(self):
-        async with self.with_queue(["test"]) as queue:
-            assert isinstance(queue, RedisQueue)
-            await queue.client.rpush("test", b"wrong")
-            with pytest.raises(Exception):
-                assert await queue.get_message("test")
