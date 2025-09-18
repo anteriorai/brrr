@@ -29,44 +29,45 @@ import type { Cache, Store } from "./store.ts";
 import type { Publisher, Subscriber } from "./emitter.ts";
 import { BrrrShutdownSymbol, BrrrTaskDoneEventSymbol } from "./symbol.ts";
 import { parse, stringify } from "superjson";
+import { matrixSuite } from "./fixture.test.ts";
 
-const codec = new NaiveJsonCodec();
-const topic = "brrr-test";
-const subtopics = {
-  t1: "t1",
-  t2: "t2",
-  t3: "t3",
-} as const;
+await matrixSuite(import.meta.filename, async (_, matrix) => {
+  const codec = new NaiveJsonCodec();
+  const topic = matrix.topic;
+  const subtopics = {
+    t1: "t1",
+    t2: "t2",
+    t3: "t3",
+  } as const;
 
-let store: Store;
-let cache: Cache;
-let emitter: Publisher & Subscriber;
-let server: SubscriberServer;
+  let store: Store;
+  let cache: Cache;
+  let emitter: Publisher & Subscriber;
+  let server: SubscriberServer;
 
-// Test tasks
-function bar(a: number) {
-  return 456;
-}
+  // Test tasks
+  function bar(a: number) {
+    return 456;
+  }
 
-async function foo(app: ActiveWorker, a: number) {
-  return (await app.call(bar, topic)(a + 1)) + 1;
-}
+  async function foo(app: ActiveWorker, a: number) {
+    return (await app.call(bar, topic)(a + 1)) + 1;
+  }
 
-function one(a: number): number {
-  return a + 5;
-}
+  function one(a: number): number {
+    return a + 5;
+  }
 
-async function two(app: ActiveWorker, a: number): Promise<void> {
-  const result = await app.call("one", subtopics.t1)(a + 3);
-  strictEqual(result, 15);
-}
+  async function two(app: ActiveWorker, a: number): Promise<void> {
+    const result = await app.call("one", subtopics.t1)(a + 3);
+    strictEqual(result, 15);
+  }
 
-const handlers: Handlers = {
-  bar: taskFn(bar),
-  foo,
-};
+  const handlers: Handlers = {
+    bar: taskFn(bar),
+    foo,
+  };
 
-await suite(import.meta.filename, async () => {
   function waitFor(call: Call, predicate?: () => Promise<void>): Promise<void> {
     return new Promise((resolve) => {
       emitter.onEventSymbol?.(
@@ -255,7 +256,6 @@ await suite(import.meta.filename, async () => {
   });
 
   await test("weird names", async () => {
-    const topic = "//':\"~`\\";
     const taskName = "`'\"\\/~$!@:";
 
     function double(x: number): number {
