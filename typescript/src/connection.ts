@@ -27,7 +27,7 @@ export interface Response {
   readonly payload: Uint8Array;
 }
 
-type RequestHandler = (
+export type RequestHandler = (
   request: Request,
   connection: Connection,
 ) => Promise<Response | Defer>;

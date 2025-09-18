@@ -35,6 +35,7 @@ jobs:
       - run: npm-version-to-git
       - run: |
           printf '//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}\n' > ~/.npmrc
+      - run: npm run build
       - run: npm publish --access public
         # No --provenance while the repo visibility is internal.
         env:
