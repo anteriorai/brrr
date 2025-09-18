@@ -8,16 +8,26 @@ export {
 } from "./app.ts";
 export type { Call } from "./call.ts";
 export type { Codec } from "./codec.ts";
-export { Server, SubscriberServer } from "./connection.ts";
+export {
+  Server,
+  SubscriberServer,
+  Connection,
+  Defer,
+  type DeferredCall,
+  type Response,
+  type Request,
+  type RequestHandler,
+} from "./connection.ts";
 export type { Publisher, Subscriber } from "./emitter.ts";
 export { LocalApp, LocalBrrr } from "./local-app.ts";
 export { NaiveJsonCodec } from "./naive-json-codec.ts";
 export type { Store, Cache } from "./store.ts";
 export { BrrrShutdownSymbol, BrrrTaskDoneEventSymbol } from "./symbol.ts";
-export { Dynamo } from "./backends/dynamo.ts";
-export { Redis } from "./backends/redis.ts";
 export {
-  InMemoryStore,
-  InMemoryCache,
-  InMemoryEmitter,
-} from "./backends/in-memory.ts";
+  NotFoundError,
+  CasRetryLimitReachedError,
+  SpawnLimitError,
+  TaskNotFoundError,
+  TagMismatchError,
+  MalformedTaggedTupleError,
+} from "./errors.ts";
