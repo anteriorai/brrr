@@ -6,6 +6,8 @@ import { decoder, encoder } from "./internal-codecs.ts";
 /**
  * Naive JSON codec that uses built-in `JSON` for serialization and deserialization.
  *
+ * You can provide a custom JSON implementation if you want to support more datatypes.
+ *
  * It tries its best to ensure that the serialized data is deterministic by
  * sorting object keys recursively before serialization, but it's not
  * reccommended for production use; the primary purpose of this codec is
@@ -16,9 +18,18 @@ export class NaiveJsonCodec implements Codec {
   public static readonly binaryToTextEncoding =
     "hex" satisfies BinaryToTextEncoding;
 
+  private readonly json: {
+    parse: (text: string) => unknown;
+    stringify: (value: unknown) => string;
+  };
+
+  public constructor(json: typeof this.json = JSON) {
+    this.json = json;
+  }
+
   public async decodeReturn(_: string, payload: Uint8Array): Promise<unknown> {
     const decoded = decoder.decode(payload);
-    return JSON.parse(decoded);
+    return this.json.parse(decoded);
   }
 
   public async encodeCall<A extends unknown[]>(
@@ -26,7 +37,7 @@ export class NaiveJsonCodec implements Codec {
     args: A,
   ): Promise<Call> {
     const sortedArgs = args.map(NaiveJsonCodec.sortObjectKeys);
-    const data = JSON.stringify(sortedArgs);
+    const data = this.json.stringify(sortedArgs);
     const payload = encoder.encode(data);
     const callHash = await this.hashCall(taskName, sortedArgs);
     return { taskName, payload, callHash };
@@ -37,9 +48,9 @@ export class NaiveJsonCodec implements Codec {
     task: (...args: A) => Promise<R>,
   ): Promise<Uint8Array> {
     const decoded = decoder.decode(call.payload);
-    const args = JSON.parse(decoded) as A;
+    const args = this.json.parse(decoded) as A;
     const result = await task(...args);
-    const resultJson = JSON.stringify(result);
+    const resultJson = this.json.stringify(result);
     return encoder.encode(resultJson);
   }
 
@@ -47,7 +58,7 @@ export class NaiveJsonCodec implements Codec {
     taskName: string,
     args: A,
   ): Promise<string> {
-    const data = JSON.stringify([taskName, args]);
+    const data = this.json.stringify([taskName, args]);
     return createHash(NaiveJsonCodec.algorithm)
       .update(data)
       .digest(NaiveJsonCodec.binaryToTextEncoding);
