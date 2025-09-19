@@ -6,22 +6,22 @@ jobs:
   nocommit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
       - name: "nocommit checker"
-        uses: nobssoftware/nocommit@v2
+        uses: nobssoftware/nocommit@3b921779b380d3faa9148dd88119e4cee5dc8456
 
   nix-flake-check:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-      - uses: cachix/install-nix-action@v31
+        uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
+      - uses: cachix/install-nix-action@7be5dee1421f63d07e71ce6e0a9f8a4b07c2a487
         with:
           enable_kvm: true
           extra_nix_config: "system-features = nixos-test benchmark big-parallel kvm"
       # Our private cache, feel free to substitute in a fork
-      - uses: cachix/cachix-action@v16
+      - uses: cachix/cachix-action@ee79db531bfb851a7cf47035057b7cca88d26449
         if: |
           ! (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'anteriorai/brrr')
         with:
@@ -36,9 +36,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
       # Use a different nix installer for safety
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v9
+        uses: DeterminateSystems/nix-installer-action@45a18a69953f27af3c2bfad0a5e01c38ef2da462
       # No need for a cache
       - run: nix flake show
