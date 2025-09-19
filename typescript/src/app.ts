@@ -150,11 +150,10 @@ export class ActiveWorker {
       const promise = new Promise<R>(async (resolve, reject) => {
         const call = await this.codec.encodeCall(taskName, args);
         const payload = await this.connection.memory.getValue(call.callHash);
-        if (!payload) {
-          reject(new Defer({ topic, call }));
-        } else {
+        if (payload) {
           resolve(this.codec.decodeReturn(taskName, payload) as R);
         }
+        reject(new Defer({ topic, call }));
       });
       promise.catch(() => {
         // noop to avoid unhandled promise rejection
