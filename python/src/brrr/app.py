@@ -294,6 +294,13 @@ class ActiveWorker:
         defers: list[DeferredCall] = []
         values = []
 
+        def unthrow_defer(coro):
+            try:
+                return Result(await coro)
+            except Defer as d:
+                return d
+
+        results = map(unthrow_defer, task_awaitables)
         for task_awaitable in task_awaitables:
             try:
                 values.append(await task_awaitable)
