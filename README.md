@@ -1,19 +1,17 @@
 # Brrr: high performance workflow scheduling
 
-Brrr is a POC for ultra scalable workflow scheduling.
-
 Differences between Brrr and other workflow schedulers:
 
-- Brrr is **queue & database agnostic**. Others lock you in to e.g. PostgreSQL, which inevitably becomes an unscalable point of failure.
-- Brrr **lets the queue & database provide stability & concurrency guarantees**. Others tend to reinvent the wheel and reimplement a half-hearted queue on top of a database. Brrr lets your queue and DB do what they do best.
-- Brrr **requires idempotency** of the call graph. It’s ok if your tasks return a different result per call, but the sub tasks they spin up must always be exactly the same, with the same inputs.
-- Brrr tasks **look sequential & blocking**. Your Python code looks like a simple linear function.
-- Brrr tasks **aren’t actually blocking** which means you don’t need to lock up RAM in your fleet equivalent to the entire call graph’s execution stack. In other words: A Brrr fleet’s memory usage is _O(fleet)_, not _O(call graph)_.
-- Brrr offers **no logging, monitoring, error handling, or tracing**. Brrr does one thing and one thing only: workflow scheduling. Bring Your Own Logging.
-- Brrr has **no agent**. Every worker connects directly to the underlying queue, jobs are scheduled by directly sending them to the queue. This allows _massive parallelism_: your only limit is your queue & DB capacity.
-- Brrr makes **no encoding choices**: the only datatype seen by Brrr is "array of bytes". You must Bring Your Own Encoder.
+- **Queue & database agnostic**. Others lock you in to e.g. PostgreSQL, which inevitably becomes an unscalable point of failure.
+- **The queue & database provide stability & concurrency guarantees**. Others tend to reinvent the wheel and reimplement a half-hearted queue on top of a database. Brrr lets your queue and DB do what they do best.
+- **Looks sequential & blocking**. Your Python code looks like a simple linear function.
+- **Not actually blocking**. You don’t need to lock up RAM in your fleet equivalent to the entire call graph’s execution stack. In other words: A Brrr fleet’s memory usage is _O(fleet)_, not _O(call graph)_.
+- **No logging, monitoring, error handling, or tracing**. Brrr does one thing and one thing only: workflow scheduling. Bring Your Own Logging.
+- **No agent**. Every worker connects directly to the underlying queue, jobs are scheduled by directly sending them to the queue. This allows _massive parallelism_: your only limit is your queue & DB capacity.
+- **No encoding choices**: the only datatype seen by Brrr is "array of bytes". You must Bring Your Own Encoder.
+- **Dynamic call graph**: no need to declare your dependencies in advance.
 
-N.B.: That last point means that you can use Brrr with SQS & DynamoDB to scale basically as far as your wallet can stretch without any further config.
+The lack of agent means that you can use Brrr with SQS & DynamoDB to scale basically as far as your wallet can stretch without any further config.
 
 To summarize, these elements are not provided, and you must Bring Your Own:
 
@@ -25,29 +23,11 @@ To summarize, these elements are not provided, and you must Bring Your Own:
 
 Brrr is a protocol that can be implemented in many languages. "It's just bytes on the wire."
 
-## Development
+## Python
 
-There is currently only one SDK implementation: Python, async.
+Brrr is a Python uv bundle which you can import and use directly.
 
-A Nix devshell is provided for Python which can be used for development and testing:
-
-```
-$ nix develop .#python
-```
-
-It uses [uv2nix](https://github.com/pyproject-nix/uv2nix) to parse the uv.lock file into a full-blown Nix managed development environment.
-
-A generic Nix devshell is provided with some tools on the path but without uv2nix, for managing the Python packages or fixing uv if the lock file breaks somehow (e.g. git conflicts):
-
-```
-$ nix develop
-```
-
-## Python Library
-
-Brrr is a dependency-free Python uv bundle which you can import and use directly.
-
-Look at the [`brrr_demo.py`](brrr_demo.py) file for a full demo.
+See the [`brrr_demo.py`](brrr_demo.py) file for a full demo.
 
 Highlights:
 
@@ -96,6 +76,26 @@ Benefit: your code looks intuitive.
 
 Drawback: the call graph must be idempotent, meaning: for the same inputs, a task must always call the same sub-tasks with the same arguments. It is allowed to return a different result each time.
 
+## Development
+
+There are two SDK implementations:
+
+- [Python](python), async
+- [TypeScript](typescript)
+
+A Nix devshell is provided for both languages which can be used for development and testing:
+
+```
+$ nix develop .#python # or
+$ nix develop .#typescript
+```
+
+A generic Nix devshell is provided with some tools on the path but without uv2nix, for managing the Python packages or fixing uv / NPM if the lock files break somehow (e.g. git conflicts):
+
+```
+$ nix develop
+```
+
 ## Demo
 
 Requires [Nix](https://nixos.org), with flakes enabled.
@@ -103,7 +103,7 @@ Requires [Nix](https://nixos.org), with flakes enabled.
 You can start the full demo without installation:
 
 ```
-$ nix run github:nobssoftware/brrr#demo
+$ nix run github:anteriorai/brrr#demo
 ```
 
 In the process list, select the worker process so you can see its output. Now in another terminal:
@@ -120,8 +120,40 @@ You can also run a Fibonacci job:
 $ curl 'http://localhost:8333/fib_and_print?n=11'
 ```
 
+## Implementation and Trade-Offs
+
+_Brrr avoids having to "pause" any parent task while waiting on child tasks, by instead aborting the parent task entirely and retrying again later._
+
+Fundamentally, that’s the MO. Most everything else flows from there.
+
+- Your tasks must be safe for re-execution (this is a good idea anyway in distributed systems)
+- Your tasks must be **deterministic in the call graph**. Tasks can dynamically specify their dependencies (by just calling them), but those must be the exact same dependencies with the exact same arguments every time the task is run with the same inputs.
+
+Additionally, there is no agent. Brrr works on the assumption that you can bring two pieces of infrastructure, with corresponding interface implementation:
+
+- A queue with topics (Redis implementation provided)
+- A k/v store with [CAS](https://en.wikipedia.org/wiki/Compare-and-swap) (DynamoDB implementation provided)
+
+The guarantees offered by these implementations are surfaced to the application layer. If your k/v store is write-after-write consistent, your application will have a consistent view of the call graph. If your store is eventually consistent, you may get contradicting results about dependents’ return values when a task is re-executed. This trade-off is yours to make.
+
+Finally, brrr has _0 or more delivery guarantee_. To give brrr a once-or-more delivery, put it behind a job queue which has that capability. E.g.: SQS. (It’s an open question whether an at-least-once delivery guarantee queue implementation also makes all of brrr at-least-once.)
+
+## Topics
+
+Brrr has no central scheduling agent. Workers contend for the same jobs and the only differentiation is through queue topics: e.g. you could have
+
+- `memory-intensive`
+- `egress-access`
+- `typescript`
+
+Workers have to specify on which topic(s) they listen, and once a worker listens on a topic it must be able to handle _every_ incoming job.
+
 ## Copyright & License
 
-Brrr was written by Robin Lewis and Jesse Zwaan. It is available under the AGPLv3 license (not later).
+Brrr is authored by [Anterior](https://anterior.com), based in NYC, USA.
+
+**We’re hiring!** If you got this far, e-mail us at hiring+oss@anterior.com and mention brrr.
+
+The code is available under the AGPLv3 license (not later).
 
 See the [LICENSE](LICENSE) file.
