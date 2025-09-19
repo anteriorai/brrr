@@ -183,19 +183,18 @@ export class ActiveWorker {
   public async gather<T>(...promises: Promise<T>[]): Promise<Awaited<T>[]> {
     const deferredCalls: DeferredCall[] = [];
     const values: Awaited<T>[] = [];
-    for (const promise of promises) {
-      try {
-        values.push(await promise);
-      } catch (err) {
-        if (!(err instanceof Defer)) {
-          throw err;
-        }
-        deferredCalls.push(...err.calls);
+    async function unthrowDefer(e) {
+      if (e instanceof Defer) {
+        return { type: "defer", value: e };
       }
+      throw e;
     }
-    if (deferredCalls.length) {
-      throw new Defer(...deferredCalls);
-    }
-    return values;
+    function asResult = value => { type: "result", value, };
+    const results = await Promise.all(promises.map(p => p.then(asResult, unthrowDefer)));
+    const { defer, result } = results.groupBy(x => x.type);
+    if (defer.length > 0) {
+      throw new Defer(Array.flatten(d => d.calls));
+    };
+    return result;
   }
 }
