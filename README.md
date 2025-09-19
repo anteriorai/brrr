@@ -136,7 +136,9 @@ Additionally, there is no agent. Brrr works on the assumption that you can bring
 
 The guarantees offered by these implementations are surfaced to the application layer. If your k/v store is write-after-write consistent, your application will have a consistent view of the call graph. If your store is eventually consistent, you may get contradicting results about dependents’ return values when a task is re-executed. This trade-off is yours to make.
 
-Finally, brrr has _0 or more delivery guarantee_. To give brrr a once-or-more delivery, put it behind a job queue which has that capability. E.g.: SQS. (It’s an open question whether an at-least-once delivery guarantee queue implementation also makes all of brrr at-least-once.)
+Finally, brrr has _0 or more delivery guarantee_. To give brrr a once-or-more delivery, put it behind a job queue which has that capability. E.g.: SQS.
+
+Using a queue with at-least-once delivery as the brrr queue itself is _not_ enough to make the entire system at-least-once delivery: brrr does not carry around receipt handles for internal messages.
 
 ## Topics
 
