@@ -26,7 +26,8 @@
     "build": "tsc",
     "test": "node --test 'src/**/*.test.ts'",
     "test:watch": "node --test --watch 'src/**/*.test.ts'",
-    "test:integration": "node --test 'src/**/*.test-integration.ts'"
+    "test:integration": "node --test 'src/**/*.test-integration.ts'",
+    "prepack": "for f in ../README.md ../LICENSE ; do [ -f $f ] && cp $f . ; done"
   },
   "repository": "git+https://github.com/anteriorai/brrr",
   "engines": {
