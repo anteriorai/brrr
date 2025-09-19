@@ -14,21 +14,21 @@ jobs:
       run:
         working-directory: "typescript"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
         with:
           # for npm-version-to-git
           fetch-depth: 0
-      - uses: cachix/install-nix-action@v31
+      - uses: cachix/install-nix-action@v7be5dee1421f63d07e71ce6e0a9f8a4b07c2a487
         with:
           enable_kvm: true
           extra_nix_config: "system-features = nixos-test benchmark big-parallel kvm"
       # Our private cache, feel free to substitute in a fork
-      - uses: cachix/cachix-action@v16
+      - uses: cachix/cachix-action@ee79db531bfb851a7cf47035057b7cca88d26449
         with:
           name: anterior-private
           signingKey: "${{ secrets.CACHIX_SIGNING_KEY }}"
           authToken: "${{ secrets.CACHIX_AUTH_TOKEN }}"
-      - uses: nicknovitski/nix-develop@v1.2.0
+      - uses: nicknovitski/nix-develop@v5da6ac475f1ffbcf54ee562fa3056646e146be95
       - run: |
           npm config set registry https://registry.npmjs.org
       - run: npm ci
