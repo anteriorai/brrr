@@ -2,6 +2,7 @@
 
 import ast
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -19,7 +20,8 @@ from aiohttp import web
 from brrr import ActiveWorker, AppWorker, NotFoundError
 from brrr.backends.dynamo import DynamoDbMemStore
 from brrr.backends.redis import RedisQueue
-from brrr.pickle_codec import PickleCodec
+from brrr.call import Call
+from brrr.codec import Codec
 from types_aiobotocore_dynamodb import DynamoDBClient
 
 logger = logging.getLogger(__name__)
@@ -33,7 +35,7 @@ brrr_app: ContextVar[AppWorker] = ContextVar("brrr_demo.app")
 
 @brrr.handler
 async def fib_and_print(app: ActiveWorker, n: str, salt=None):
-    f = await app.call("fib", topic="brrr-demo-side")(int(n), salt)
+    f = await app.call("fib", topic="brrr-demo-side")(n=int(n), salt=salt)
     print(f"fib({n}) = {f}", flush=True)
     return f
 
@@ -46,17 +48,51 @@ async def hello(greetee: str):
 
 
 @brrr.handler
+async def lucas_and_print(app: ActiveWorker, n: str, salt=None):
+    lucas = await app.call("lucas", topic="brrr-ts-demo-main")(n=int(n), salt=salt)
+    print(f"lucas({n}) = {lucas}", flush=True)
+    return lucas
+
+
+@brrr.handler
 async def fib(app: ActiveWorker, n: int, salt=None):
     match n:
         case 0 | 1:
             return n
         case _:
-            return sum(
-                await app.gather(
-                    app.call(fib)(n - 2, salt),
-                    app.call(fib)(n - 1, salt),
-                )
+            values = await app.gather(
+                app.call(fib)(n=n - 2, salt=salt),
+                app.call(fib)(n=n - 1, salt=salt),
             )
+            return await app.call("sum", topic="brrr-ts-demo-main")(values=values)
+
+
+def _json_bytes(value) -> bytes:
+    return json.dumps(value, sort_keys=True).encode()
+
+
+def _hash_call(task_name: str, kwargs: dict) -> str:
+    data = [task_name, [kwargs]]
+    h = hashlib.new("sha256")
+    h.update(_json_bytes(data))
+    return h.hexdigest()
+
+
+class JsonKwargsCodec(Codec):
+    def encode_call(self, task_name: str, args: tuple, kwargs: dict) -> Call:
+        if args:
+            raise ValueError("This codec only supports keyword arguments")
+        payload = _json_bytes([kwargs])
+        call_hash = _hash_call(task_name, kwargs)
+        return Call(task_name=task_name, payload=payload, call_hash=call_hash)
+
+    async def invoke_task(self, call: Call, task) -> bytes:
+        [kwargs] = json.loads(call.payload.decode())
+        result = await task(**kwargs)
+        return _json_bytes(result)
+
+    def decode_return(self, task_name: str, payload: bytes) -> Any:
+        return json.loads(payload.decode())
 
 
 ### Brrr setup
@@ -122,10 +158,11 @@ async def with_brrr(
             app = AppWorker(
                 handlers=dict(
                     fib_and_print=fib_and_print,
+                    lucas_and_print=lucas_and_print,
                     hello=hello,
                     fib=fib,
                 ),
-                codec=PickleCodec(),
+                codec=JsonKwargsCodec(),
                 connection=conn,
             )
             token = brrr_app.set(app)

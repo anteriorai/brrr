@@ -60,12 +60,19 @@
             self',
             ...
           }:
+          let
+            mkDemoLayeredImage = (
+              name:
+              pkgs.dockerTools.buildLayeredImage {
+                inherit name;
+                tag = "latest";
+                config.Entrypoint = [ (lib.getExe self'.packages.${name}) ];
+              }
+            );
+          in
           lib.mkIf pkgs.stdenv.isLinux {
-            packages.docker = pkgs.dockerTools.buildLayeredImage {
-              name = "brrr-demo";
-              tag = "latest";
-              config.Entrypoint = [ "${lib.getExe self'.packages.brrr-demo}" ];
-            };
+            packages.docker-py = mkDemoLayeredImage "brrr-demo-py";
+            packages.docker-ts = mkDemoLayeredImage "brrr-demo-ts";
           };
       };
       # flake.parts module for any system
@@ -106,14 +113,18 @@
                       enable = true;
                       args = [ "-disableTelemetry" ];
                     };
-                    brrr-demo.worker = {
-                      package = self.packages.${pkgs.system}.brrr-demo;
+                    brrr-demo.server = {
+                      package = self.packages.${pkgs.system}.brrr-demo-py;
+                      args = [ "web_server" ];
+                      environment = demoEnv;
+                    };
+                    brrr-demo.worker-py = {
+                      package = self.packages.${pkgs.system}.brrr-demo-py;
                       args = [ "brrr_worker" ];
                       environment = demoEnv;
                     };
-                    brrr-demo.server = {
-                      package = self.packages.${pkgs.system}.brrr-demo;
-                      args = [ "web_server" ];
+                    brrr-demo.worker-ts = {
+                      package = self.packages.${pkgs.system}.brrr-demo-ts;
                       environment = demoEnv;
                     };
                   };
@@ -173,7 +184,8 @@
                 ];
                 cli.options.no-server = true;
                 services.brrr-demo.server.enable = true;
-                services.brrr-demo.worker.enable = true;
+                services.brrr-demo.worker-py.enable = true;
+                services.brrr-demo.worker-ts.enable = true;
               };
               process-compose.deps = {
                 imports = [
@@ -182,7 +194,8 @@
                 ];
                 cli.options.no-server = true;
                 services.brrr-demo.server.enable = false;
-                services.brrr-demo.worker.enable = false;
+                services.brrr-demo.worker-py.enable = false;
+                services.brrr-demo.worker-ts.enable = false;
               };
               treefmt = import ./nix/treefmt.nix;
               packages = {
@@ -193,7 +206,7 @@
                 inherit (brrr-ts) npm-version-to-git;
                 default = brrrpy.brrr-venv;
                 # Stand-alone brrr_demo.py script
-                brrr-demo = pkgs.stdenvNoCC.mkDerivation {
+                brrr-demo-py = pkgs.stdenvNoCC.mkDerivation {
                   name = "brrr-demo.py";
                   dontUnpack = true;
                   installPhase = ''
@@ -205,6 +218,7 @@
                   # the interpreter for the demo script.
                   meta.mainProgram = "brrr_demo.py";
                 };
+                brrr-demo-ts = brrr-ts.overrideAttrs { meta.mainProgram = "brrr-demo"; };
                 # Best-effort package for convenience, zero guarantees, could
                 # disappear at any time.
                 nix-flake-check-changed = pkgs.callPackage ./nix-flake-check-changed/package.nix { };
@@ -223,6 +237,14 @@
                       help = "Start all dependent services without any brrr workers / server";
                       command = ''
                         nix run .#deps
+                      '';
+                    }
+                    {
+                      name = "brrr-demo-full";
+                      category = "demo";
+                      help = "Launch a full demo locally";
+                      command = ''
+                        nix run .#demo
                       '';
                     }
                   ];
@@ -309,32 +331,6 @@
                             ${mkEnvs (sharedEnvs // { AWS_DEFAULT_REGION = "us-east-1"; })}
                             exec pytest "$@"
                           )'';
-                      }
-                      # Always build aarch64-linux
-                      {
-                        name = "brrr-build-docker";
-                        category = "build";
-                        help = "Build and load a Docker image (requires a Nix Linux builder)";
-                        command =
-                          let
-                            drv = self'.packages.docker;
-                          in
-                          ''
-                            (
-                              set -o pipefail
-                              if nix build --no-link --print-out-paths .#packages.aarch64-linux.docker | xargs -r docker load -i; then
-                                echo 'Start a new worker with `docker run <image name>`'
-                              fi
-                            )
-                          '';
-                      }
-                      {
-                        name = "brrr-demo-full";
-                        category = "demo";
-                        help = "Launch a full demo locally";
-                        command = ''
-                          nix run .#demo
-                        '';
                       }
                     ]
                     ++ sharedCommands;
