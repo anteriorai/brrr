@@ -317,13 +317,13 @@ class MemoryContract(ByteStoreContract):
             with pytest.raises(FakeError):
 
                 async def body(keys) -> None:
-                    assert set(keys) == {one, two, three, four, five}
+                    assert set(keys) == {one, three, four, five}
                     raise FakeError()
 
                 await memory.with_pending_returns_remove("key", body)
 
             async def body2(keys) -> None:
-                assert set(keys) == {one, two, three, four, five}
+                assert set(keys) == {one, three, four, five}
 
             await memory.with_pending_returns_remove("key", body2)
 

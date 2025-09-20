@@ -299,10 +299,16 @@ class Memory:
 
         """
 
-        def is_repeated_call(existing: PendingReturn) -> bool:
+        def should_force_retry(existing: PendingReturn) -> bool:
             return (
                 existing.root_id != new_return.root_id
                 and existing.call_hash == new_return.call_hash
+                and existing.topic == new_return.topic
+            )
+
+        def dont_add_return(existing: PendingReturn) -> bool:
+            return (
+                existing.call_hash == new_return.call_hash
                 and existing.topic == new_return.topic
             )
 
@@ -323,9 +329,13 @@ class Memory:
                 await self.store.set_new_value(memkey, existing_enc)
                 return True
 
-            should_schedule = any(map(is_repeated_call, existing.returns))
-            existing.returns.add(new_return)
-            await self.store.compare_and_set(memkey, existing.encode(), existing_enc)
+            should_schedule = any(map(should_force_retry, existing.returns))
+            should_add_return = not any(map(dont_add_return, existing.returns))
+            if should_add_return:
+                existing.returns.add(new_return)
+                await self.store.compare_and_set(
+                    memkey, existing.encode(), existing_enc
+                )
             return should_schedule
 
         return await self._with_cas(cas_body)
