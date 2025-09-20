@@ -432,6 +432,7 @@ async def test_debounce_child(topic: str, task_name: str) -> None:
     @brrr.handler
     async def foo(app: ActiveWorker, a: int) -> int:
         calls[a] += 1
+        await asyncio.sleep(0.1)
         if a == 0:
             return a
 
@@ -464,6 +465,51 @@ async def test_no_debounce_parent(topic: str) -> None:
 
     # We want foo=2 here
     assert calls == Counter(one=50, foo=51)
+
+
+# This test formalizes a nice-to-have: parents of different root id but with the
+# same topic and call hash (i.e. the same call, but directly or indirectly
+# scheduled multiple times concurrently by the brrr user) to the same pending
+# nested call get debounced into a single call back to the parent.  The problem
+# with this test itself is that it relies on careful ordering of the messages on
+# the queue and brrr’s handling of them.  That’s not guaranteed, and if one day
+# e.g. brrr starts to greedy resolve child calls on the same worker, this test
+# might fail while the behavior would still be valid.
+async def test_debounce_parent_same_child(topic: str) -> None:
+    store = InMemoryByteStore()
+    queue = InMemoryQueue([topic])
+    calls = Counter[str]()
+    N = 100
+
+    @brrr.handler_no_arg
+    async def one(_: int) -> int:
+        calls["one"] += 1
+        return 1
+
+    @brrr.handler
+    async def foo(app: ActiveWorker, a: int) -> int:
+        calls["foo(pre)"] += 1
+        res = await app.call(one)(a)
+        calls["foo(post)"] += 1
+        await queue.close()
+        return res
+
+    async with brrr.serve(queue, store, store) as conn:
+        app = AppWorker(
+            handlers=dict(foo=foo, one=one), codec=PickleCodec(), connection=conn
+        )
+        await asyncio.gather(
+            *map(app.schedule(foo, topic=topic), (10 for _ in range(N)))
+        )
+        await conn.loop(topic, app.handle)
+
+    assert calls == Counter(
+        {
+            "one": N,
+            "foo(pre)": N + 1,
+            "foo(post)": 1,
+        }
+    )
 
 
 async def test_app_loop_resumable(topic: str) -> None:
