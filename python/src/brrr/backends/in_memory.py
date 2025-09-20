@@ -89,6 +89,40 @@ class InMemoryQueue(Queue):
         self._flushing = True
 
 
+class AutoClosingQueue(InMemoryQueue):
+    """In-memory queue which closes itself after a set timeout lack of activity.
+
+    Only provided for testing, use at your own risk.
+
+    """
+
+    def __init__(self, *, topics: Sequence[str], timeout=0.5):
+        super().__init__(topics=topics)
+        self.timeout = timeout
+        self._start_countdown()
+
+    async def _wait_and_close(self):
+        await asyncio.sleep(self.timeout)
+        await self.close()
+
+    def _start_countdown(self):
+        self._countdown = asyncio.create_task(self._wait_and_close())
+
+    def _reset_countdown(self):
+        self._countdown.cancel()
+        self._start_countdown()
+
+    @typing.override
+    async def get_message(self, topic: str) -> Message:
+        self._reset_countdown()
+        return await super().get_message(topic)
+
+    @typing.override
+    async def put_message(self, topic: str, body: str) -> None:
+        self._reset_countdown()
+        return await super().put_message(topic, body)
+
+
 def _key2str(key: MemKey) -> str:
     return f"{key.type}/{key.call_hash}"
 
