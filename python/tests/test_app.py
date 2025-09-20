@@ -131,7 +131,7 @@ async def _call_nested_gather(
         typing.assert_type(result, list[int])
         return result
 
-    handlers = dict(foo=foo, bar=bar, top=top)
+    handlers = {name_foo: foo, name_bar: bar, name_top: top}
     b = LocalBrrr(topic=topic, handlers=handlers, codec=PickleCodec())
     await b.run(top)([3, 4])
 
