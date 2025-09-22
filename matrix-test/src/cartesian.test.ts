@@ -2,6 +2,9 @@ import { suite, test } from "node:test";
 import { cartesian } from "./cartesian.ts";
 import { deepStrictEqual } from "node:assert";
 
+/**
+ * Make sure the types of `actual` and `expected` are the same.
+ */
 function deepStrictEqualWithTypes<const T>(actual: T, expected: T): void {
   deepStrictEqual(actual, expected);
 }
