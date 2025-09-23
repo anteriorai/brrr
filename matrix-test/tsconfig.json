@@ -8,7 +8,6 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
-    "preserveSymlinks": true,
 
     /* Strictness */
     "strict": true,

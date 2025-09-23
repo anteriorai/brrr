@@ -29,7 +29,7 @@ export type Combinations<M extends Matrix> = Combination<M>[];
 export function combinations<const M extends Matrix>(
   matrix: M,
 ): Combinations<M> {
-  let combinations = [{} as Combination<M>];
+  let combinations = [{}] as Combinations<M>;
 
   for (const key of Object.keys(matrix)) {
     const next: Combinations<M> = [];
