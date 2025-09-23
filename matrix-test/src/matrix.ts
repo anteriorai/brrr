@@ -1,5 +1,5 @@
 /**
- * GitHub-style matrix type
+ * Inspired by GitHub actions' matrix strategy
  */
 export type Matrix = Record<string, readonly any[]>;
 
