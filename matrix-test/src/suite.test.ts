@@ -11,6 +11,10 @@ await suite(import.meta.filename, async () => {
 
   const combinationsExpected = combinations(matrix);
 
+  const suiteNamesExpected = combinationsExpected.map(
+    ({ os, arch }) => `os=${os},arch=${arch}`,
+  );
+
   await test(matrixSuite.name, async () => {
     const combinations: unknown[] = [];
     await matrixSuite("matrix suite", matrix, async (_, combination) => {
@@ -21,10 +25,16 @@ await suite(import.meta.filename, async () => {
 
   await test(createMatrixSuite.name, async () => {
     const combinations: unknown[] = [];
-    const suite = createMatrixSuite(matrix);
-    await suite("matrix suite", async (_, combination) => {
+    const names: string[] = [];
+
+    const suite = createMatrixSuite(matrix, (combination) => {
+      return `os=${combination.os},arch=${combination.arch}`;
+    });
+    await suite("matrix suite", async (context, combination) => {
       combinations.push(combination);
+      names.push(context.name);
     });
     deepStrictEqual(combinations, combinationsExpected);
+    deepStrictEqual(names, suiteNamesExpected);
   });
 });
