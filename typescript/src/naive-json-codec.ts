@@ -3,6 +3,11 @@ import type { Call } from "./call.ts";
 import type { Codec } from "./codec.ts";
 import { decoder, encoder } from "./internal-codecs.ts";
 
+type Json = {
+  parse: <T = unknown>(text: string) => T;
+  stringify: (value: unknown) => string;
+};
+
 /**
  * Naive JSON codec that uses built-in `JSON` for serialization and deserialization.
  *
@@ -18,12 +23,9 @@ export class NaiveJsonCodec implements Codec {
   public static readonly binaryToTextEncoding =
     "hex" satisfies BinaryToTextEncoding;
 
-  private readonly json: {
-    parse: (text: string) => unknown;
-    stringify: (value: unknown) => string;
-  };
+  private readonly json: Json;
 
-  public constructor(json: typeof this.json = JSON) {
+  public constructor(json: Json = JSON) {
     this.json = json;
   }
 
@@ -54,7 +56,7 @@ export class NaiveJsonCodec implements Codec {
     return encoder.encode(resultJson);
   }
 
-  private async hashCall<A extends unknown>(
+  protected async hashCall<A extends unknown>(
     taskName: string,
     args: A,
   ): Promise<string> {
@@ -64,7 +66,7 @@ export class NaiveJsonCodec implements Codec {
       .digest(NaiveJsonCodec.binaryToTextEncoding);
   }
 
-  private static sortObjectKeys<T>(unordered: T): T {
+  protected static sortObjectKeys<T>(unordered: T): T {
     if (!unordered || typeof unordered !== "object") {
       return unordered;
     }
