@@ -23,7 +23,7 @@ jobs:
       # Our private cache, feel free to substitute in a fork
       - uses: cachix/cachix-action@ee79db531bfb851a7cf47035057b7cca88d26449
         if: |
-          ! (github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'anteriorai/brrr')
+          ! (github.triggering_actor == 'dependabot[bot]' && github.repository == 'anteriorai/brrr')
         with:
           name: anterior-private
           signingKey: "${{ secrets.CACHIX_SIGNING_KEY }}"
