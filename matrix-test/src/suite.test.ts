@@ -1,7 +1,7 @@
 import { suite, test } from "node:test";
 import { createMatrixSuite, matrixSuite } from "./suite.ts";
 import { deepStrictEqual } from "node:assert";
-import { type Combination, combinations } from "./matrix.ts";
+import { type Combination } from "./matrix.ts";
 
 await suite(import.meta.filename, async () => {
   const matrix = {
@@ -13,7 +13,12 @@ await suite(import.meta.filename, async () => {
     return `os=${combination.os},arch=${combination.arch}`;
   }
 
-  const combinationsExpected = combinations(matrix);
+  const combinationsExpected = [
+    { os: "linux", arch: "x64" },
+    { os: "linux", arch: "arm64" },
+    { os: "windows", arch: "x64" },
+    { os: "windows", arch: "arm64" },
+  ] as const;
 
   const suiteNamesExpected = combinationsExpected.map(makeTestName);
 
