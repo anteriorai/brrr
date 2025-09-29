@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
       - name: "nocommit checker"
-        uses: nobssoftware/nocommit@3b921779b380d3faa9148dd88119e4cee5dc8456
+        uses: nobssoftware/nocommit@5c3cf9519fe40b80b0954d254085b67b532a5dc3
 
   nix-flake-check:
     timeout-minutes: 60
