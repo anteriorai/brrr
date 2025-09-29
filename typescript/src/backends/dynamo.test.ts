@@ -26,9 +26,8 @@ await suite(import.meta.filename, async () => {
   await test("Don't retry DynamoDB GET on found", async () => {
     const mockClient = {
       send: mock.fn(async () => {
-          return { Item: { value: new Uint8Array([1, 2, 3]) } };
-        }
-      ),
+        return { Item: { value: new Uint8Array([1, 2, 3]) } };
+      }),
     };
 
     const dynamo = new Dynamo(mockClient as any, randomUUID());
