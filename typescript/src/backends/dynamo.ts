@@ -19,8 +19,11 @@ export class Dynamo implements Store {
   private readonly client: DynamoDBDocumentClient;
   private readonly tableName: string;
 
-  public constructor(dynamoDbClient: DynamoDBClient, tableName: string) {
-    this.client = DynamoDBDocumentClient.from(dynamoDbClient);
+  public constructor(
+    dynamoDbDocumentClient: DynamoDBDocumentClient,
+    tableName: string,
+  ) {
+    this.client = dynamoDbDocumentClient;
     this.tableName = tableName;
   }
 
@@ -36,13 +39,7 @@ export class Dynamo implements Store {
   }
 
   public async get(key: MemKey): Promise<Uint8Array | undefined> {
-    const { Item } = await this.client.send(
-      new GetCommand({
-        TableName: this.tableName,
-        Key: this.key(key),
-      }),
-    );
-    return Item?.value;
+    return await this.getWithRetry(key, 5, 100, 2);
   }
 
   public async set(key: MemKey, value: Uint8Array): Promise<void> {
@@ -180,5 +177,24 @@ export class Dynamo implements Store {
       pk: key.callHash,
       sk: key.type,
     };
+  }
+
+  private async getWithRetry(
+    key: MemKey,
+    maxRetries = 5,
+    waitTimeMs = 100,
+    factor = 2,
+  ): Promise<Uint8Array | undefined> {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      const { Item } = await this.client.send(
+        new GetCommand({ TableName: this.tableName, Key: this.key(key) }),
+      );
+      if (Item?.value) return Item.value;
+
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, waitTimeMs));
+        waitTimeMs *= factor;
+      }
+    }
   }
 }

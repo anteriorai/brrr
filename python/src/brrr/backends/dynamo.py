@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 import typing
 
+from util.retry import async_retry_on_exception
+
 from ..store import CompareMismatch, MemKey, NotFoundError, Store
 
 if typing.TYPE_CHECKING:
@@ -49,6 +51,9 @@ class DynamoDbMemStore(Store):
             Key=self.key(key),
         )
 
+    @async_retry_on_exception(
+        exception=NotFoundError, max_retries=5, wait_time_ms=100, factor=2
+    )
     async def get(self, key: MemKey) -> bytes:
         response = await self.client.get_item(
             TableName=self.table_name,
