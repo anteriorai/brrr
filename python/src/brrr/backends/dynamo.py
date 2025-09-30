@@ -86,13 +86,6 @@ class DynamoDbMemStore(Store):
             Key=self.key(key),
         )
 
-    @async_retry_on_exception(
-        exception=NotFoundError,
-        max_retries=30,
-        base_delay=25,
-        factor=2,
-        max_backoff_ms=20000,
-    )
     async def get(self, key: MemKey) -> bytes:
         response = await self.client.get_item(
             TableName=self.table_name,
@@ -103,6 +96,16 @@ class DynamoDbMemStore(Store):
             raise NotFoundError(key)
         logger.debug(f"getting key: {key}: found")
         return response["Item"]["value"]["B"]
+
+    @async_retry_on_exception(
+        exception=NotFoundError,
+        max_retries=30,
+        base_delay=25,
+        factor=2,
+        max_backoff_ms=20000,
+    )
+    async def get_with_retry(self, key: MemKey) -> bytes:
+        return await self.get(key)
 
     async def set(self, key: MemKey, value: bytes) -> None:
         await self.client.put_item(

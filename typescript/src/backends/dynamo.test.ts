@@ -18,7 +18,10 @@ await suite(import.meta.filename, async () => {
     };
 
     const dynamo = new Dynamo(mockClient as any, randomUUID());
-    const result = await dynamo.get({ type: "call", callHash: "testHash" });
+    const result = await dynamo.getWithRetry({
+      type: "call",
+      callHash: "testHash",
+    });
 
     deepStrictEqual(result, new Uint8Array([1, 2, 3]));
     strictEqual(callCount, 2);
@@ -31,7 +34,10 @@ await suite(import.meta.filename, async () => {
     };
 
     const dynamo = new Dynamo(mockClient as any, randomUUID());
-    const result = await dynamo.get({ type: "call", callHash: "testHash" });
+    const result = await dynamo.getWithRetry({
+      type: "call",
+      callHash: "testHash",
+    });
 
     deepStrictEqual(result, new Uint8Array([1, 2, 3]));
     strictEqual(mockClient.send.mock.calls.length, 1);

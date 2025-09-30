@@ -38,7 +38,7 @@ class TestDynamoByteStoreUnit:
 
         mock_dynamo_mem_store = DynamoDbMemStore(mock_client, "table")
         mock_key = MemKey("type", "call_hash")
-        await mock_dynamo_mem_store.get(mock_key)
+        await mock_dynamo_mem_store.get_with_retry(mock_key)
 
         assert mock_client.get_item.call_count == 1
         mock_client.get_item.assert_called_with(
@@ -58,7 +58,7 @@ class TestDynamoByteStoreUnit:
 
         mock_dynamo_mem_store = DynamoDbMemStore(mock_client, "table")
         mock_key = MemKey("type", "call_hash")
-        await mock_dynamo_mem_store.get(mock_key)
+        await mock_dynamo_mem_store.get_with_retry(mock_key)
 
         assert mock_client.get_item.call_count == 3
         assert mock_client.get_item.call_args_list == [
@@ -82,4 +82,4 @@ class TestDynamoByteStoreUnit:
         mock_dynamo_mem_store = DynamoDbMemStore(mock_client, "table")
 
         with pytest.raises(KeyError):
-            await mock_dynamo_mem_store.get(MemKey("type", "call_hash"))
+            await mock_dynamo_mem_store.get_with_retry(MemKey("type", "call_hash"))
