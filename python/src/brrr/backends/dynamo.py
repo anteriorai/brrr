@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 def async_retry_on_exception(
-    exception: Exception,
+    exception: type[Exception],
     max_retries: int,
     base_delay: int,
     factor: int,
