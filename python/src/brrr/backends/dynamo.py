@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import functools
 import logging
 import typing
-
-from util.retry import async_retry_on_exception
 
 from ..store import CompareMismatch, MemKey, NotFoundError, Store
 
@@ -34,6 +34,41 @@ logger = logging.getLogger(__name__)
 #   value: bytes (pickled)
 #
 # TODO It is possible we'll add versioning in there as pk or somethin
+
+
+def async_retry_on_exception(
+    exception: Exception,
+    max_retries: int,
+    base_delay: int,
+    factor: int,
+    max_backoff_ms: int,
+):
+    def decorator(func):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            retries = 0
+            while True:
+                try:
+                    return await func(*args, **kwargs)
+                except exception as e:
+                    retries += 1
+                    if retries > max_retries:
+                        raise
+
+                    logger.warning(
+                        f"Retrying {func.__name__} after {e}, "
+                        f"attempt {retries}/{max_retries}"
+                    )
+
+                    await asyncio.sleep(
+                        min(base_delay * (factor ** (retries)), max_backoff_ms) / 1000
+                    )
+
+        return wrapper
+
+    return decorator
+
+
 class DynamoDbMemStore(Store):
     client: DynamoDBClient
     table_name: str
@@ -52,7 +87,11 @@ class DynamoDbMemStore(Store):
         )
 
     @async_retry_on_exception(
-        exception=NotFoundError, max_retries=5, wait_time_ms=100, factor=2
+        exception=NotFoundError,
+        max_retries=30,
+        base_delay=25,
+        factor=2,
+        max_backoff_ms=20000,
     )
     async def get(self, key: MemKey) -> bytes:
         response = await self.client.get_item(
