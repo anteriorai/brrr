@@ -17,7 +17,7 @@ from brrr import (
     Request,
     Response,
 )
-from brrr.backends.in_memory import InMemoryByteStore, InMemoryQueue
+from brrr.backends.in_memory import AutoClosingQueue, InMemoryByteStore, InMemoryQueue
 from brrr.local_app import LocalBrrr, local_app
 from brrr.pickle_codec import PickleCodec
 
@@ -131,7 +131,7 @@ async def _call_nested_gather(
         typing.assert_type(result, list[int])
         return result
 
-    handlers = dict(foo=foo, bar=bar, top=top)
+    handlers = {name_foo: foo, name_bar: bar, name_top: top}
     b = LocalBrrr(topic=topic, handlers=handlers, codec=PickleCodec())
     await b.run(top)([3, 4])
 
@@ -391,7 +391,7 @@ async def test_parallel(topic: str, task_name: str, use_gather: bool) -> None:
 
 async def test_stress_parallel(topic: str, task_name: str) -> None:
     store = InMemoryByteStore()
-    queue = InMemoryQueue([topic])
+    queue = AutoClosingQueue(topics=[topic], timeout=0.1)
 
     name_top, name_fib = names(task_name, ("top", "fib"))
 
@@ -422,15 +422,7 @@ async def test_stress_parallel(topic: str, task_name: str) -> None:
         )
         await app.schedule(top, topic=topic)()
 
-        # Terrible hack: because we don’t do proper parent debouncing, this stress
-        # test ends up with a metric ton of duplicate calls.
-        async def wait_and_close() -> None:
-            await asyncio.sleep(1)
-            await queue.close()
-
-        await asyncio.gather(
-            *([conn.loop(topic, app.handle) for _ in range(10)] + [wait_and_close()])
-        )
+        await asyncio.gather(*(conn.loop(topic, app.handle) for _ in range(10)))
         await queue.join()
 
 
