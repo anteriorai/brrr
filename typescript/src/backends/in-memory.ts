@@ -44,6 +44,10 @@ export class InMemoryStore implements Store {
     return this.store.get(keyStr);
   }
 
+  public async getWithRetry(key: MemKey): Promise<Uint8Array | undefined> {
+    return this.get(key)
+  }
+
   public async has(key: MemKey): Promise<boolean> {
     const keyStr = this.keyToString(key);
     return this.store.has(keyStr);
