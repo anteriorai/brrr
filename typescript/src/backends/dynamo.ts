@@ -50,15 +50,16 @@ export class Dynamo implements Store {
     factor: number = 2,
     maxBackoffMs: number = 20000,
   ): Promise<Uint8Array | undefined> {
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    let attempt = 0;
+    while (true) {
       const { Item } = await this.runGet(key);
       if (Item?.value) return Item.value;
 
-      if (attempt < maxRetries) {
-        await new Promise((r) =>
-          setTimeout(r, Math.min(baseDelay * factor ** attempt, maxBackoffMs)),
-        );
-      }
+      if (attempt++ >= maxRetries) break;
+
+      await new Promise((r) =>
+        setTimeout(r, Math.min(baseDelay * factor ** attempt, maxBackoffMs)),
+      );
     }
   }
 
