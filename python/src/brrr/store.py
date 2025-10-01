@@ -105,6 +105,10 @@ class Store(ABC):
         raise NotImplementedError()
 
     @abstractmethod
+    async def get_with_retry(self, key: MemKey) -> bytes:
+        raise NotImplementedError()
+
+    @abstractmethod
     async def set(self, key: MemKey, value: bytes):
         """Set a value, overriding any existing value if present.
 
@@ -197,7 +201,7 @@ class Memory:
         self.store = store
 
     async def get_call(self, call_hash: str) -> Call:
-        enc = await self.store.get(MemKey("call", call_hash))
+        enc = await self.store.get_with_retry(MemKey("call", call_hash))
         decoded = bencodepy.decode(enc)
         task_name = decoded[b"task_name"]
         payload = decoded[b"payload"]
