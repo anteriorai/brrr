@@ -46,7 +46,7 @@ export class Dynamo implements Store {
   public async getWithRetry(
     key: MemKey,
     maxRetries: number = 30,
-    baseDelay: number = 25,
+    baseDelayMs: number = 25,
     factor: number = 2,
     maxBackoffMs: number = 20000,
   ): Promise<Uint8Array | undefined> {
@@ -58,7 +58,7 @@ export class Dynamo implements Store {
       if (attempt++ >= maxRetries) break;
 
       await new Promise((r) =>
-        setTimeout(r, Math.min(baseDelay * factor ** attempt, maxBackoffMs)),
+        setTimeout(r, Math.min(baseDelayMs * factor ** attempt, maxBackoffMs)),
       );
     }
   }
@@ -201,7 +201,7 @@ export class Dynamo implements Store {
   }
 
   private async runGet(key: MemKey) {
-    return await this.client.send(
+    return this.client.send(
       new GetCommand({ TableName: this.tableName, Key: this.key(key) }),
     );
   }

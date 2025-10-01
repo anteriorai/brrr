@@ -65,6 +65,11 @@ export interface Store {
   get(key: MemKey): Promise<Uint8Array | undefined>;
 
   /**
+   * Get the value for the given key and retry if NotFound.
+   */
+  getWithRetry(key: MemKey): Promise<Uint8Array | undefined>;
+
+  /**
    * Set the value for the given key.
    */
   set(key: MemKey, value: Uint8Array): Promise<void>;
@@ -118,7 +123,7 @@ export class Memory {
       type: "call",
       callHash,
     };
-    const encoded = await this.store.get(memKey);
+    const encoded = await this.store.getWithRetry(memKey);
     if (!encoded) {
       throw new NotFoundError(memKey);
     }
