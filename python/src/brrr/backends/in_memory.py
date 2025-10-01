@@ -112,7 +112,7 @@ class InMemoryByteStore(Store, Cache):
         if full_hash not in self.inner:
             raise NotFoundError(key)
         return self.inner[full_hash]
-    
+
     async def get_with_retry(self, key: MemKey) -> bytes:
         return await self.get(key=key)
 
