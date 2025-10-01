@@ -47,10 +47,10 @@ export class Dynamo implements Store {
 
   public async getWithRetry(
     key: MemKey,
-    maxRetries: number = 30,
+    maxRetries: number = 4,
     baseDelayMs: number = 25,
     factor: number = 2,
-    maxBackoffMs: number = 20000,
+    maxBackoffMs: number = 300,
   ): Promise<Uint8Array | undefined> {
     let attempt = 0;
     while (true) {

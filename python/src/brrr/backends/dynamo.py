@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 def async_retry_on_exception(
     exception: type[Exception],
     max_retries: int,
-    base_delay: int,
+    base_delay_ms: int,
     factor: int,
     max_backoff_ms: int,
 ):
@@ -61,7 +61,8 @@ def async_retry_on_exception(
                     )
 
                     await asyncio.sleep(
-                        min(base_delay * (factor ** (retries)), max_backoff_ms) / 1000
+                        min(base_delay_ms * (factor ** (retries)), max_backoff_ms)
+                        / 1000
                     )
 
         return wrapper
@@ -99,10 +100,10 @@ class DynamoDbMemStore(Store):
 
     @async_retry_on_exception(
         exception=NotFoundError,
-        max_retries=30,
-        base_delay=25,
+        max_retries=4,
+        base_delay_ms=25,
         factor=2,
-        max_backoff_ms=20000,
+        max_backoff_ms=300,
     )
     async def get_with_retry(self, key: MemKey) -> bytes:
         """
