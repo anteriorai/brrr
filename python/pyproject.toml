@@ -39,7 +39,7 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-timeout = 120
+timeout = 10
 markers = ["dependencies: requires external store / queue dependencies running"]
 
 [[tool.mypy.overrides]]
