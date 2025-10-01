@@ -15,6 +15,8 @@ import {
 import type { MemKey, Store } from "../store.ts";
 import type { NativeAttributeValue } from "@aws-sdk/util-dynamodb";
 
+import { setTimeout } from "node:timers/promises";
+
 export class Dynamo implements Store {
   private readonly client: DynamoDBDocumentClient;
   private readonly tableName: string;
@@ -57,9 +59,7 @@ export class Dynamo implements Store {
 
       if (attempt++ >= maxRetries) break;
 
-      await new Promise((r) =>
-        setTimeout(r, Math.min(baseDelayMs * factor ** attempt, maxBackoffMs)),
-      );
+      await setTimeout(Math.min(baseDelayMs * factor ** attempt, maxBackoffMs));
     }
   }
 
