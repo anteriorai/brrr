@@ -113,6 +113,9 @@ class InMemoryByteStore(Store, Cache):
             raise NotFoundError(key)
         return self.inner[full_hash]
 
+    async def get_with_retry(self, key: MemKey) -> bytes:
+        return await self.get(key=key)
+
     async def set(self, key: MemKey, value: bytes) -> None:
         self.inner[_key2str(key)] = value
 

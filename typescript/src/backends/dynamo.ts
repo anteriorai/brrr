@@ -15,12 +15,17 @@ import {
 import type { MemKey, Store } from "../store.ts";
 import type { NativeAttributeValue } from "@aws-sdk/util-dynamodb";
 
+import { setTimeout } from "node:timers/promises";
+
 export class Dynamo implements Store {
   private readonly client: DynamoDBDocumentClient;
   private readonly tableName: string;
 
-  public constructor(dynamoDbClient: DynamoDBClient, tableName: string) {
-    this.client = DynamoDBDocumentClient.from(dynamoDbClient);
+  public constructor(
+    dynamoDbDocumentClient: DynamoDBDocumentClient,
+    tableName: string,
+  ) {
+    this.client = dynamoDbDocumentClient;
     this.tableName = tableName;
   }
 
@@ -36,13 +41,26 @@ export class Dynamo implements Store {
   }
 
   public async get(key: MemKey): Promise<Uint8Array | undefined> {
-    const { Item } = await this.client.send(
-      new GetCommand({
-        TableName: this.tableName,
-        Key: this.key(key),
-      }),
-    );
+    const { Item } = await this.runGet(key);
     return Item?.value;
+  }
+
+  public async getWithRetry(
+    key: MemKey,
+    maxRetries: number = 4,
+    baseDelayMs: number = 25,
+    factor: number = 2,
+    maxBackoffMs: number = 300,
+  ): Promise<Uint8Array | undefined> {
+    let attempt = 0;
+    while (true) {
+      const { Item } = await this.runGet(key);
+      if (Item?.value) return Item.value;
+
+      if (attempt++ >= maxRetries) break;
+
+      await setTimeout(Math.min(baseDelayMs * factor ** attempt, maxBackoffMs));
+    }
   }
 
   public async set(key: MemKey, value: Uint8Array): Promise<void> {
@@ -180,5 +198,11 @@ export class Dynamo implements Store {
       pk: key.callHash,
       sk: key.type,
     };
+  }
+
+  private async runGet(key: MemKey) {
+    return this.client.send(
+      new GetCommand({ TableName: this.tableName, Key: this.key(key) }),
+    );
   }
 }

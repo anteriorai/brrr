@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import functools
 import logging
 import typing
 
@@ -32,6 +34,42 @@ logger = logging.getLogger(__name__)
 #   value: bytes (pickled)
 #
 # TODO It is possible we'll add versioning in there as pk or somethin
+
+
+def async_retry_on_exception(
+    exception: type[Exception],
+    max_retries: int,
+    base_delay_ms: int,
+    factor: int,
+    max_backoff_ms: int,
+):
+    def decorator(func):
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs):
+            retries = 0
+            while True:
+                try:
+                    return await func(*args, **kwargs)
+                except exception as e:
+                    retries += 1
+                    if retries > max_retries:
+                        raise
+
+                    logger.warning(
+                        f"Retrying {func.__name__} after {e}, "
+                        f"attempt {retries}/{max_retries}"
+                    )
+
+                    await asyncio.sleep(
+                        min(base_delay_ms * (factor ** (retries)), max_backoff_ms)
+                        / 1000
+                    )
+
+        return wrapper
+
+    return decorator
+
+
 class DynamoDbMemStore(Store):
     client: DynamoDBClient
     table_name: str
@@ -59,6 +97,28 @@ class DynamoDbMemStore(Store):
             raise NotFoundError(key)
         logger.debug(f"getting key: {key}: found")
         return response["Item"]["value"]["B"]
+
+    @async_retry_on_exception(
+        exception=NotFoundError,
+        max_retries=4,
+        base_delay_ms=25,
+        factor=2,
+        max_backoff_ms=300,
+    )
+    async def get_with_retry(self, key: MemKey) -> bytes:
+        """
+        The reason for retrying GET calls on DynamoDB is to do with its
+        eventual consistency guarentees. An immediate read-after-write
+        may fail but, later, succeed when the write is propogated across
+        all storage nodes. We can afford to do this since our use-case
+        of Dynamo is immutable & append-only, so when a read returns
+        "Not Found" for a key that was recently written, it is essentially
+        seeing a stale state, and should, therefore, be retried.
+
+        Backoff configurations match AWS SDK defaults found here
+        https://github.com/aws/aws-sdk-java/blob/dec8dfea84dc9433aacb82d27c3ac0def9e04d17/aws-java-sdk-core/src/main/java/com/amazonaws/retry/PredefinedBackoffStrategies.java#L29
+        """
+        return await self.get(key)
 
     async def set(self, key: MemKey, value: bytes) -> None:
         await self.client.put_item(
