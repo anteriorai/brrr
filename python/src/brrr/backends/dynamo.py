@@ -105,6 +105,18 @@ class DynamoDbMemStore(Store):
         max_backoff_ms=20000,
     )
     async def get_with_retry(self, key: MemKey) -> bytes:
+        '''
+        The reason for retrying GET calls on DynamoDB is to do with its
+        eventual consistency guarentees. An immediate read-after-write 
+        may fail but, later, succeed when the write is propogated across
+        all storage nodes. We can afford to do this since our use-case 
+        of Dynamo is immutable & append-only, so when a read returns
+        "Not Found" for a key that was recently written, it is essentially
+        seeing a stale state, and should, therefore, be retried.
+
+        Backoff configurations match AWS SDK defaults found here
+        https://github.com/aws/aws-sdk-java/blob/dec8dfea84dc9433aacb82d27c3ac0def9e04d17/aws-java-sdk-core/src/main/java/com/amazonaws/retry/PredefinedBackoffStrategies.java#L29
+        '''
         return await self.get(key)
 
     async def set(self, key: MemKey, value: bytes) -> None:
