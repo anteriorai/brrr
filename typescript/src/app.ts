@@ -194,8 +194,8 @@ export class ActiveWorker {
     async function reject(error: any) {
       if (error instanceof Defer) {
         return {
-          type: "error",
-          error,
+          type: "defer",
+          defer: error,
         } as const;
       }
       throw error;
@@ -209,7 +209,7 @@ export class ActiveWorker {
       if (result.type === "result") {
         values.push(result.value);
       } else {
-        deferredCalls.push(...result.error.calls);
+        deferredCalls.push(...result.defer.calls);
       }
     }
 
