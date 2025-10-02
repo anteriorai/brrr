@@ -183,16 +183,36 @@ export class ActiveWorker {
   public async gather<T>(...promises: Promise<T>[]): Promise<Awaited<T>[]> {
     const deferredCalls: DeferredCall[] = [];
     const values: Awaited<T>[] = [];
-    for (const promise of promises) {
-      try {
-        values.push(await promise);
-      } catch (err) {
-        if (!(err instanceof Defer)) {
-          throw err;
-        }
-        deferredCalls.push(...err.calls);
+
+    async function resolve(value: T) {
+      return {
+        type: "result",
+        value: await value,
+      } as const;
+    }
+
+    async function reject(error: any) {
+      if (error instanceof Defer) {
+        return {
+          type: "error",
+          error,
+        } as const;
+      }
+      throw error;
+    }
+
+    const results = await Promise.all(
+      promises.map((promise) => promise.then(resolve, reject)),
+    );
+
+    for (const result of results) {
+      if (result.type === "result") {
+        values.push(result.value);
+      } else {
+        deferredCalls.push(...result.error.calls);
       }
     }
+
     if (deferredCalls.length) {
       throw new Defer(...deferredCalls);
     }
