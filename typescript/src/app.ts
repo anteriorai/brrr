@@ -1,6 +1,7 @@
 import {
   type Connection,
   Defer,
+  type DeferredCall,
   type Request,
   type Response,
 } from "./connection.ts";
@@ -190,10 +191,10 @@ export class ActiveWorker {
       defer: Defer;
     };
 
-    async function toResultWrapper(value: T): Promise<ResultWrapper> {
+    function toResultWrapper(value: T): ResultWrapper {
       return {
         type: "result",
-        value: await value,
+        value: value as Awaited<T>,
       } as const;
     }
 
@@ -217,16 +218,29 @@ export class ActiveWorker {
         promise.then(toResultWrapper, toDeferWrapperOrThrow),
       ),
     );
-    const { defer, result } = Object.groupBy(
-      results,
-      (result) => result.type,
-    ) as Partial<{
-      result: ResultWrapper[];
-      defer: DeferWrapper[];
-    }>;
-    if (defer) {
-      throw new Defer(...defer.flatMap(({ defer }) => defer.calls));
+
+    const values: Awaited<T>[] = [];
+    const deferCalls: DeferredCall[] = [];
+
+    for (const result of results) {
+      switch (result.type) {
+        case "result": {
+          values.push(result.value);
+          break;
+        }
+        case "defer": {
+          deferCalls.push(...result.defer.calls);
+          break;
+        }
+        default: {
+          const _: never = result; // exhaustiveness check
+        }
+      }
     }
-    return result?.map(({ value }) => value) ?? [];
+
+    if (deferCalls.length) {
+      throw new Defer(...deferCalls);
+    }
+    return values;
   }
 }
