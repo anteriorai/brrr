@@ -1,7 +1,6 @@
 import {
   type Connection,
   Defer,
-  type DeferredCall,
   type Request,
   type Response,
 } from "./connection.ts";
@@ -181,17 +180,24 @@ export class ActiveWorker {
   ): Promise<[Awaited<T1>, Awaited<T2>, Awaited<T3>, Awaited<T4>, Awaited<T5>]>;
   public async gather<T>(...promises: Promise<T>[]): Promise<Awaited<T>[]>;
   public async gather<T>(...promises: Promise<T>[]): Promise<Awaited<T>[]> {
-    const deferredCalls: DeferredCall[] = [];
-    const values: Awaited<T>[] = [];
+    type ResultWrapper = {
+      type: "result";
+      value: Awaited<T>;
+    };
 
-    async function resolve(value: T) {
+    type DeferWrapper = {
+      type: "defer";
+      defer: Defer;
+    };
+
+    async function wrapValue(value: T): Promise<ResultWrapper> {
       return {
         type: "result",
         value: await value,
       } as const;
     }
 
-    async function reject(error: any) {
+    async function catchAndWrapDefer(error: unknown): Promise<DeferWrapper> {
       if (error instanceof Defer) {
         return {
           type: "defer",
@@ -201,24 +207,20 @@ export class ActiveWorker {
       throw error;
     }
 
-    // We want to await all promises, even if some reject with errors (that's not just Defer).
-    // We could use Promise.allSettled, but that blankets the error, which is not what we want.
-    // Instead we manually attach a handler that returns a `Result` type.
+    // We attach handlers manually instead of using Promise.allSettled to:
+    //  1. ensure that all promises are awaited, so no unhandled rejections escape.
+    //  2. catch and wrap `Defer` into values we can collect, since they are not
+    //     true errors but control-flow signals. Other errors should still propagate.
     const results = await Promise.all(
-      promises.map((promise) => promise.then(resolve, reject)),
+      promises.map((promise) => promise.then(wrapValue, catchAndWrapDefer)),
     );
-
-    for (const result of results) {
-      if (result.type === "result") {
-        values.push(result.value);
-      } else {
-        deferredCalls.push(...result.defer.calls);
-      }
+    const groups = Object.groupBy(results, (result) => result.type) as Partial<{
+      result: ResultWrapper[];
+      defer: DeferWrapper[];
+    }>;
+    if (groups.defer) {
+      throw new Defer(...groups.defer.flatMap(({ defer }) => defer.calls));
     }
-
-    if (deferredCalls.length) {
-      throw new Defer(...deferredCalls);
-    }
-    return values;
+    return groups.result?.map(({ value }) => value) ?? [];
   }
 }
