@@ -185,7 +185,8 @@
                 ];
                 cli.options.no-server = true;
                 services.brrr-demo.server.enable = true;
-                services.brrr-demo.worker.enable = true;
+                services.brrr-demo.worker-py.enable = true;
+                services.brrr-demo.worker-ts.enable = true;
               };
               process-compose.deps = {
                 imports = [
@@ -194,7 +195,8 @@
                 ];
                 cli.options.no-server = true;
                 services.brrr-demo.server.enable = false;
-                services.brrr-demo.worker.enable = false;
+                services.brrr-demo.worker-py.enable = false;
+                services.brrr-demo.worker-ts.enable = false;
               };
               treefmt = import ./nix/treefmt.nix;
               packages = {
@@ -205,7 +207,7 @@
                 inherit (brrrts) npm-version-to-git;
                 default = brrrpy.brrr-venv;
                 # Stand-alone brrr_demo.py script
-                brrr-demo = pkgs.stdenvNoCC.mkDerivation {
+                brrr-demo-py = pkgs.stdenvNoCC.mkDerivation {
                   name = "brrr-demo.py";
                   dontUnpack = true;
                   installPhase = ''
@@ -217,6 +219,7 @@
                   # the interpreter for the demo script.
                   meta.mainProgram = "brrr_demo.py";
                 };
+                brrr-demo-ts = brrrts.overrideAttrs { meta.mainProgram = "brrr-demo"; };
                 # Best-effort package for convenience, zero guarantees, could
                 # disappear at any time.
                 nix-flake-check-changed = pkgs.callPackage ./nix-flake-check-changed/package.nix { };
