@@ -181,20 +181,55 @@ export class ActiveWorker {
   ): Promise<[Awaited<T1>, Awaited<T2>, Awaited<T3>, Awaited<T4>, Awaited<T5>]>;
   public async gather<T>(...promises: Promise<T>[]): Promise<Awaited<T>[]>;
   public async gather<T>(...promises: Promise<T>[]): Promise<Awaited<T>[]> {
-    const deferredCalls: DeferredCall[] = [];
+    function toResultWrapper(value: T) {
+      return {
+        type: "result",
+        value: value as Awaited<T>,
+      } as const;
+    }
+
+    function toDeferWrapperOrThrow(error: unknown) {
+      if (error instanceof Defer) {
+        return {
+          type: "defer",
+          defer: error,
+        } as const;
+      }
+      throw error;
+    }
+
+    // We don't use Promise.allSettled because we only want to normalize `Defer`, not catch
+    // all errors. Instead, we attach custom handlers to normalize outcomes into either a
+    // `ResultWrapper` or a `DeferWrapper`.
+    // Then we use Promise.all on those normalized promises to ensure they are all awaited.
+    // Other errors still propagate normally.
+    const results = await Promise.all(
+      promises.map((promise) =>
+        promise.then(toResultWrapper, toDeferWrapperOrThrow),
+      ),
+    );
+
     const values: Awaited<T>[] = [];
-    for (const promise of promises) {
-      try {
-        values.push(await promise);
-      } catch (err) {
-        if (!(err instanceof Defer)) {
-          throw err;
+    const deferCalls: DeferredCall[] = [];
+
+    for (const result of results) {
+      switch (result.type) {
+        case "result": {
+          values.push(result.value);
+          break;
         }
-        deferredCalls.push(...err.calls);
+        case "defer": {
+          deferCalls.push(...result.defer.calls);
+          break;
+        }
+        default: {
+          const _: never = result; // exhaustiveness check
+        }
       }
     }
-    if (deferredCalls.length) {
-      throw new Defer(...deferredCalls);
+
+    if (deferCalls.length) {
+      throw new Defer(...deferCalls);
     }
     return values;
   }
