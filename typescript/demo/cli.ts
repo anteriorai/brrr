@@ -29,8 +29,8 @@ const dynamo = await createDynamo();
 const redis = await createRedis();
 
 const topics = {
-  py: "brrr-py-demo-main",
-  ts: "brrr-ts-demo-main",
+  py: "brrr-py-demo",
+  ts: "brrr-ts-demo",
 } as const;
 
 // fib and lucas share the same arg type
