@@ -181,24 +181,14 @@ export class ActiveWorker {
   ): Promise<[Awaited<T1>, Awaited<T2>, Awaited<T3>, Awaited<T4>, Awaited<T5>]>;
   public async gather<T>(...promises: Promise<T>[]): Promise<Awaited<T>[]>;
   public async gather<T>(...promises: Promise<T>[]): Promise<Awaited<T>[]> {
-    type ResultWrapper = {
-      type: "result";
-      value: Awaited<T>;
-    };
-
-    type DeferWrapper = {
-      type: "defer";
-      defer: Defer;
-    };
-
-    function toResultWrapper(value: T): ResultWrapper {
+    function toResultWrapper(value: T) {
       return {
         type: "result",
         value: value as Awaited<T>,
       } as const;
     }
 
-    function toDeferWrapperOrThrow(error: unknown): DeferWrapper {
+    function toDeferWrapperOrThrow(error: unknown) {
       if (error instanceof Defer) {
         return {
           type: "defer",
