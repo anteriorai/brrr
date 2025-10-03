@@ -75,7 +75,7 @@ let
           ${self.packages.${system}.brrr-venv-test}/bin/pytest ${self.packages.${system}.brrr.src}
         ''
       );
-    ts = { system }: "${self.packages.${system}.brrr-ts}/bin/brrr-test-integration";
+    ts = { system }: "${self.packages.${system}.brrrts}/bin/brrr-test-integration";
   };
 in
 {
