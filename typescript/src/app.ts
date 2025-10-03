@@ -190,14 +190,14 @@ export class ActiveWorker {
       defer: Defer;
     };
 
-    async function wrapValue(value: T): Promise<ResultWrapper> {
+    async function toResult(value: T): Promise<ResultWrapper> {
       return {
         type: "result",
         value: await value,
       } as const;
     }
 
-    function catchAndWrapDefer(error: unknown): DeferWrapper {
+    function toDeferOrThrow(error: unknown): DeferWrapper {
       if (error instanceof Defer) {
         return {
           type: "defer",
@@ -207,20 +207,23 @@ export class ActiveWorker {
       throw error;
     }
 
-    // We attach handlers manually instead of using Promise.allSettled to:
-    //  1. ensure that all promises are awaited, so no unhandled rejections escape.
-    //  2. catch and wrap `Defer` into values we can collect, since they are not
-    //     true errors but control-flow signals. Other errors should still propagate.
+    // We don't use Promise.allSettled because we only want to catch `Defer`, not all errors.
+    // Instead, we attach custom handlers so that:
+    //  1. all promises are awaited (no unhandled rejections),
+    //  2. `Defer` errors are caught and wrapped as values, while other errors propagate normally.
     const results = await Promise.all(
-      promises.map((promise) => promise.then(wrapValue, catchAndWrapDefer)),
+      promises.map((promise) => promise.then(toResult, toDeferOrThrow)),
     );
-    const groups = Object.groupBy(results, (result) => result.type) as Partial<{
+    const { defer, result } = Object.groupBy(
+      results,
+      (result) => result.type,
+    ) as Partial<{
       result: ResultWrapper[];
       defer: DeferWrapper[];
     }>;
-    if (groups.defer) {
-      throw new Defer(...groups.defer.flatMap(({ defer }) => defer.calls));
+    if (defer) {
+      throw new Defer(...defer.flatMap(({ defer }) => defer.calls));
     }
-    return groups.result?.map(({ value }) => value) ?? [];
+    return result?.map(({ value }) => value) ?? [];
   }
 }
