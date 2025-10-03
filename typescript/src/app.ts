@@ -190,14 +190,14 @@ export class ActiveWorker {
       defer: Defer;
     };
 
-    async function toResult(value: T): Promise<ResultWrapper> {
+    async function toResultWrapper(value: T): Promise<ResultWrapper> {
       return {
         type: "result",
         value: await value,
       } as const;
     }
 
-    function toDeferOrThrow(error: unknown): DeferWrapper {
+    function toDeferWrapperOrThrow(error: unknown): DeferWrapper {
       if (error instanceof Defer) {
         return {
           type: "defer",
@@ -213,7 +213,9 @@ export class ActiveWorker {
     // Then we use Promise.all on those normalized promises to ensure they are all awaited.
     // Other errors still propagate normally.
     const results = await Promise.all(
-      promises.map((promise) => promise.then(toResult, toDeferOrThrow)),
+      promises.map((promise) =>
+        promise.then(toResultWrapper, toDeferWrapperOrThrow),
+      ),
     );
     const { defer, result } = Object.groupBy(
       results,
