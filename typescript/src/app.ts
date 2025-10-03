@@ -197,7 +197,7 @@ export class ActiveWorker {
       } as const;
     }
 
-    async function catchAndWrapDefer(error: unknown): Promise<DeferWrapper> {
+    function catchAndWrapDefer(error: unknown): DeferWrapper {
       if (error instanceof Defer) {
         return {
           type: "defer",
