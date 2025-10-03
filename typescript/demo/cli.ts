@@ -30,7 +30,7 @@ const dynamo = await createDynamo();
 const redis = await createRedis();
 
 const topics = {
-  py: "brrr-demo-main",
+  py: "brrr-py-demo-main",
   ts: "brrr-ts-demo-main",
 } as const;
 

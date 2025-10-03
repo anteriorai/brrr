@@ -29,13 +29,17 @@ routes = web.RouteTableDef()
 
 brrr_app: ContextVar[AppWorker] = ContextVar("brrr_demo.app")
 
+topic_py_main = "brrr-py-demo-main"
+topic_py_side = "brrr-py-demo-side"
+topic_ts_main = "brrr-ts-demo-main"
+
 
 ### Brrr handlers
 
 
 @brrr.handler
 async def fib_and_print(app: ActiveWorker, n: str, salt=None):
-    f = await app.call("fib", topic="brrr-demo-side")(n=int(n), salt=salt)
+    f = await app.call("fib", topic=topic_py_side)(n=int(n), salt=salt)
     print(f"fib({n}) = {f}", flush=True)
     return f
 
@@ -49,7 +53,7 @@ async def hello(greetee: str):
 
 @brrr.handler
 async def lucas_and_print(app: ActiveWorker, n: str, salt=None):
-    lucas = await app.call("lucas", topic="brrr-ts-demo-main")(n=int(n), salt=salt)
+    lucas = await app.call("lucas", topic=topic_ts_main)(n=int(n), salt=salt)
     print(f"lucas({n}) = {lucas}", flush=True)
     return lucas
 
@@ -64,7 +68,7 @@ async def fib(app: ActiveWorker, n: int, salt=None):
                 app.call(fib)(n=n - 2, salt=salt),
                 app.call(fib)(n=n - 1, salt=salt),
             )
-            return await app.call("sum", topic="brrr-ts-demo-main")(values=values)
+            return await app.call("sum", topic=topic_ts_main)(values=values)
 
 
 def _json_bytes(value) -> bytes:
@@ -203,7 +207,7 @@ async def schedule_task(request: web.BaseRequest):
     if task_name not in brrr_app.get().tasks:
         return response(404, {"error": "No such task"})
 
-    await brrr_app.get().schedule(task_name, topic="brrr-demo-main")(**kwargs)
+    await brrr_app.get().schedule(task_name, topic=topic_py_main)(**kwargs)
     return response(202, {"status": "accepted"})
 
 
@@ -221,8 +225,8 @@ def cmd(f):
 async def brrr_worker():
     async with with_brrr(False) as (conn, app):
         await asyncio.gather(
-            conn.loop("brrr-demo-main", app.handle),
-            conn.loop("brrr-demo-side", app.handle),
+            conn.loop(topic_py_main, app.handle),
+            conn.loop(topic_py_side, app.handle),
         )
 
 
@@ -274,7 +278,7 @@ async def schedule(topic: str, job: str, *args: str):
 async def monitor():
     async with with_brrr_resources() as (queue, _):
         while True:
-            pprint(await queue.get_info("brrr-demo-main"))
+            pprint(await queue.get_info(topic_py_main))
             await asyncio.sleep(1)
 
 
