@@ -207,10 +207,11 @@ export class ActiveWorker {
       throw error;
     }
 
-    // We don't use Promise.allSettled because we only want to catch `Defer`, not all errors.
-    // Instead, we attach custom handlers so that:
-    //  1. all promises are awaited (no unhandled rejections),
-    //  2. `Defer` errors are caught and wrapped as values, while other errors propagate normally.
+    // We don't use Promise.allSettled because we only want to normalize `Defer`, not catch
+    // all errors. Instead, we attach custom handlers to normalize outcomes into either a
+    // `ResultWrapper` or a `DeferWrapper`.
+    // Then we use Promise.all on those normalized promises to ensure they are all awaited.
+    // Other errors still propagate normally.
     const results = await Promise.all(
       promises.map((promise) => promise.then(toResult, toDeferOrThrow)),
     );
