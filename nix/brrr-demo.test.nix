@@ -46,10 +46,10 @@ let
                 json="$(curl --fail -sSL "http://server:8080/hello?greetee=Jim")"
                 val="$(<<<"$json" jq '. == {status: "ok", result: "Hello, Jim!"}')"
                 [[ "$val" == true ]]
-                json="$(curl --fail -sSL "http://server:8080/fib_and_print?n=78&salt=abcd")"
+                json="$(curl --fail -sSL "http://server:8080/calc_and_print?op=fib&n=78&salt=abcd")"
                 val="$(<<<"$json" jq '. == {status: "ok", result: 8944394323791464}')"
                 [[ "$val" == true ]]
-                json="$(curl --fail -sSL "http://server:8080/lucas_and_print?n=76&salt=abcd")"
+                json="$(curl --fail -sSL "http://server:8080/calc_and_print?op=lucas&n=76&salt=abcd")"
                 val="$(<<<"$json" jq '. == {status: "ok", result: 7639424778862807}')"
                 [[ "$val" == true ]]
               '';
@@ -80,8 +80,8 @@ let
         tester.wait_for_unit("default.target")
         server.wait_for_open_port(8080)
         tester.wait_until_succeeds("curl --fail -sSL -X POST 'http://server:8080/hello?greetee=Jim'")
-        tester.wait_until_succeeds("curl --fail -sSL -X POST 'http://server:8080/fib_and_print?n=78&salt=abcd'")
-        tester.wait_until_succeeds("curl --fail -sSL -X POST 'http://server:8080/lucas_and_print?n=76&salt=abcd'")
+        tester.wait_until_succeeds("curl --fail -sSL -X POST 'http://server:8080/calc_and_print?op=fib&n=78&salt=abcd'")
+        tester.wait_until_succeeds("curl --fail -sSL -X POST 'http://server:8080/calc_and_print?op=lucas&n=76&salt=abcd'")
         tester.wait_until_succeeds("test-brrr-demo")
       '';
     };

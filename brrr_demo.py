@@ -37,13 +37,6 @@ topic_ts_main = "brrr-ts-demo-main"
 ### Brrr handlers
 
 
-@brrr.handler
-async def fib_and_print(app: ActiveWorker, n: str, salt=None):
-    f = await app.call("fib", topic=topic_py_side)(n=int(n), salt=salt)
-    print(f"fib({n}) = {f}", flush=True)
-    return f
-
-
 @brrr.handler_no_arg
 async def hello(greetee: str):
     greeting = f"Hello, {greetee}!"
@@ -52,51 +45,38 @@ async def hello(greetee: str):
 
 
 @brrr.handler
-async def lucas_and_print(app: ActiveWorker, n: str, salt=None):
-    lucas = await app.call("lucas", topic=topic_ts_main)(n=int(n), salt=salt)
-    print(f"lucas({n}) = {lucas}", flush=True)
-    return lucas
-
-
-@brrr.handler
-async def fib(app: ActiveWorker, n: int, salt=None):
-    match n:
-        case 0 | 1:
-            return n
-        case _:
-            values = await app.gather(
-                app.call(fib)(n=n - 2, salt=salt),
-                app.call(fib)(n=n - 1, salt=salt),
-            )
-            return await app.call("sum", topic=topic_ts_main)(values=values)
-
-
-def _json_bytes(value) -> bytes:
-    return json.dumps(value, sort_keys=True).encode()
-
-
-def _hash_call(task_name: str, kwargs: dict) -> str:
-    data = [task_name, [kwargs]]
-    h = hashlib.new("sha256")
-    h.update(_json_bytes(data))
-    return h.hexdigest()
+async def calc_and_print(app: ActiveWorker, op: str, n: str, salt=None):
+    result = await app.call(op, topic=topic_ts_main)(n=int(n), salt=salt)
+    print(f"{op}({n}) = {result}", flush=True)
+    return result
 
 
 class JsonKwargsCodec(Codec):
     def encode_call(self, task_name: str, args: tuple, kwargs: dict) -> Call:
         if args:
             raise ValueError("This codec only supports keyword arguments")
-        payload = _json_bytes([kwargs])
-        call_hash = _hash_call(task_name, kwargs)
+        payload = self._json_bytes([kwargs])
+        call_hash = self._hash_call(task_name, kwargs)
         return Call(task_name=task_name, payload=payload, call_hash=call_hash)
 
     async def invoke_task(self, call: Call, task) -> bytes:
         [kwargs] = json.loads(call.payload.decode())
         result = await task(**kwargs)
-        return _json_bytes(result)
+        return self._json_bytes(result)
 
     def decode_return(self, task_name: str, payload: bytes) -> Any:
         return json.loads(payload.decode())
+
+    @classmethod
+    def _json_bytes(cls, value) -> bytes:
+        return json.dumps(value, sort_keys=True).encode()
+
+    @classmethod
+    def _hash_call(cls, task_name: str, kwargs: dict) -> str:
+        data = [task_name, [kwargs]]
+        h = hashlib.new("sha256")
+        h.update(cls._json_bytes(data))
+        return h.hexdigest()
 
 
 ### Brrr setup
@@ -161,10 +141,8 @@ async def with_brrr(
         async with brrr.serve(redis, dynamo, redis) as conn:
             app = AppWorker(
                 handlers=dict(
-                    fib_and_print=fib_and_print,
-                    lucas_and_print=lucas_and_print,
                     hello=hello,
-                    fib=fib,
+                    calc_and_print=calc_and_print,
                 ),
                 codec=JsonKwargsCodec(),
                 connection=conn,

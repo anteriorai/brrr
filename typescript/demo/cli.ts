@@ -4,7 +4,6 @@ import {
   AppWorker,
   NaiveJsonCodec,
   Server,
-  taskFn,
 } from "../src/index.ts";
 import { Dynamo, Redis } from "../src/backends/index.ts";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
@@ -34,10 +33,6 @@ const topics = {
   ts: "brrr-ts-demo-main",
 } as const;
 
-function sum({ values }: { values: number[] }): number {
-  return values.reduce((a, b) => a + b);
-}
-
 // fib and lucas share the same arg type
 type Arg = { n: number; salt: string | null };
 
@@ -49,12 +44,22 @@ async function lucas(app: ActiveWorker, { n, salt }: Arg): Promise<number> {
   if (n < 2) {
     return 2 - n;
   }
-  return app.call(sum)({
-    values: await app.gather(
-      app.call<[Arg], number>("fib", topics.py)({ n: n - 1, salt }),
-      app.call<[Arg], number>("fib", topics.py)({ n: n + 1, salt }),
-    ),
-  });
+  const [a, b] = await app.gather(
+    app.call(fib)({ n: n - 1, salt }),
+    app.call(fib)({ n: n + 1, salt }),
+  );
+  return a + b;
+}
+
+async function fib(app: ActiveWorker, { n, salt }: Arg): Promise<number> {
+  if (n < 2) {
+    return n;
+  }
+  const [a, b] = await app.gather(
+    app.call(fib)({ n: n - 1, salt }),
+    app.call(fib)({ n: n - 2, salt }),
+  );
+  return a + b;
 }
 
 const server = new Server(dynamo, redis, {
@@ -65,10 +70,7 @@ const server = new Server(dynamo, redis, {
 
 const codec = new NaiveJsonCodec();
 
-const app = new AppWorker(codec, server, {
-  sum: taskFn(sum),
-  lucas,
-});
+const app = new AppWorker(codec, server, { fib, lucas });
 
 await server.loop(topics.ts, app.handle, async () => {
   return redis.pop(topics.ts);
