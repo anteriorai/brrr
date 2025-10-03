@@ -201,6 +201,9 @@ export class ActiveWorker {
       throw error;
     }
 
+    // We want to await all promises, even if some reject with errors (that's not just Defer).
+    // We could use Promise.allSettled, but that blankets the error, which is not what we want.
+    // Instead we manually attach a handler that returns a `Result` type.
     const results = await Promise.all(
       promises.map((promise) => promise.then(resolve, reject)),
     );
