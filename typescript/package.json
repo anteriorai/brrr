@@ -4,6 +4,7 @@
   "description": "Horizontally scalable workflow scheduling with pluggable backends",
   "type": "module",
   "bin": {
+    "brrr-demo": "demo/cli.ts",
     "brrr-test-integration": "scripts/brrr-test-integration.sh"
   },
   "license": "AGPL-3.0-only",

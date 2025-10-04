@@ -2,6 +2,7 @@
 
 import ast
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -19,7 +20,8 @@ from aiohttp import web
 from brrr import ActiveWorker, AppWorker, NotFoundError
 from brrr.backends.dynamo import DynamoDbMemStore
 from brrr.backends.redis import RedisQueue
-from brrr.pickle_codec import PickleCodec
+from brrr.call import Call
+from brrr.codec import Codec
 from types_aiobotocore_dynamodb import DynamoDBClient
 
 logger = logging.getLogger(__name__)
@@ -27,15 +29,11 @@ routes = web.RouteTableDef()
 
 brrr_app: ContextVar[AppWorker] = ContextVar("brrr_demo.app")
 
+topic_py = "brrr-py-demo"
+topic_ts = "brrr-ts-demo"
+
 
 ### Brrr handlers
-
-
-@brrr.handler
-async def fib_and_print(app: ActiveWorker, n: str, salt=None):
-    f = await app.call("fib", topic="brrr-demo-side")(int(n), salt)
-    print(f"fib({n}) = {f}", flush=True)
-    return f
 
 
 @brrr.handler_no_arg
@@ -46,17 +44,38 @@ async def hello(greetee: str):
 
 
 @brrr.handler
-async def fib(app: ActiveWorker, n: int, salt=None):
-    match n:
-        case 0 | 1:
-            return n
-        case _:
-            return sum(
-                await app.gather(
-                    app.call(fib)(n - 2, salt),
-                    app.call(fib)(n - 1, salt),
-                )
-            )
+async def calc_and_print(app: ActiveWorker, op: str, n: str, salt=None):
+    result = await app.call(op, topic=topic_ts)(n=int(n), salt=salt)
+    print(f"{op}({n}) = {result}", flush=True)
+    return result
+
+
+class JsonKwargsCodec(Codec):
+    def encode_call(self, task_name: str, args: tuple, kwargs: dict) -> Call:
+        if args:
+            raise ValueError("This codec only supports keyword arguments")
+        payload = self._json_bytes([kwargs])
+        call_hash = self._hash_call(task_name, kwargs)
+        return Call(task_name=task_name, payload=payload, call_hash=call_hash)
+
+    async def invoke_task(self, call: Call, task) -> bytes:
+        [kwargs] = json.loads(call.payload.decode())
+        result = await task(**kwargs)
+        return self._json_bytes(result)
+
+    def decode_return(self, task_name: str, payload: bytes) -> Any:
+        return json.loads(payload.decode())
+
+    @classmethod
+    def _json_bytes(cls, value) -> bytes:
+        return json.dumps(value, sort_keys=True).encode()
+
+    @classmethod
+    def _hash_call(cls, task_name: str, kwargs: dict) -> str:
+        data = [task_name, [kwargs]]
+        h = hashlib.new("sha256")
+        h.update(cls._json_bytes(data))
+        return h.hexdigest()
 
 
 ### Brrr setup
@@ -121,11 +140,10 @@ async def with_brrr(
         async with brrr.serve(redis, dynamo, redis) as conn:
             app = AppWorker(
                 handlers=dict(
-                    fib_and_print=fib_and_print,
                     hello=hello,
-                    fib=fib,
+                    calc_and_print=calc_and_print,
                 ),
-                codec=PickleCodec(),
+                codec=JsonKwargsCodec(),
                 connection=conn,
             )
             token = brrr_app.set(app)
@@ -166,7 +184,7 @@ async def schedule_task(request: web.BaseRequest):
     if task_name not in brrr_app.get().tasks:
         return response(404, {"error": "No such task"})
 
-    await brrr_app.get().schedule(task_name, topic="brrr-demo-main")(**kwargs)
+    await brrr_app.get().schedule(task_name, topic=topic_py)(**kwargs)
     return response(202, {"status": "accepted"})
 
 
@@ -183,10 +201,7 @@ def cmd(f):
 @cmd
 async def brrr_worker():
     async with with_brrr(False) as (conn, app):
-        await asyncio.gather(
-            conn.loop("brrr-demo-main", app.handle),
-            conn.loop("brrr-demo-side", app.handle),
-        )
+        await conn.loop(topic_py, app.handle)
 
 
 @cmd
@@ -237,7 +252,7 @@ async def schedule(topic: str, job: str, *args: str):
 async def monitor():
     async with with_brrr_resources() as (queue, _):
         while True:
-            pprint(await queue.get_info("brrr-demo-main"))
+            pprint(await queue.get_info(topic_py))
             await asyncio.sleep(1)
 
 
