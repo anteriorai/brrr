@@ -16,17 +16,21 @@ class PickleCodec(Codec):
 
     """
 
-    def _hash_call(self, task_name: str, args: tuple, kwargs: dict) -> str:
+    def _hash_call(
+        self, task_name: str, args: tuple[Any, ...], kwargs: dict[Any, Any]
+    ) -> str:
         h = hashlib.new("sha256")
         h.update(repr([task_name, args, list(sorted(kwargs.items()))]).encode())
         return h.hexdigest()
 
-    def encode_call(self, task_name: str, args: tuple, kwargs: dict) -> Call:
+    def encode_call(
+        self, task_name: str, args: tuple[Any, ...], kwargs: dict[Any, Any]
+    ) -> Call:
         payload = pickle.dumps((args, kwargs))
         call_hash = self._hash_call(task_name, args, kwargs)
         return Call(task_name=task_name, payload=payload, call_hash=call_hash)
 
-    async def invoke_task(self, call: Call, task: Callable) -> bytes:
+    async def invoke_task(self, call: Call, task: Callable[..., Any]) -> bytes:
         args, kwargs = pickle.loads(call.payload)
         return pickle.dumps(await task(*args, **kwargs))
 

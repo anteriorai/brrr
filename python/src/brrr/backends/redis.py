@@ -14,15 +14,15 @@ logger = logging.getLogger(__name__)
 
 
 class RedisQueue(Queue, Cache):
-    client: Redis
+    client: Redis[typing.Any]
 
-    def __init__(self, client: Redis):
+    def __init__(self, client: Redis[typing.Any]) -> None:
         self.client = client
 
-    async def setup(self):
+    async def setup(self) -> None:
         pass
 
-    async def put_message(self, topic: str, body: str):
+    async def put_message(self, topic: str, body: str) -> None:
         logger.debug(f"Putting new message on {topic}")
         await self.client.rpush(topic, body.encode("utf-8"))
 
@@ -32,7 +32,7 @@ class RedisQueue(Queue, Cache):
             raise QueueIsEmpty()
         return Message(response[1].decode("utf-8"))
 
-    async def get_info(self, topic: str):
+    async def get_info(self, topic: str) -> QueueInfo:
         total = await self.client.llen(topic)
         return QueueInfo(num_messages=total)
 

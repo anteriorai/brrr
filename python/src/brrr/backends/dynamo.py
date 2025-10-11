@@ -4,6 +4,7 @@ import asyncio
 import functools
 import logging
 import typing
+from typing import Any, Callable, Coroutine
 
 from ..store import CompareMismatch, MemKey, NotFoundError, Store
 
@@ -33,19 +34,23 @@ logger = logging.getLogger(__name__)
 #   sk: "value"
 #   value: bytes (pickled)
 #
-# TODO It is possible we'll add versioning in there as pk or somethin
+# TODO It is possible we'll add versioning in there as pk or something
 
 
-def async_retry_on_exception(
+def async_retry_on_exception[**P, T](
     exception: type[Exception],
     max_retries: int,
     base_delay_ms: int,
     factor: int,
     max_backoff_ms: int,
-):
-    def decorator(func):
+) -> Callable[
+    [Callable[P, Coroutine[Any, Any, T]]], Callable[P, Coroutine[Any, Any, T]]
+]:
+    def decorator(
+        func: Callable[P, Coroutine[Any, Any, T]],
+    ) -> Callable[P, Coroutine[Any, Any, T]]:
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs):
+        async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
             retries = 0
             while True:
                 try:
@@ -74,7 +79,7 @@ class DynamoDbMemStore(Store):
     client: DynamoDBClient
     table_name: str
 
-    def key(self, mem_key: MemKey) -> dict:
+    def key(self, mem_key: MemKey) -> dict[str, dict[str, str]]:
         return {"pk": {"S": mem_key.call_hash}, "sk": {"S": mem_key.type}}
 
     def __init__(self, client: DynamoDBClient, table_name: str):
@@ -108,8 +113,8 @@ class DynamoDbMemStore(Store):
     async def get_with_retry(self, key: MemKey) -> bytes:
         """
         The reason for retrying GET calls on DynamoDB is to do with its
-        eventual consistency guarentees. An immediate read-after-write
-        may fail but, later, succeed when the write is propogated across
+        eventual consistency guarantees. An immediate read-after-write
+        may fail but, later, succeed when the write is propagated across
         all storage nodes. We can afford to do this since our use-case
         of Dynamo is immutable & append-only, so when a read returns
         "Not Found" for a key that was recently written, it is essentially

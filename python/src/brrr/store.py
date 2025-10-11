@@ -55,12 +55,13 @@ class PendingReturns:
     returns: set[PendingReturn]
 
     def encode(self) -> bytes:
-        return _bc.encode(
+        x: bytes = _bc.encode(
             {
                 "returns": list(sorted(map(lambda x: x.astuple(), self.returns))),
                 **({"scheduled_at": self.scheduled_at} if self.scheduled_at else {}),
             }
         )
+        return x
 
     @classmethod
     def decode(cls, enc: bytes) -> Self:
@@ -109,7 +110,7 @@ class Store(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def set(self, key: MemKey, value: bytes):
+    async def set(self, key: MemKey, value: bytes) -> None:
         """Set a value, overriding any existing value if present.
 
         You don't have to provide read-after-write consistency, nor even
@@ -122,11 +123,11 @@ class Store(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def delete(self, key: MemKey):
+    async def delete(self, key: MemKey) -> None:
         raise NotImplementedError()
 
     @abstractmethod
-    async def set_new_value(self, key: MemKey, value: bytes):
+    async def set_new_value(self, key: MemKey, value: bytes) -> None:
         """Set a fresh value, throwing if any value already exists.
 
         This must provide a hard detection of whether this was the first write.
@@ -139,7 +140,7 @@ class Store(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def compare_and_set(self, key: MemKey, value: bytes, expected: bytes):
+    async def compare_and_set(self, key: MemKey, value: bytes, expected: bytes) -> None:
         """
         Only set the value, as a transaction, if the existing value matches the expected value
         Or, if expected value is None, if the key does not exist
@@ -147,7 +148,7 @@ class Store(ABC):
         raise NotImplementedError()
 
     @abstractmethod
-    async def compare_and_delete(self, key: MemKey, expected: bytes):
+    async def compare_and_delete(self, key: MemKey, expected: bytes) -> None:
         """Delete the value, iff the current value equals the given expected value.
 
         The expected value CANNOT be None.  If the expected value is None,
@@ -209,7 +210,7 @@ class Memory:
             task_name=task_name.decode("utf-8"), payload=payload, call_hash=call_hash
         )
 
-    async def set_call(self, call: Call):
+    async def set_call(self, call: Call) -> None:
         """Store this call in the storage layer.
 
         If you override an existing call (i.e. same hash), ensure that the
@@ -340,7 +341,7 @@ class Memory:
         memkey = MemKey("pending_returns", call_hash)
         handled: set[PendingReturn] = set()
 
-        async def cas_body():
+        async def cas_body() -> None:
             nonlocal handled
             try:
                 pending_enc = await self.store.get(memkey)
