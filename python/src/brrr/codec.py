@@ -22,7 +22,7 @@ class Codec(ABC):
 
     @abstractmethod
     def encode_call(
-        self, task_name: str, args: tuple[Any], kwargs: dict[str, Any]
+        self, task_name: str, args: tuple[Any, ...], kwargs: dict[str, Any]
     ) -> Call:
         raise NotImplementedError()
 
