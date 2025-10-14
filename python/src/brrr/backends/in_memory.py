@@ -3,14 +3,12 @@ from __future__ import annotations
 import asyncio
 import typing
 from collections.abc import Mapping, Sequence
+from typing import override
 
 from brrr.store import CompareMismatch, NotFoundError
 
 from ..queue import Message, Queue, QueueInfo, QueueIsClosed, QueueIsEmpty
 from ..store import Cache, MemKey, Store
-
-if typing.TYPE_CHECKING:
-    from typing import Any
 
 
 class InMemoryQueue(Queue):
@@ -99,51 +97,62 @@ class InMemoryByteStore(Store, Cache):
     A store that stores bytes
     """
 
-    inner: dict[str, Any]
+    inner: dict[str, bytes]
+    cache: dict[str, int]
 
     def __init__(self) -> None:
         self.inner = {}
+        self.cache = {}
 
+    @override
     async def has(self, key: MemKey) -> bool:
         return _key2str(key) in self.inner
 
+    @override
     async def get(self, key: MemKey) -> bytes:
         full_hash = _key2str(key)
         if full_hash not in self.inner:
             raise NotFoundError(key)
         return self.inner[full_hash]
 
+    @override
     async def get_with_retry(self, key: MemKey) -> bytes:
         return await self.get(key=key)
 
+    @override
     async def set(self, key: MemKey, value: bytes) -> None:
         self.inner[_key2str(key)] = value
 
-    async def delete(self, key: MemKey):
+    @override
+    async def delete(self, key: MemKey) -> None:
         try:
             del self.inner[_key2str(key)]
         except KeyError:
             pass
 
-    async def set_new_value(self, key: MemKey, value: bytes):
+    @override
+    async def set_new_value(self, key: MemKey, value: bytes) -> None:
         k = _key2str(key)
         if k in self.inner:
             raise CompareMismatch()
         self.inner[k] = value
 
-    async def compare_and_set(self, key: MemKey, value: bytes, expected: bytes):
+    @override
+    async def compare_and_set(self, key: MemKey, value: bytes, expected: bytes) -> None:
         k = _key2str(key)
         if (k not in self.inner) or (self.inner[k] != expected):
             raise CompareMismatch()
         self.inner[k] = value
 
-    async def compare_and_delete(self, key: MemKey, expected: bytes):
+    @override
+    async def compare_and_delete(self, key: MemKey, expected: bytes) -> None:
         k = _key2str(key)
         if (k not in self.inner) or (self.inner[k] != expected):
             raise CompareMismatch()
         del self.inner[k]
 
+    @override
     async def incr(self, key: str) -> int:
-        n = self.inner.get(key, 0) + 1
-        self.inner[key] = n
+        n: int = self.cache.get(key, 0) + 1
+        self.cache[key] = n
         return n

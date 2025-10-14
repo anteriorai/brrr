@@ -175,7 +175,7 @@ class AppWorker(AppConsumer):
             # able to access it here.  Unfortunately, doing so defeats mypy’s
             # ability to recognize it as the common base class for different
             # WrappedTaskT instantiations (with different types substituted for
-            # the generic parametesr).  Currently, if you have multiple
+            # the generic parameters).  Currently, if you have multiple
             # different WrappedTaskT objects, with different concrete types,
             # mypy still recognizes that they’re all WrappedTask, which is
             # useful for the api (see its own docstring).  But this is the price

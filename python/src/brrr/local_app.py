@@ -11,7 +11,7 @@ from .connection import Server, serve
 
 class LocalApp:
     """
-    Low(er)-level primitive for local dev, mimicks App* types.
+    Low(er)-level primitive for local dev, mimics App* types.
     """
 
     def __init__(

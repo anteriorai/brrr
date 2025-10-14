@@ -1,6 +1,6 @@
 import dataclasses
 from dataclasses import dataclass
-from typing import ClassVar, Self
+from typing import Any, ClassVar, Self
 
 import bencodepy
 
@@ -31,11 +31,11 @@ class TaggedTuple:
 
     tag: ClassVar[int]
 
-    def astuple(self) -> tuple:
+    def astuple(self) -> tuple[Any, ...]:
         return (self.tag,) + dataclasses.astuple(self)
 
     @classmethod
-    def fromtuple(cls, t: tuple) -> Self:
+    def fromtuple(cls, t: tuple[Any, ...]) -> Self:
         if t[0] != cls.tag:
             raise ValueError(f"{cls.__name__} decode tag mismatch: {t[0]} != {cls.tag}")
         return cls(*t[1:])
@@ -44,7 +44,8 @@ class TaggedTuple:
 @dataclass(frozen=True)
 class TaggedTupleStrings(TaggedTuple):
     def encode(self) -> bytes:
-        return _bc.encode(self.astuple())
+        x: bytes = _bc.encode(self.astuple())
+        return x
 
     @classmethod
     def decode(cls, enc: bytes) -> Self:
