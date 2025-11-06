@@ -16,7 +16,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
-      - uses: cachix/install-nix-action@fd24c48048070c1be9acd18c9d369a83f0fe94d7
+      - uses: cachix/install-nix-action@456688f15bc354bef6d396e4a35f4f89d40bf2b7
         with:
           enable_kvm: true
           extra_nix_config: "system-features = nixos-test benchmark big-parallel kvm"
