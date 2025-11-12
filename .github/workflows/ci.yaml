@@ -6,7 +6,7 @@ jobs:
   nocommit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
+      - uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e
       - name: "nocommit checker"
         uses: nobssoftware/nocommit@5c3cf9519fe40b80b0954d254085b67b532a5dc3
 
@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e
       - uses: cachix/install-nix-action@456688f15bc354bef6d396e4a35f4f89d40bf2b7
         with:
           enable_kvm: true
@@ -36,9 +36,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@ff7abcd0c3c05ccf6adc123a8cd1fd4fb30fb493
+        uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e
       # Use a different nix installer for safety
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@2fd3724578c33f9f62507d651600d52b8de3c0b9
+        uses: DeterminateSystems/nix-installer-action@86a5f59de1021a60b96aabee99743e062ce4297a
       # No need for a cache
       - run: nix flake show
