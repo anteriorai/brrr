@@ -39,6 +39,6 @@ jobs:
         uses: actions/checkout@71cf2267d89c5cb81562390fa70a37fa40b1305e
       # Use a different nix installer for safety
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@86a5f59de1021a60b96aabee99743e062ce4297a
+        uses: DeterminateSystems/nix-installer-action@c5a866b6ab867e88becbed4467b93592bce69f8a
       # No need for a cache
       - run: nix flake show
