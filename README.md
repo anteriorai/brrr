@@ -109,7 +109,7 @@ $ nix run github:anteriorai/brrr#demo
 In the process list, select the worker process so you can see its output. Now in another terminal:
 
 ```
-$ curl 'http://localhost:8333/hello?greetee=John'
+$ curl -X POST 'http://localhost:8080/hello?greetee=John'
 ```
 
 You should see the worker print a greeting.
@@ -117,7 +117,7 @@ You should see the worker print a greeting.
 You can also run a Fibonacci job:
 
 ```
-$ curl 'http://localhost:8333/fib_and_print?n=11'
+$ curl -X POST 'http://localhost:8080/calc_and_print?op=fib&n=11'
 ```
 
 ## Implementation and Trade-Offs
