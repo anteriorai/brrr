@@ -7,7 +7,6 @@ import {
 } from "@aws-sdk/client-dynamodb";
 import {
   DeleteCommand,
-  DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
   UpdateCommand,
@@ -18,14 +17,11 @@ import type { NativeAttributeValue } from "@aws-sdk/util-dynamodb";
 import { setTimeout } from "node:timers/promises";
 
 export class Dynamo implements Store {
-  private readonly client: DynamoDBDocumentClient;
+  private readonly client: DynamoDBClient;
   private readonly tableName: string;
 
-  public constructor(
-    dynamoDbDocumentClient: DynamoDBDocumentClient,
-    tableName: string,
-  ) {
-    this.client = dynamoDbDocumentClient;
+  public constructor(client: DynamoDBClient, tableName: string) {
+    this.client = client;
     this.tableName = tableName;
   }
 
