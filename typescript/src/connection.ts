@@ -9,6 +9,7 @@ import { PendingReturn, ScheduleMessage, TaggedTuple } from "./tagged-tuple.ts";
 export interface DeferredCall {
   readonly topic: string | undefined;
   readonly call: Call;
+  readonly metadata: Uint8Array | undefined;
 }
 
 export class Defer {
@@ -32,6 +33,8 @@ export class Abandon {}
 
 export interface Request {
   readonly call: Call;
+  readonly rootId: string;
+  readonly metadata: Uint8Array;
 }
 
 export interface Response {
@@ -66,13 +69,17 @@ export class Connection {
   public async scheduleRaw(
     topic: string,
     call: Call,
+    metadata: Uint8Array,
   ): Promise<string | undefined> {
     if (await this.memory.hasValue(call.callHash)) {
       return;
     }
     await this.memory.setCall(call);
     const rootId = randomUUID().replaceAll("-", "");
-    await this.putJob(topic, new ScheduleMessage(rootId, call.callHash));
+    await this.putJob(
+      topic,
+      new ScheduleMessage(rootId, call.callHash, metadata),
+    );
     return rootId;
   }
 
@@ -82,10 +89,6 @@ export class Connection {
 
   public async setSignal(rootId: string, signal: Uint8Array): Promise<void> {
     await this.memory.setSignal(rootId, signal);
-  }
-
-  public async clearSignal(rootId: string): Promise<void> {
-    await this.memory.clearSignal(rootId);
   }
 }
 
@@ -122,7 +125,11 @@ export class Server extends Connection {
     const message = TaggedTuple.decodeFromString(ScheduleMessage, payload);
     const signal = await this.memory.getSignal(message.rootId);
     const call = await this.memory.getCall(message.callHash);
-    const handled = await requestHandler({ call }, this, signal);
+    const handled = await requestHandler(
+      { call, rootId: message.rootId, metadata: message.metadata },
+      this,
+      signal,
+    );
     if (handled instanceof Defer) {
       await Promise.all(
         handled.calls.map((child) => {
@@ -162,6 +169,7 @@ export class Server extends Connection {
     const job = new ScheduleMessage(
       pendingReturn.rootId,
       pendingReturn.callHash,
+      pendingReturn.metadata,
     );
     await this.putJob(pendingReturn.topic, job);
   }
@@ -172,18 +180,21 @@ export class Server extends Connection {
     parent: ScheduleMessage,
   ): Promise<void> {
     await this.memory.setCall(child.call);
+    // undefined (not empty) means "inherit the parent's metadata"
+    const metadata = child.metadata ?? parent.metadata;
     const callHash = child.call.callHash;
     const pendingReturn = new PendingReturn(
       parent.rootId,
       parent.callHash,
       topic,
+      parent.metadata,
     );
     const shouldSchedule = await this.memory.addPendingReturns(
       callHash,
       pendingReturn,
     );
     if (shouldSchedule) {
-      const job = new ScheduleMessage(parent.rootId, callHash);
+      const job = new ScheduleMessage(parent.rootId, callHash, metadata);
       await this.putJob(child.topic || topic, job);
     }
   }

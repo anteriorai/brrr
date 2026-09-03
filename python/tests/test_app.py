@@ -723,9 +723,15 @@ async def test_custom_context(topic: str) -> None:
             return Call(task_name=task_name, payload=b"", call_hash=task_name)
 
         async def invoke_task(
-            self, call: Call, handler: Any, active_worker: Any, signal: bytes
+            self,
+            call: Call,
+            task: Any,
+            active_worker: Any,
+            *,
+            signal: bytes,
+            metadata: bytes = b"",
         ) -> bytes:
-            result: str = await handler(call.task_name)
+            result: str = await task(call.task_name)
             return result.encode("utf-8")
 
         def decode_return(self, task_name: str, payload: bytes) -> Any:
@@ -781,11 +787,15 @@ async def test_cancel_task(topic: str, task_name: str) -> None:
             call: Call,
             task: Task[DemoPickleCodecContext, ..., Any],
             active_worker: ActiveWorker[DemoPickleCodecContext],
+            *,
             signal: bytes,
+            metadata: bytes = b"",
         ) -> bytes:
             if signal == CANCEL_SIGNAL:
                 raise Abandon
-            return await super().invoke_task(call, task, active_worker, signal)
+            return await super().invoke_task(
+                call, task, active_worker, signal=signal, metadata=metadata
+            )
 
     name_foo_and_bar, name_foo, name_bar = names(
         task_name, ("foo_and_bar", "foo", "bar")
@@ -867,3 +877,63 @@ async def test_no_overwrite_return() -> None:
                 conn.loop(topic, app.handle), conn.loop(topic, app.handle)
             )
             assert await app.read(foo)() == "first"
+
+
+async def test_app_depth_limit_using_metadata(topic: str) -> None:
+    store = InMemoryByteStore()
+    queue = CloseOnEmptyQueue([topic])
+    DEPTH_LIMIT = 10
+
+    class MyCodec(DemoPickleCodec):
+        async def invoke_task(
+            self,
+            call: Call,
+            task: Task[DemoPickleCodecContext, ..., Any],
+            active_worker: ActiveWorker[DemoPickleCodecContext],
+            signal: bytes,
+            metadata: bytes = b"",
+        ) -> bytes:
+            depth = int(metadata)
+            if depth > DEPTH_LIMIT:
+                raise Abandon
+            try:
+                return await super().invoke_task(
+                    call, task, active_worker, signal=signal, metadata=metadata
+                )
+            except Defer as e:
+                raise Defer(
+                    DeferredCall(
+                        call=dcall.call,
+                        topic=dcall.topic,
+                        metadata=str(depth + 1).encode(),
+                    )
+                    for dcall in e.calls
+                )
+
+    n = 0
+
+    async def foo(app: TestContext, a: int) -> int:
+        nonlocal n
+        n += 1
+        if a == 0:
+            # Prevent false positives from this test by exiting cleanly at some point
+            return 0
+        return await app.call(foo)(a - 1)
+
+    async with brrr.serve(queue, store, store) as conn:
+        app = AppWorker(
+            handlers={"foo": foo},
+            codec=MyCodec(),
+            connection=conn,
+        )
+        # times two to make sure it reaches depth before it overlaps with the second call
+        await app.schedule(foo, topic=topic, metadata=b"1")(2 * DEPTH_LIMIT)
+        await app.schedule(foo, topic=topic, metadata=b"1")(DEPTH_LIMIT - 1)
+
+        await conn.loop(topic, app.handle)
+
+        with pytest.raises(NotFoundError):
+            await app.read(foo)(2 * DEPTH_LIMIT)
+        await app.read(foo)(DEPTH_LIMIT - 1)
+
+        assert n == DEPTH_LIMIT * 2 + DEPTH_LIMIT - 1

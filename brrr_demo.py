@@ -60,7 +60,12 @@ class DemoJsonKwargsCodec(Codec[DemoContext]):
         return Call(task_name=task_name, payload=payload, call_hash=call_hash)
 
     async def invoke_task(
-        self, call: Call, task, active_worker: ActiveWorker[DemoContext], signal: bytes
+        self,
+        call: Call,
+        task,
+        active_worker: ActiveWorker[DemoContext],
+        signal: bytes,
+        metadata: bytes,
     ) -> bytes:
         if signal == CANCEL_SIGNAL:
             raise Abandon()
