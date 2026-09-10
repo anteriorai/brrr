@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import type { Publisher, Subscriber } from "./emitter.ts";
 import { BrrrShutdownSymbol, BrrrTaskDoneEventSymbol } from "./symbol.ts";
 import { PendingReturn, ScheduleMessage, TaggedTuple } from "./tagged-tuple.ts";
+import { hex } from "./internal-codecs.ts";
 
 export interface DeferredCall {
   readonly topic: string | undefined;
@@ -78,7 +79,7 @@ export class Connection {
     const rootId = randomUUID().replaceAll("-", "");
     await this.putJob(
       topic,
-      new ScheduleMessage(rootId, call.callHash, metadata),
+      new ScheduleMessage(rootId, call.callHash, hex.encode(metadata)),
     );
     return rootId;
   }
@@ -126,7 +127,7 @@ export class Server extends Connection {
     const signal = await this.memory.getSignal(message.rootId);
     const call = await this.memory.getCall(message.callHash);
     const handled = await requestHandler(
-      { call, rootId: message.rootId, metadata: message.metadata },
+      { call, rootId: message.rootId, metadata: hex.decode(message.metadata) },
       this,
       signal,
     );
@@ -181,7 +182,12 @@ export class Server extends Connection {
   ): Promise<void> {
     await this.memory.setCall(child.call);
     // undefined (not empty) means "inherit the parent's metadata"
-    const metadata = child.metadata ?? parent.metadata;
+    let metadata: string;
+    if (child.metadata !== undefined) {
+      metadata = hex.encode(child.metadata);
+    } else {
+      metadata = parent.metadata;
+    }
     const callHash = child.call.callHash;
     const pendingReturn = new PendingReturn(
       parent.rootId,

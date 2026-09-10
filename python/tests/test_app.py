@@ -57,7 +57,7 @@ async def test_app_worker(topic: str, task_name: str) -> None:
             codec=DemoPickleCodec(),
             connection=conn,
         )
-        root_id = await app.schedule(foo, topic=topic)(122)
+        root_id = await app.schedule(foo, topic=topic, metadata=b"")(122)
         assert root_id is not None
         await conn.loop(topic, app.handle)
         assert await app.read(foo)(122) == 457
@@ -81,12 +81,12 @@ async def test_app_worker_no_reschedule_cached(topic: str) -> None:
             codec=DemoPickleCodec(),
             connection=conn,
         )
-        root_id = await app.schedule(foo, topic=topic)(4)
+        root_id = await app.schedule(foo, topic=topic, metadata=b"")(4)
         assert root_id is not None
         await conn.loop(topic, app.handle)
         assert await app.read(foo)(4) == 16
 
-        empty_root_id = await app.schedule(foo, topic=topic)(4)
+        empty_root_id = await app.schedule(foo, topic=topic, metadata=b"")(4)
         assert empty_root_id is None
         await conn.loop(topic, app.handle)
         assert len(calls) == 1
@@ -111,8 +111,8 @@ async def test_app_worker_abandon(topic: str) -> None:
             codec=DemoPickleCodec(),
             connection=conn,
         )
-        await app.schedule(fib, topic=topic)(4)
-        await app.schedule(fib, topic=topic)(-4)
+        await app.schedule(fib, topic=topic, metadata=b"")(4)
+        await app.schedule(fib, topic=topic, metadata=b"")(-4)
         await conn.loop(topic, app.handle)
         assert await app.read(fib)(4) == 3
         with pytest.raises(NotFoundError):
@@ -131,7 +131,7 @@ async def test_app_consumer(topic: str, task_name: str) -> None:
         appw = AppWorker(
             handlers={task_name: foo}, codec=DemoPickleCodec(), connection=conn
         )
-        await appw.schedule(foo, topic=topic)(5)
+        await appw.schedule(foo, topic=topic, metadata=b"")(5)
         await conn.loop(topic, appw.handle)
 
     # Now test that a read-only app can read that
@@ -304,7 +304,7 @@ async def test_exc_gather(topic: str, task_name: str) -> None:
             codec=DemoPickleCodec(),
             connection=conn,
         )
-        await app.schedule(foo, topic=topic)()
+        await app.schedule(foo, topic=topic, metadata=b"")()
         await conn.loop(topic, app.handle)
         assert await app.read(foo)() == 1234
 
@@ -332,7 +332,7 @@ async def test_topics_separate_app_same_conn(topic: str, task_name: str) -> None
         app2 = AppWorker(
             handlers={name_two: two}, codec=DemoPickleCodec(), connection=conn
         )
-        await app2.schedule(name_two, topic=t2)(7)
+        await app2.schedule(name_two, topic=t2, metadata=b"")(7)
         await asyncio.gather(conn.loop(t1, app1.handle), conn.loop(t2, app2.handle))
 
 
@@ -357,7 +357,7 @@ async def test_topics_separate_app_separate_conn(topic: str, task_name: str) -> 
             app2 = AppWorker(
                 handlers={name_two: two}, codec=DemoPickleCodec(), connection=conn2
             )
-            await app2.schedule(name_two, topic=t2)(7)
+            await app2.schedule(name_two, topic=t2, metadata=b"")(7)
             await asyncio.gather(
                 conn1.loop(t1, app1.handle), conn2.loop(t2, app2.handle)
             )
@@ -383,7 +383,7 @@ async def test_topics_same_app(topic: str, task_name: str) -> None:
             codec=DemoPickleCodec(),
             connection=conn,
         )
-        await app.schedule(name_two, topic=t2)(7)
+        await app.schedule(name_two, topic=t2, metadata=b"")(7)
         # Listen on different topics with the same worker.
         await asyncio.gather(conn.loop(t1, app.handle), conn.loop(t2, app.handle))
 
@@ -399,7 +399,7 @@ async def test_weird_names(topic: str, task_name: str) -> None:
         app = AppWorker(
             handlers={task_name: double}, codec=DemoPickleCodec(), connection=conn
         )
-        await app.schedule(task_name, topic=topic)(7)
+        await app.schedule(task_name, topic=topic, metadata=b"")(7)
         await conn.loop(topic, app.handle)
         assert await app.read(task_name)(7) == 14
 
@@ -434,7 +434,7 @@ async def test_stop_when_empty(topic: str, task_name: str) -> None:
         app = AppWorker(
             handlers={task_name: foo}, codec=DemoPickleCodec(), connection=conn
         )
-        await app.schedule(foo, topic=topic)(3)
+        await app.schedule(foo, topic=topic, metadata=b"")(3)
         await conn.loop(topic, app.handle)
 
     assert calls_pre == Counter({0: 1, 1: 2, 2: 2, 3: 2})
@@ -474,7 +474,7 @@ async def test_parallel(topic: str, task_name: str, use_gather: bool) -> None:
             codec=DemoPickleCodec(),
             connection=conn,
         )
-        await app.schedule(top, topic=topic)()
+        await app.schedule(top, topic=topic, metadata=b"")()
         await asyncio.gather(*(conn.loop(topic, app.handle) for _ in range(parallel)))
 
 
@@ -507,7 +507,7 @@ async def test_stress_parallel(topic: str, task_name: str) -> None:
             codec=DemoPickleCodec(),
             connection=conn,
         )
-        await app.schedule(top, topic=topic)()
+        await app.schedule(top, topic=topic, metadata=b"")()
 
         await asyncio.gather(*(conn.loop(topic, app.handle) for _ in range(10)))
 
@@ -565,7 +565,7 @@ async def test_no_debounce_parent(topic: str) -> None:
             codec=DemoPickleCodec(),
             connection=conn,
         )
-        await app.schedule(parent, topic=topic)(50)
+        await app.schedule(parent, topic=topic, metadata=b"")(50)
         await asyncio.gather(
             *(conn.loop(topic, app.handle) for _ in range(num_workers))
         )
@@ -599,7 +599,7 @@ async def test_app_loop_resumable(topic: str) -> None:
         )
         while True:
             try:
-                await app.schedule(foo, topic=topic)(3)
+                await app.schedule(foo, topic=topic, metadata=b"")(3)
                 await conn.loop(topic, app.handle)
                 break
             except MyError:
@@ -637,7 +637,7 @@ async def test_app_loop_resumable_nested(topic: str, task_name: str) -> None:
         )
         while True:
             try:
-                await app.schedule(foo, topic=topic)(3)
+                await app.schedule(foo, topic=topic, metadata=b"")(3)
                 await conn.loop(topic, app.handle)
                 break
             except MyError:
@@ -663,7 +663,7 @@ async def test_app_handler_names(topic: str, task_name: str) -> None:
     async with local_app(
         topic=topic, handlers=handlers, codec=DemoPickleCodec()
     ) as app:
-        await app.schedule(name_bar)(4)
+        await app.schedule(name_bar, metadata=b"")(4)
         await app.run()
         assert await app.read(name_foo)(4) == 16
         assert await app.read(foo)(4) == 16
@@ -704,7 +704,7 @@ async def test_app_subclass(topic: str) -> None:
     handlers = dict(foo=foo, bar=bar, baz=baz)
     async with brrr.serve(queue, store, store) as conn:
         app = MyAppWorker(handlers=handlers, codec=DemoPickleCodec(), connection=conn)
-        await app.schedule(foo, topic=topic)(4)
+        await app.schedule(foo, topic=topic, metadata=b"")(4)
         await conn.loop(topic, app.handle)
         assert await app.read(foo)(4) == 14
 
@@ -749,8 +749,8 @@ async def test_custom_context(topic: str) -> None:
             codec=MyCodec(),
             connection=conn,
         )
-        await app.schedule(foo, topic=topic)()
-        await app.schedule(bar, topic=topic)()
+        await app.schedule(foo, topic=topic, metadata=b"")()
+        await app.schedule(bar, topic=topic, metadata=b"")()
         await conn.loop(topic, app.handle)
         assert await app.read(foo)() == "foo"
         assert await app.read(bar)() == "bar"
@@ -769,7 +769,7 @@ async def test_app_root_id(topic: str) -> None:
             codec=DemoPickleCodec(),
             connection=conn,
         )
-        await app.schedule(foo, topic=topic)()
+        await app.schedule(foo, topic=topic, metadata=b"")()
         await conn.loop(topic, app.handle)
         # Ensure that it exists at all
         assert await app.read(foo)()
@@ -821,7 +821,7 @@ async def test_cancel_task(topic: str, task_name: str) -> None:
             codec=CancelCodec(),
             connection=conn,
         )
-        root_id = await app.schedule(foo_and_bar, topic=topic)(3)
+        root_id = await app.schedule(foo_and_bar, topic=topic, metadata=b"")(3)
         assert root_id is not None
         await conn.set_signal(root_id, CANCEL_SIGNAL)
         await conn.loop(topic, app.handle)
@@ -872,7 +872,7 @@ async def test_no_overwrite_return() -> None:
                 codec=DemoPickleCodec(),
                 connection=conn,
             )
-            await app.schedule(foo, topic=topic)()
+            await app.schedule(foo, topic=topic, metadata=b"")()
             await asyncio.gather(
                 conn.loop(topic, app.handle), conn.loop(topic, app.handle)
             )

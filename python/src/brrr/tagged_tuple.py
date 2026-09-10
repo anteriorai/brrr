@@ -32,33 +32,13 @@ class TaggedTuple:
     tag: ClassVar[int]
 
     def astuple(self) -> tuple[Any, ...]:
-        # raw bytes possibly could have non utf8 so convert to hex representation
-        def enc(field: dataclasses.Field[Any], val: Any) -> Any:
-            if field.type is bytes:
-                return val.hex()
-            return val
-
-        return (self.tag,) + tuple(
-            enc(field, getattr(self, field.name)) for field in dataclasses.fields(self)
-        )
+        return (self.tag,) + dataclasses.astuple(self)
 
     @classmethod
     def fromtuple(cls, t: tuple[Any, ...]) -> Self:
         if t[0] != cls.tag:
             raise ValueError(f"{cls.__name__} decode tag mismatch: {t[0]} != {cls.tag}")
-        if len(t) - 1 != len(dataclasses.fields(cls)):
-            raise ValueError(
-                f"{cls.__name__} incorrect number of fields: {len(dataclasses.fields(cls))} vs {len(t) - 1}"
-            )
-
-        def dec(field: dataclasses.Field[Any], val: Any) -> Any:
-            if field.type is not bytes:
-                return val
-            return bytes.fromhex(val)
-
-        return cls(
-            *(dec(field, val) for field, val in zip(dataclasses.fields(cls), t[1:]))
-        )
+        return cls(*t[1:])
 
 
 @dataclass(frozen=True)
@@ -78,7 +58,7 @@ class PendingReturn(TaggedTuple):
     root_id: str
     call_hash: str
     topic: str
-    metadata: bytes
+    metadata: str
 
 
 @dataclass(frozen=True)
@@ -86,4 +66,4 @@ class ScheduleMessage(TaggedTupleStrings):
     tag = 4
     root_id: str
     call_hash: str
-    metadata: bytes
+    metadata: str

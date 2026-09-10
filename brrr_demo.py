@@ -202,7 +202,9 @@ async def schedule_task(request: web.BaseRequest):
     if task_name not in brrr_app.get()._registry.handlers:
         return response(404, {"error": "No such task"})
 
-    root_id = await brrr_app.get().schedule(task_name, topic=topic_py)(**kwargs)
+    root_id = await brrr_app.get().schedule(task_name, topic=topic_py, metadata=b"")(
+        **kwargs
+    )
     return response(202, {"status": "accepted", "root_id": root_id})
 
 

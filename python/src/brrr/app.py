@@ -69,14 +69,14 @@ class AppConsumer[C]:
         task_spec: Task[C, P, R],
         *,
         topic: str,
-        metadata: bytes = b"",
+        metadata: bytes,
     ) -> Callable[P, Awaitable[str | None]]: ...
     @overload
     def schedule(
-        self, task_spec: str, *, topic: str, metadata: bytes = b""
+        self, task_spec: str, *, topic: str, metadata: bytes
     ) -> Callable[..., Awaitable[str | None]]: ...
     def schedule(
-        self, task_spec: Any, *, topic: str, metadata: bytes = b""
+        self, task_spec: Any, *, topic: str, metadata: bytes
     ) -> Callable[..., Awaitable[str | None]]:
         """Public-facing one-shot schedule method."""
         task_name = self._registry.handlers.spec2name(task_spec)

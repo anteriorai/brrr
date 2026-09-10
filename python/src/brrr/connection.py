@@ -166,7 +166,7 @@ class Connection:
         idempotency_key: str,
         task_name: str,
         payload: bytes,
-        metadata: bytes = b"",
+        metadata: bytes,
     ) -> str | None:
         """Schedule this call on the brrr workforce.
 
@@ -186,7 +186,7 @@ class Connection:
         job = ScheduleMessage(
             call_hash=idempotency_key,
             root_id=root_id,
-            metadata=metadata,
+            metadata=metadata.hex(),
         )
         await self._put_job(topic, job)
         return root_id
@@ -261,7 +261,9 @@ class Server(Connection):
         # because it will then immediately call this parent flow back, which is
         # fine because the result does in fact exist.
         child_topic = child.topic or my_topic
-        metadata = child.metadata if child.metadata is not None else parent.metadata
+        metadata: str = (
+            child.metadata.hex() if child.metadata is not None else parent.metadata
+        )
         call_hash = child.call.call_hash
         ret = PendingReturn(
             root_id=parent.root_id,
@@ -327,7 +329,9 @@ class Server(Connection):
         logger.debug(
             f"Calling {my_topic} -> {msg.root_id}/{msg.call_hash} -> {call.task_name}"
         )
-        req = Request(call=call, root_id=msg.root_id, metadata=msg.metadata)
+        req = Request(
+            call=call, root_id=msg.root_id, metadata=bytes.fromhex(msg.metadata)
+        )
         ret = await handler(req, self, signal)
         match ret:
             case Defer(calls=calls):
