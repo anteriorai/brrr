@@ -70,8 +70,16 @@ class Request:
     # schedule operation.  Every “schedule” gets a new root id, regardless of
     # the call parameters, regardless of cache availability.
     root_id: str
-    # out-of-band metadata. Can store things like auth tokens or task depth limits
-    # here.
+    # Opaque out-of-band metadata: tracing context, task depth limits, anything
+    # non-semantic.  Comparable to SQS message attributes:
+    # https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-message-metadata.html
+    #
+    # Deliberately NOT part of the call hash, so it never participates in
+    # memoization: two calls differing only in metadata share a single cache
+    # entry.  A task must therefore not let metadata affect its return value.
+    #
+    # A task inherits its parent's metadata by default and can override what it
+    # passes to each child; it can never affect its parent's.
     metadata: bytes
 
 
